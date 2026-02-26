@@ -57,23 +57,23 @@
                             <small>{{ $branch->address ?? '-' }}</small>
                         </td>
                         <td>
-                            @if($branch->customers && count($branch->customers) > 0)
+                            @php
+                                $customers = $branch->customers_list ?? [];
+                            @endphp
+                            @if(count($customers) > 0)
                                 <div class="d-flex flex-column gap-1">
-                                    @foreach(array_slice($branch->customers, 0, 2) as $customer)
+                                    @foreach(array_slice($customers, 0, 2) as $customer)
                                         <small>
                                             <i class="bi bi-person-circle text-primary me-1"></i>
-                                            {{ $customer['name'] }}
-                                            @if(isset($customer['phone']) && $customer['phone'])
-                                                <span class="text-muted">({{ $customer['phone'] }})</span>
-                                            @endif
+                                            {{ $customer }}
                                         </small>
                                     @endforeach
-                                    @if(count($branch->customers) > 2)
-                                        <small class="text-muted">+{{ count($branch->customers) - 2 }} more</small>
+                                    @if(count($customers) > 2)
+                                        <small class="text-muted">+{{ count($customers) - 2 }} more</small>
                                     @endif
                                 </div>
                             @else
-                                <span class="text-muted">-</span>
+                                <span class="text-muted">No customers</span>
                             @endif
                         </td>
                         <td class="text-center">

@@ -470,14 +470,14 @@
                 <span>Finished Products</span>
             </a>
 
-            <div class="menu-section-title">BRANCHES</div>
+            <div class="menu-section-title">AREAS</div>
             <a href="{{ route('branch-inventory.index') }}" class="sidebar-link {{ request()->routeIs('branch-inventory.*') ? 'active' : '' }}">
                 <i class="bi bi-shop"></i>
-                <span>Area Inventory</span>
+                <span>Deliver Products</span>
             </a>
             <a href="{{ route('branches.index') }}" class="sidebar-link {{ request()->routeIs('branches.*') ? 'active' : '' }}">
                 <i class="bi bi-building"></i>
-                <span>Manage Areas</span>
+                <span>Area & Customer</span>
             </a>
 
             <div class="menu-section-title">TRANSACTIONS</div>

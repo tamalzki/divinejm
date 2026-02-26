@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\BranchInventory;
 use App\Models\FinishedProduct;
 use App\Models\StockMovement;
+use App\Models\ProductionMix;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -64,21 +65,10 @@ class SaleController extends Controller
     }
 
     /**
-     * Store a newly created sale
+     * Store a newly created sale - UPDATED: Allow multiple sales per DR + BO returns to warehouse
      */
     public function store(Request $request)
     {
-        // Check for duplicate DR first
-        $existingSale = Sale::where('branch_id', $request->branch_id)
-            ->where('customer_name', $request->customer_name)
-            ->where('dr_number', $request->dr_number)
-            ->first();
-
-        if ($existingSale) {
-            return redirect()->route('sales.show', $existingSale)
-                ->with('error', 'This DR# already has a sale recorded. You can edit the payment status below.');
-        }
-
         $request->validate([
             'branch_id' => 'required|exists:branches,id',
             'customer_name' => 'required|string',
@@ -99,18 +89,19 @@ class SaleController extends Controller
             'items.*.quantity_bo' => 'nullable|numeric|min:0',
             'items.*.quantity_replaced' => 'nullable|numeric|min:0',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.notes' => 'nullable|string',
         ]);
 
         DB::transaction(function () use ($request) {
-            // Create the sale
+            // Create the sale (NO duplicate check - allow multiple sales per DR)
             $sale = Sale::create([
                 'branch_id' => $request->branch_id,
                 'customer_name' => $request->customer_name,
                 'dr_number' => $request->dr_number,
                 'sale_date' => $request->sale_date,
                 'amount_paid' => $request->amount_paid ?? 0,
-                'payment_status' => $request->payment_status ?? 'to_be_collected', // Default if not set
+                'payment_status' => $request->payment_status ?? 'to_be_collected',
                 'payment_mode' => $request->payment_mode,
                 'payment_reference' => $request->payment_reference,
                 'payment_date' => $request->payment_date,
@@ -135,6 +126,7 @@ class SaleController extends Controller
                     'quantity_bo' => $itemData['quantity_bo'] ?? 0,
                     'quantity_replaced' => $itemData['quantity_replaced'] ?? 0,
                     'unit_price' => $itemData['unit_price'],
+                    'discount' => $itemData['discount'] ?? 0,
                     'notes' => $itemData['notes'] ?? null,
                 ]);
 
@@ -142,30 +134,32 @@ class SaleController extends Controller
                 $inventory = BranchInventory::where('branch_id', $request->branch_id)
                     ->where('finished_product_id', $itemData['finished_product_id'])
                     ->where(function ($query) use ($itemData) {
-                        if (!empty($itemData['batch_number'])) {
+                        if (!empty($itemData['batch_number']) && $itemData['batch_number'] !== 'N/A') {
                             $query->where('batch_number', $itemData['batch_number']);
                         } else {
                             $query->whereNull('batch_number');
                         }
                     })
-                    ->lockForUpdate()   // 🔥 ADD THIS LINE
+                    ->lockForUpdate()
                     ->first();
 
                 if ($inventory) {
                     // Deduct sold + BO quantities from branch inventory
                     $totalDeducted = $itemData['quantity_sold'] + ($itemData['quantity_bo'] ?? 0);
-                        if ($inventory->quantity < $totalDeducted) {
-                            throw new \Exception(
-                                "Insufficient inventory for " .
-                                $inventory->finishedProduct->name .
-                                ". Available: " .
-                                $inventory->quantity .
-                                ", Needed: " .
-                                $totalDeducted
-                            );
-                        }
-                        $inventory->quantity -= $totalDeducted;
-                        $inventory->save();
+                    
+                    if ($inventory->quantity < $totalDeducted) {
+                        throw new \Exception(
+                            "Insufficient inventory for " .
+                            $inventory->finishedProduct->name .
+                            ". Available: " .
+                            $inventory->quantity .
+                            ", Needed: " .
+                            $totalDeducted
+                        );
+                    }
+                    
+                    $inventory->quantity -= $totalDeducted;
+                    $inventory->save();
 
                     // Record stock movement for sale
                     StockMovement::create([
@@ -176,12 +170,30 @@ class SaleController extends Controller
                         'quantity' => $itemData['quantity_sold'],
                         'movement_date' => $request->sale_date,
                         'reference_number' => $request->dr_number,
+                        'customer_name' => $request->customer_name,
                         'notes' => "Sale to {$request->customer_name}",
                         'user_id' => Auth::id(),
                     ]);
 
-                    // Record BO movement if any
+                    // CRITICAL: Return BO to warehouse and batch
                     if (!empty($itemData['quantity_bo']) && $itemData['quantity_bo'] > 0) {
+                        $finishedProduct = FinishedProduct::lockForUpdate()->find($itemData['finished_product_id']);
+                        
+                        // Return to warehouse stock
+                        $finishedProduct->increment('stock_on_hand', $itemData['quantity_bo']);
+                        $finishedProduct->decrement('stock_out', $itemData['quantity_bo']);
+                        
+                        // Return to original batch if batch number exists
+                        if (!empty($itemData['batch_number']) && $itemData['batch_number'] !== 'N/A') {
+                            $productionMix = ProductionMix::where('batch_number', $itemData['batch_number'])
+                                ->lockForUpdate()
+                                ->first();
+                            if ($productionMix) {
+                                $productionMix->increment('actual_output', $itemData['quantity_bo']);
+                            }
+                        }
+                        
+                        // Record stock movement for BO return
                         StockMovement::create([
                             'branch_id' => $request->branch_id,
                             'finished_product_id' => $itemData['finished_product_id'],
@@ -190,12 +202,13 @@ class SaleController extends Controller
                             'quantity' => $itemData['quantity_bo'],
                             'movement_date' => $request->sale_date,
                             'reference_number' => $request->dr_number,
-                            'notes' => "Bad Order - " . ($itemData['notes'] ?? 'No reason specified'),
+                            'customer_name' => $request->customer_name,
+                            'notes' => "Bad Order returned to warehouse - " . ($itemData['notes'] ?? 'Damaged/Defective'),
                             'user_id' => Auth::id(),
                         ]);
                     }
                 } else {
-                    throw new \Exception("Product not found in branch inventory: Finished Product ID {$itemData['finished_product_id']}, Batch: {$itemData['batch_number']}");
+                    throw new \Exception("Product not found in branch inventory: Finished Product ID {$itemData['finished_product_id']}, Batch: " . ($itemData['batch_number'] ?? 'N/A'));
                 }
             }
 
@@ -204,16 +217,31 @@ class SaleController extends Controller
             $branch->addCustomer($request->customer_name);
         });
 
-        return redirect()->route('sales.index')->with('success', 'Sale recorded successfully!');
+        return redirect()->route('sales.index')->with('success', 'Sale recorded successfully! Bad orders returned to warehouse.');
     }
 
     /**
-     * Display the specified sale
+     * Display the specified sale - UPDATED: Show all sales for this DR
      */
     public function show(Sale $sale)
     {
         $sale->load(['branch', 'items.finishedProduct', 'user']);
-        return view('sales.show', compact('sale'));
+        
+        // Get all sales for this DR
+        $drSales = Sale::where('branch_id', $sale->branch_id)
+            ->where('customer_name', $sale->customer_name)
+            ->where('dr_number', $sale->dr_number)
+            ->with(['items.finishedProduct', 'user'])
+            ->orderBy('sale_date', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        // Calculate totals for this DR
+        $drTotalSold = $drSales->sum('total_amount');
+        $drTotalPaid = $drSales->sum('amount_paid');
+        $drBalance = $drTotalSold - $drTotalPaid;
+
+        return view('sales.show', compact('sale', 'drSales', 'drTotalSold', 'drTotalPaid', 'drBalance'));
     }
 
     /**
@@ -253,14 +281,14 @@ class SaleController extends Controller
     }
 
     /**
-     * Remove the specified sale
+     * Remove the specified sale - UPDATED: Also reverse BO returns
      */
     public function destroy(Sale $sale)
     {
         DB::transaction(function () use ($sale) {
-            // Return quantities to inventory
+            // Return quantities to branch inventory
             foreach ($sale->items as $item) {
-               $inventory = BranchInventory::where('branch_id', $sale->branch_id)
+                $inventory = BranchInventory::where('branch_id', $sale->branch_id)
                     ->where('finished_product_id', $item->finished_product_id)
                     ->where(function ($query) use ($item) {
                         if (!empty($item->batch_number)) {
@@ -269,13 +297,31 @@ class SaleController extends Controller
                             $query->whereNull('batch_number');
                         }
                     })
-                    ->lockForUpdate()   // optional but recommended
+                    ->lockForUpdate()
                     ->first();
 
                 if ($inventory) {
+                    // Return sold + BO to branch
                     $totalReturned = $item->quantity_sold + $item->quantity_bo;
                     $inventory->quantity += $totalReturned;
                     $inventory->save();
+                }
+                
+                // Reverse BO warehouse return if any
+                if ($item->quantity_bo > 0) {
+                    $finishedProduct = FinishedProduct::lockForUpdate()->find($item->finished_product_id);
+                    $finishedProduct->decrement('stock_on_hand', $item->quantity_bo);
+                    $finishedProduct->increment('stock_out', $item->quantity_bo);
+                    
+                    // Reverse batch return
+                    if (!empty($item->batch_number)) {
+                        $productionMix = ProductionMix::where('batch_number', $item->batch_number)
+                            ->lockForUpdate()
+                            ->first();
+                        if ($productionMix) {
+                            $productionMix->decrement('actual_output', $item->quantity_bo);
+                        }
+                    }
                 }
             }
 
@@ -295,19 +341,17 @@ class SaleController extends Controller
         // Handle if customers is an array of objects (extract name field)
         if (!empty($customers) && is_array($customers)) {
             $customers = array_map(function($customer) {
-                // If customer is an object/array with a name field, extract it
                 if (is_array($customer) && isset($customer['name'])) {
                     return $customer['name'];
                 } elseif (is_object($customer) && isset($customer->name)) {
                     return $customer->name;
                 }
-                // Otherwise return as-is (assuming it's already a string)
                 return $customer;
             }, $customers);
         }
         
         return response()->json([
-            'customers' => array_values($customers) // Re-index array
+            'customers' => array_values($customers)
         ]);
     }
 
@@ -316,7 +360,6 @@ class SaleController extends Controller
      */
     public function getDRNumbers(Branch $branch)
     {
-        // Get unique DR numbers from stock movements (transfer_out)
         $drNumbers = StockMovement::where('branch_id', $branch->id)
             ->whereIn('movement_type', ['transfer_out', 'extra_free'])
             ->select('reference_number as dr_number')
@@ -332,30 +375,53 @@ class SaleController extends Controller
     }
 
     /**
-     * API: Get products for a specific DR number
+     * API: Get products for a specific DR - UPDATED: Calculate remaining quantities
      */
     public function getDRProducts(Branch $branch, $drNumber)
     {
-        // Get products from stock movements for this DR
+        // Get products originally deployed with this DR
         $movements = StockMovement::with('finishedProduct')
             ->where('branch_id', $branch->id)
             ->where('reference_number', $drNumber)
             ->whereIn('movement_type', ['transfer_out', 'extra_free'])
             ->get();
 
-        $products = $movements->map(function($movement) {
+        // Get already sold quantities from previous sales
+        $previousSales = Sale::where('branch_id', $branch->id)
+            ->where('dr_number', $drNumber)
+            ->with('items')
+            ->get();
+
+        $soldQuantities = [];
+        foreach ($previousSales as $sale) {
+            foreach ($sale->items as $item) {
+                $key = $item->finished_product_id . '_' . ($item->batch_number ?? 'no-batch');
+                if (!isset($soldQuantities[$key])) {
+                    $soldQuantities[$key] = 0;
+                }
+                $soldQuantities[$key] += $item->quantity_sold;
+            }
+        }
+
+        $products = $movements->map(function($movement) use ($soldQuantities) {
+            $key = $movement->finished_product_id . '_' . ($movement->batch_number ?? 'no-batch');
+            $alreadySold = $soldQuantities[$key] ?? 0;
+            $remaining = $movement->quantity - $alreadySold;
+
             return [
                 'finished_product_id' => $movement->finished_product_id,
                 'product_name' => $movement->finishedProduct->name,
                 'sku' => $movement->finishedProduct->sku,
-                'batch_number' => $movement->batch_number, // Ensure batch number is always set
+                'batch_number' => $movement->batch_number ?? 'N/A',
                 'deployed_qty' => $movement->quantity,
+                'already_sold' => $alreadySold,
+                'remaining_qty' => max(0, $remaining),
                 'movement_type' => $movement->movement_type,
-                'selling_price' => $movement->finishedProduct->selling_price ?? 0, // Add selling price
+                'selling_price' => $movement->finishedProduct->selling_price ?? 0,
             ];
         });
 
-        // Group by product and batch to combine transfer_out and extra_free
+        // Group by product and batch
         $groupedProducts = $products->groupBy(function($item) {
             return $item['finished_product_id'] . '_' . ($item['batch_number'] ?? 'no-batch');
         })->map(function($group) {
@@ -366,12 +432,16 @@ class SaleController extends Controller
                 'sku' => $first['sku'],
                 'batch_number' => $first['batch_number'],
                 'deployed_qty' => $group->sum('deployed_qty'),
+                'already_sold' => $group->sum('already_sold'),
+                'remaining_qty' => $group->sum('remaining_qty'),
                 'selling_price' => $first['selling_price'],
             ];
         })->values();
 
         return response()->json([
-            'products' => $groupedProducts
+            'products' => $groupedProducts,
+            'has_previous_sales' => $previousSales->count() > 0,
+            'previous_sales_count' => $previousSales->count()
         ]);
     }
 
@@ -380,7 +450,6 @@ class SaleController extends Controller
      */
     public function getProducts(Request $request, Branch $branch, $customerName)
     {
-        // Get all products in branch inventory
         $products = BranchInventory::with('finishedProduct')
             ->where('branch_id', $branch->id)
             ->where('quantity', '>', 0)
@@ -401,19 +470,20 @@ class SaleController extends Controller
     }
 
     /**
-     * API: Check if DR already exists
+     * API: Check if DR already exists - UPDATED: Return info without blocking
      */
     public function checkDrNumber(Request $request, Branch $branch, $customerName, $drNumber)
     {
-        $existingSale = Sale::where('branch_id', $branch->id)
+        $existingSales = Sale::where('branch_id', $branch->id)
             ->where('customer_name', $customerName)
             ->where('dr_number', $drNumber)
             ->with('items.finishedProduct')
-            ->first();
+            ->get();
 
         return response()->json([
-            'exists' => !is_null($existingSale),
-            'sale' => $existingSale
+            'exists' => $existingSales->count() > 0,
+            'sales_count' => $existingSales->count(),
+            'sales' => $existingSales
         ]);
     }
 }

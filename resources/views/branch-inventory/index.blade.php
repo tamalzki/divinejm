@@ -104,7 +104,7 @@
                         <td class="text-center">
                             <a href="{{ route('branch-inventory.show', $branch) }}" 
                                class="btn btn-sm btn-primary">
-                                <i class="bi bi-box-seam me-1"></i>Manage
+                                <i class="bi bi-box-seam me-1"></i>Deliver Foods
                             </a>
                         </td>
                     </tr>

@@ -129,88 +129,94 @@
                 <thead class="table-light">
                     <tr>
                         <th>DR#</th>
-                        <th>Date</th>
+                        <th>Sale Dates</th>
                         <th>Area</th>
                         <th>Customer</th>
+                        <th class="text-center">Sales Count</th>
                         <th class="text-end">Total</th>
                         <th class="text-end">Paid</th>
                         <th class="text-end">Balance</th>
                         <th>Payment Status</th>
-                        <th>Payment Mode</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($sales as $sale)
-                    <tr>
-                        <td>
-                            <strong class="text-primary">{{ $sale->dr_number }}</strong>
-                        </td>
-                        <td><small>{{ $sale->sale_date->format('M d, Y') }}</small></td>
-                        <td>{{ $sale->branch->name }}</td>
-                        <td>{{ $sale->customer_name }}</td>
-                        <td class="text-end">
-                            <strong>₱{{ number_format($sale->total_amount, 2) }}</strong>
-                        </td>
-                        <td class="text-end text-success">
-                            ₱{{ number_format($sale->amount_paid, 2) }}
-                        </td>
-                        <td class="text-end {{ $sale->balance > 0 ? 'text-danger' : 'text-muted' }}">
-                            ₱{{ number_format($sale->balance, 2) }}
-                        </td>
-                        <td>
-                            <span class="badge bg-{{ $sale->payment_status_badge }}">
-                                {{ $sale->payment_status_label }}
-                            </span>
-                        </td>
-                        <td>
-                            <small>{{ $sale->payment_mode_label }}</small>
-                        </td>
-                        <td class="text-center">
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ route('sales.show', $sale) }}" class="btn btn-info" title="View">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                                <a href="{{ route('sales.edit', $sale) }}" class="btn btn-warning" title="Edit Payment">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $sale->id }}" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
+                    @php
+                        // Group sales by DR
+                        $groupedSales = $sales->groupBy(function($sale) {
+                            return $sale->branch_id . '_' . $sale->customer_name . '_' . $sale->dr_number;
+                        });
+                    @endphp
 
-                            <!-- Delete Modal -->
-                            <div class="modal fade" id="deleteModal{{ $sale->id }}" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header bg-danger text-white">
-                                            <h5 class="modal-title">Delete Sale</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p>Are you sure you want to delete this sale?</p>
-                                            <div class="alert alert-warning">
-                                                <strong>DR#:</strong> {{ $sale->dr_number }}<br>
-                                                <strong>Customer:</strong> {{ $sale->customer_name }}<br>
-                                                <strong>Amount:</strong> ₱{{ number_format($sale->total_amount, 2) }}
-                                            </div>
-                                            <p class="text-danger"><strong>Note:</strong> This will return the inventory to the branch.</p>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <form action="{{ route('sales.destroy', $sale) }}" method="POST" class="d-inline">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-danger">
-                                                    <i class="bi bi-trash me-2"></i>Delete Sale
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
+                    @foreach($groupedSales as $group)
+                        @php
+                            $firstSale = $group->first();
+                            $salesCount = $group->count();
+                            $totalAmount = $group->sum('total_amount');
+                            $totalPaid = $group->sum('amount_paid');
+                            $totalBalance = $totalAmount - $totalPaid;
+                            
+                            // Determine overall payment status for DR
+                            if ($totalPaid >= $totalAmount) {
+                                $drStatus = 'paid';
+                                $drBadge = 'success';
+                                $drLabel = 'Paid';
+                            } elseif ($totalPaid > 0) {
+                                $drStatus = 'partial';
+                                $drBadge = 'warning';
+                                $drLabel = 'Partial';
+                            } else {
+                                $drStatus = 'to_be_collected';
+                                $drBadge = 'danger';
+                                $drLabel = 'To Be Collected';
+                            }
+                        @endphp
+                        <tr>
+                            <td>
+                                <strong class="text-primary">{{ $firstSale->dr_number }}</strong>
+                            </td>
+                            <td>
+                                @if($salesCount > 1)
+                                    <small>
+                                        {{ $group->first()->sale_date->format('M d, Y') }}
+                                        <br>
+                                        <span class="text-muted">
+                                            to {{ $group->last()->sale_date->format('M d, Y') }}
+                                        </span>
+                                    </small>
+                                @else
+                                    <small>{{ $firstSale->sale_date->format('M d, Y') }}</small>
+                                @endif
+                            </td>
+                            <td>{{ $firstSale->branch->name }}</td>
+                            <td>{{ $firstSale->customer_name }}</td>
+                            <td class="text-center">
+                                @if($salesCount > 1)
+                                    <span class="badge bg-info">{{ $salesCount }} sales</span>
+                                @else
+                                    <span class="text-muted">1</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <strong>₱{{ number_format($totalAmount, 2) }}</strong>
+                            </td>
+                            <td class="text-end text-success">
+                                ₱{{ number_format($totalPaid, 2) }}
+                            </td>
+                            <td class="text-end {{ $totalBalance > 0 ? 'text-danger' : 'text-muted' }}">
+                                ₱{{ number_format($totalBalance, 2) }}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ $drBadge }}">
+                                    {{ $drLabel }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ route('sales.show', $firstSale) }}" class="btn btn-sm btn-info" title="View Sales History">
+                                    <i class="bi bi-eye me-1"></i>View
+                                </a>
+                            </td>
+                        </tr>
                     @endforeach
                 </tbody>
             </table>

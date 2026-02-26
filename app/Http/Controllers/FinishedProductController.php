@@ -111,8 +111,9 @@ class FinishedProductController extends Controller
             ->orderBy('production_date', 'desc')
             ->paginate(10, ['*'], 'restocks');
         
-        $salesHistory = $finishedProduct->sales()
-            ->orderBy('sale_date', 'desc')
+        $salesHistory = $finishedProduct->saleItems()
+            ->with('sale') // load parent sale
+            ->latest()
             ->paginate(10, ['*'], 'sales');
         
         $stockMovements = $finishedProduct->stockMovements()
@@ -132,7 +133,19 @@ class FinishedProductController extends Controller
     {
         $finishedProduct->load('recipes.rawMaterial');
         
-        $rawMaterials = RawMaterial::orderBy('category')->orderBy('name')->get();
+        $ingredients = RawMaterial::where('category', 'ingredient')
+    ->orderBy('name')
+    ->get();
+
+$packaging = RawMaterial::where('category', 'packaging')
+    ->orderBy('name')
+    ->get();
+
+return view('finished-products.edit', compact(
+    'finishedProduct',
+    'ingredients',
+    'packaging'
+));
         
         return view('finished-products.edit', compact('finishedProduct', 'rawMaterials'));
     }

@@ -35,10 +35,10 @@ class FinishedProduct extends Model
     ];
 
     // RELATIONSHIPS
-    public function sales()
-    {
-        return $this->hasMany(Sale::class);
-    }
+   public function saleItems()
+{
+    return $this->hasMany(SaleItem::class, 'finished_product_id');
+}
 
     public function restocks()
     {

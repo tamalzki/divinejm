@@ -70,11 +70,7 @@
         <div class="card mb-4">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="use-tab" data-bs-toggle="tab" data-bs-target="#use" type="button" role="tab">
-                            <i class="bi bi-box-arrow-right me-2"></i>Use Material
-                        </button>
-                    </li>
+                    
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="restock-tab" data-bs-toggle="tab" data-bs-target="#restock" type="button" role="tab">
                             <i class="bi bi-plus-circle me-2"></i>Restock / Add Stock
@@ -85,72 +81,7 @@
             <div class="card-body">
                 <div class="tab-content">
                     <!-- USE MATERIAL TAB -->
-                    <div class="tab-pane fade show active" id="use" role="tabpanel">
-                        <form action="{{ route('raw-materials.use', $rawMaterial) }}" method="POST" id="usageForm">
-                            @csrf
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Quantity to Use <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <input type="number" 
-                                               step="0.01" 
-                                               name="quantity_used" 
-                                               id="quantityUsed"
-                                               class="form-control @error('quantity_used') is-invalid @enderror" 
-                                               value="{{ old('quantity_used') }}" 
-                                               placeholder="0.00" 
-                                               max="{{ $rawMaterial->quantity }}"
-                                               required>
-                                        <span class="input-group-text">{{ $rawMaterial->unit }}</span>
-                                    </div>
-                                    <small class="text-muted">Available: {{ $rawMaterial->quantity }} {{ $rawMaterial->unit }}</small>
-                                    @error('quantity_used')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Usage Date <span class="text-danger">*</span></label>
-                                    <input type="date" 
-                                           name="usage_date" 
-                                           class="form-control @error('usage_date') is-invalid @enderror" 
-                                           value="{{ old('usage_date', date('Y-m-d')) }}" 
-                                           required>
-                                    @error('usage_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Purpose <span class="text-danger">*</span></label>
-                                <select name="purpose" class="form-select @error('purpose') is-invalid @enderror" required>
-                                    <option value="">-- Select Purpose --</option>
-                                    <option value="production" {{ old('purpose') == 'production' ? 'selected' : '' }}>Production</option>
-                                    <option value="testing" {{ old('purpose') == 'testing' ? 'selected' : '' }}>Testing/Quality Control</option>
-                                    <option value="wastage" {{ old('purpose') == 'wastage' ? 'selected' : '' }}>Wastage/Spoilage</option>
-                                    <option value="sample" {{ old('purpose') == 'sample' ? 'selected' : '' }}>Sample</option>
-                                    <option value="other" {{ old('purpose') == 'other' ? 'selected' : '' }}>Other</option>
-                                </select>
-                                @error('purpose')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Notes</label>
-                                <textarea name="notes" 
-                                          class="form-control" 
-                                          rows="2" 
-                                          placeholder="Additional details...">{{ old('notes') }}</textarea>
-                            </div>
-
-                            <div id="useStockAlert" class="alert alert-danger d-none mb-3">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                <strong>Insufficient Stock!</strong>
-                                <div id="useStockAlertMessage"></div>
-                            </div>
-
-                            <button type="submit" id="useSubmitBtn" class="btn btn-danger">
-                                <i class="bi bi-dash-circle me-2"></i>Record Usage
-                            </button>
-                        </form>
-                    </div>
+                    
 
                     <!-- RESTOCK TAB -->
                     <div class="tab-pane fade" id="restock" role="tabpanel">

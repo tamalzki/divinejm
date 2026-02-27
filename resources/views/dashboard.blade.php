@@ -3,21 +3,211 @@
 @section('page-title', 'Dashboard')
 
 @section('content')
-<!-- Alerts -->
-@if($alerts->count() > 0)
-<div class="alert alert-warning alert-dismissible fade show" role="alert">
-    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-    <strong>Low Stock Alerts!</strong>
-    <ul class="mb-0 mt-2">
-        @foreach($alerts as $alert)
-        <li>{{ $alert->product_name }} ({{ str_replace('_', ' ', $alert->product_type) }}): {{ $alert->current_stock }} / {{ $alert->minimum_stock }}</li>
-        @endforeach
-    </ul>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+<!-- CRITICAL ALERTS BANNER -->
+@if($overdueReceivables->count() > 0 || $outOfStockProducts->count() > 0 || $expiringProducts->count() > 0 || $recentBadOrders->count() > 0)
+<div class="alert alert-danger border-0 shadow-sm mb-4 p-3">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+        <div class="flex-grow-1">
+            <strong class="d-block mb-2">CRITICAL ALERTS - Immediate Action Required</strong>
+            <div class="d-flex gap-4 flex-wrap">
+                @if($overdueReceivables->count() > 0)
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-clock-history text-white me-2"></i>
+                    <span>
+                        <strong>{{ $overdueReceivables->count() }}</strong> Overdue Payments
+                        <small class="ms-1">(₱{{ number_format($overdueReceivables->sum('overdue_amount'), 0) }})</small>
+                    </span>
+                </div>
+                @endif
+
+                @if($outOfStockProducts->count() > 0)
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-inbox text-white me-2"></i>
+                    <span><strong>{{ $outOfStockProducts->count() }}</strong> Out of Stock</span>
+                </div>
+                @endif
+
+                @if($expiringProducts->count() > 0)
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-calendar-x text-white me-2"></i>
+                    <span>
+                        <strong>{{ $expiringProducts->count() }}</strong> Expiring Soon
+                        <small class="ms-1">({{ $expiringProducts->sum(function($p) { return $p->stock_on_hand + $p->stock_out; }) }} units)</small>
+                    </span>
+                </div>
+                @endif
+
+                @if($recentBadOrders->count() > 0)
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-x-circle text-white me-2"></i>
+                    <span>
+                        <strong>{{ $recentBadOrders->sum('total_bo') }}</strong> Bad Orders
+                        <small class="ms-1">({{ $recentBadOrders->count() }} products)</small>
+                    </span>
+                </div>
+                @endif
+            </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-toggle="collapse" data-bs-target="#alertDetails"></button>
+    </div>
+    
+    <!-- Collapsible Details -->
+    <div class="collapse mt-3" id="alertDetails">
+        <div class="row g-3">
+            @if($overdueReceivables->count() > 0)
+            <div class="col-md-6">
+                <div class="card bg-white">
+                    <div class="card-header bg-transparent border-0 py-2">
+                        <h6 class="mb-0 text-dark">
+                            <i class="bi bi-clock-history text-danger me-2"></i>
+                            Overdue Payments
+                        </h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="list-group list-group-flush">
+                            @foreach($overdueReceivables->take(3) as $receivable)
+                            <div class="list-group-item px-0 py-2 small">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong class="text-dark">{{ $receivable->customer_name }}</strong>
+                                        <small class="text-muted d-block">{{ $receivable->branch->name ?? 'N/A' }}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <strong class="text-danger">₱{{ number_format($receivable->overdue_amount, 0) }}</strong>
+                                        <small class="text-muted d-block">{{ $receivable->days_overdue }}d overdue</small>
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                        <a href="{{ route('sales.index') }}?payment_status=to_be_collected" class="btn btn-sm btn-danger w-100 mt-2">
+                            View All Receivables
+                        </a>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            @if($outOfStockProducts->count() > 0)
+            <div class="col-md-6">
+                <div class="card bg-white">
+                    <div class="card-header bg-transparent border-0 py-2">
+                        <h6 class="mb-0 text-dark">
+                            <i class="bi bi-inbox text-danger me-2"></i>
+                            Out of Stock
+                        </h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="list-group list-group-flush">
+                            @foreach($outOfStockProducts->take(3) as $product)
+                            <div class="list-group-item px-0 py-2 small">
+                                <strong class="text-dark">{{ $product->name }}</strong>
+                                <small class="text-muted d-block">{{ $product->stock_out }} units in branches</small>
+                            </div>
+                            @endforeach
+                        </div>
+                        <a href="{{ route('finished-products.index') }}" class="btn btn-sm btn-warning w-100 mt-2">
+                            Restock Now
+                        </a>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            @if($expiringProducts->count() > 0)
+            <div class="col-md-6">
+                <div class="card bg-white">
+                    <div class="card-header bg-transparent border-0 py-2">
+                        <h6 class="mb-0 text-dark">
+                            <i class="bi bi-calendar-x text-warning me-2"></i>
+                            Expiring Soon
+                        </h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="list-group list-group-flush">
+                            @foreach($expiringProducts->take(3) as $product)
+                            <div class="list-group-item px-0 py-2 small">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong class="text-dark">{{ $product->name }}</strong>
+                                        <small class="text-muted d-block">{{ $product->stock_on_hand + $product->stock_out }} units</small>
+                                    </div>
+                                    <span class="badge bg-warning">{{ $product->days_until_expiry }}d left</span>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            @if($recentBadOrders->count() > 0)
+            <div class="col-md-6">
+                <div class="card bg-white">
+                    <div class="card-header bg-transparent border-0 py-2">
+                        <h6 class="mb-0 text-dark">
+                            <i class="bi bi-x-circle text-danger me-2"></i>
+                            Recent Bad Orders
+                        </h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-2">
+                                <thead>
+                                    <tr class="small">
+                                        <th>Product</th>
+                                        <th>DR#</th>
+                                        <th>Batch</th>
+                                        <th class="text-center">BO Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($recentBadOrders->take(5) as $bo)
+                                    <tr class="small">
+                                        <td><strong>{{ $bo['product']->name }}</strong></td>
+                                        <td>
+                                            @if($bo['dr_numbers']->count() > 0)
+                                                @foreach($bo['dr_numbers']->take(2) as $dr)
+                                                    <span class="badge bg-secondary">{{ $dr }}</span>
+                                                @endforeach
+                                                @if($bo['dr_numbers']->count() > 2)
+                                                    <small class="text-muted">+{{ $bo['dr_numbers']->count() - 2 }}</small>
+                                                @endif
+                                            @else
+                                                <small class="text-muted">-</small>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($bo['batch_numbers']->count() > 0)
+                                                @foreach($bo['batch_numbers']->take(2) as $batch)
+                                                    <span class="badge bg-info">{{ $batch }}</span>
+                                                @endforeach
+                                                @if($bo['batch_numbers']->count() > 2)
+                                                    <small class="text-muted">+{{ $bo['batch_numbers']->count() - 2 }}</small>
+                                                @endif
+                                            @else
+                                                <small class="text-muted">-</small>
+                                            @endif
+                                        </td>
+                                        <td class="text-center"><span class="badge bg-danger">{{ $bo['total_bo'] }}</span></td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+        </div>
+    </div>
 </div>
 @endif
 
-<!-- Main Stats Cards -->
+<!-- KEY PERFORMANCE INDICATORS -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="stats-card">
@@ -25,324 +215,448 @@
                 <div>
                     <p class="mb-2">Today's Sales</p>
                     <h3>₱{{ number_format($todaySales, 2) }}</h3>
+                    <small class="text-white-50">Collected: ₱{{ number_format($todayCollected, 2) }}</small>
                 </div>
                 <i class="bi bi-cash-coin fs-1 opacity-25"></i>
             </div>
             @if($salesGrowth != 0)
-            <small class="text-white-50">
-                <i class="bi bi-{{ $salesGrowth >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
-                {{ number_format(abs($salesGrowth), 1) }}% vs yesterday
-            </small>
+            <div class="mt-2">
+                <span class="badge bg-{{ $salesGrowth >= 0 ? 'success' : 'danger' }}">
+                    <i class="bi bi-{{ $salesGrowth >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
+                    {{ number_format(abs($salesGrowth), 1) }}% vs yesterday
+                </span>
+            </div>
             @endif
         </div>
     </div>
+
     <div class="col-md-3">
         <div class="stats-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <p class="mb-2">Monthly Sales</p>
+                    <p class="mb-2">Monthly Revenue</p>
                     <h3>₱{{ number_format($monthlySales, 2) }}</h3>
+                    <small class="text-white-50">Profit: ₱{{ number_format($monthlyProfit, 2) }}</small>
                 </div>
                 <i class="bi bi-graph-up fs-1 opacity-25"></i>
             </div>
-            <small class="text-white-50">Net Profit: ₱{{ number_format($monthlyProfit, 2) }}</small>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stats-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <p class="mb-2">Total Products</p>
-                    <h3>{{ number_format($totalFinishedProducts, 0) }}</h3>
-                </div>
-                <i class="bi bi-box-seam fs-1 opacity-25"></i>
+            <div class="mt-2">
+                <span class="badge bg-light text-primary">
+                    <i class="bi bi-percent"></i>
+                    {{ number_format($collectionRate, 1) }}% collected
+                </span>
             </div>
-            <small class="text-white-50">{{ $lowStockFinishedProducts }} low stock</small>
         </div>
     </div>
+
     <div class="col-md-3">
         <div class="stats-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
+                    <p class="mb-2">To Be Collected</p>
+                    <h3>₱{{ number_format($totalReceivables, 2) }}</h3>
+                    <small class="text-white-50">
+                        @if($overdueReceivables->count() > 0)
+                            {{ $overdueReceivables->count() }} overdue accounts
+                        @else
+                            All current
+                        @endif
+                    </small>
+                </div>
+                <i class="bi bi-clock-history fs-1 opacity-25"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stats-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
                     <p class="mb-2">Inventory Value</p>
                     <h3>₱{{ number_format($totalInventoryValue/1000, 1) }}K</h3>
+                    <small class="text-white-50">{{ number_format($totalInventory) }} units</small>
                 </div>
-                <i class="bi bi-currency-dollar fs-1 opacity-25"></i>
+                <i class="bi bi-box-seam fs-1 opacity-25"></i>
             </div>
-            <small class="text-white-50">{{ $totalInventory }} units total</small>
+            @if($zeroStockProducts > 0)
+            <div class="mt-2">
+                <span class="badge bg-danger">{{ $zeroStockProducts }} products out of stock</span>
+            </div>
+            @endif
         </div>
     </div>
 </div>
 
-<!-- Stock Distribution Cards -->
+<!-- CRITICAL ACTIONS NEEDED -->
 <div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-center">
-                <i class="bi bi-house-fill text-success fs-1 mb-2"></i>
-                <h5 class="mb-1">{{ number_format($totalStockOnHand) }} units</h5>
-                <p class="text-muted mb-1 small">In Warehouse</p>
-                <small class="text-success">₱{{ number_format($warehouseValue, 2) }}</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-center">
-                <i class="bi bi-shop-window text-info fs-1 mb-2"></i>
-                <h5 class="mb-1">{{ number_format($totalStockOut) }} units</h5>
-                <p class="text-muted mb-1 small">In Branches</p>
-                <small class="text-info">₱{{ number_format($branchValue, 2) }}</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-center">
-                <i class="bi bi-arrow-left-right text-primary fs-1 mb-2"></i>
-                <h5 class="mb-1">{{ number_format($todayDeployments) }} / {{ number_format($todayReturns) }}</h5>
-                <p class="text-muted mb-1 small">Today's Movements</p>
-                <small class="text-muted">Deployed / Returned</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <!-- Recent Sales -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Sales</h5>
+    <!-- Overdue Receivables -->
+    @if($overdueReceivables->count() > 0)
+    <div class="col-md-6">
+        <div class="card border-danger shadow-sm">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    OVERDUE PAYMENTS - Collect Immediately
+                </h6>
             </div>
             <div class="card-body">
-                @if($recentSales->count() > 0)
+                <div class="list-group list-group-flush">
+                    @foreach($overdueReceivables as $receivable)
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ $receivable->customer_name }}</h6>
+                                <small class="text-muted">
+                                    {{ $receivable->branch->name ?? 'N/A' }} | 
+                                    {{ $receivable->overdue_count }} invoice(s)
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <strong class="text-danger">₱{{ number_format($receivable->overdue_amount, 2) }}</strong>
+                                <br>
+                                <span class="badge bg-danger">{{ $receivable->days_overdue }} days overdue</span>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ route('sales.index') }}?payment_status=to_be_collected" class="btn btn-sm btn-danger w-100">
+                    <i class="bi bi-cash-stack me-2"></i>View All Receivables
+                </a>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Products Needing Production -->
+    @if($needsProduction->count() > 0)
+    <div class="col-md-6">
+        <div class="card border-warning shadow-sm">
+            <div class="card-header bg-warning">
+                <h6 class="mb-0">
+                    <i class="bi bi-gear me-2"></i>
+                    URGENT PRODUCTION NEEDED
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    @foreach($needsProduction as $product)
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ $product->name }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Warehouse: {{ $product->stock_on_hand }} / Min: {{ $product->minimum_stock }}
+                                </small>
+                            </div>
+                            <span class="badge bg-danger">CRITICAL</span>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ route('production-mix.index') }}" class="btn btn-sm btn-warning w-100">
+                    <i class="bi bi-plus-circle me-2"></i>Start Production
+                </a>
+            </div>
+        </div>
+    </div>
+    @endif
+</div>
+
+<!-- PRODUCTION & QUALITY METRICS -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>Production Performance (Last 7 Days)</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <i class="bi bi-box-seam text-primary fs-2"></i>
+                        <h4 class="mt-2">{{ $productionStats['batches_completed'] }}</h4>
+                        <p class="text-muted mb-0 small">Batches Completed</p>
+                    </div>
+                    <div class="col-md-3">
+                        <i class="bi bi-check-circle text-success fs-2"></i>
+                        <h4 class="mt-2">{{ number_format($productionStats['total_output']) }}</h4>
+                        <p class="text-muted mb-0 small">Total Output</p>
+                    </div>
+                    <div class="col-md-3">
+                        <i class="bi bi-x-circle text-danger fs-2"></i>
+                        <h4 class="mt-2">{{ number_format($productionStats['total_rejected']) }}</h4>
+                        <p class="text-muted mb-0 small">Rejected Units</p>
+                    </div>
+                    <div class="col-md-3">
+                        <i class="bi bi-percent text-warning fs-2"></i>
+                        <h4 class="mt-2 {{ $productionStats['rejection_rate'] > 10 ? 'text-danger' : 'text-success' }}">
+                            {{ number_format($productionStats['rejection_rate'], 1) }}%
+                        </h4>
+                        <p class="text-muted mb-0 small">Rejection Rate</p>
+                    </div>
+                </div>
+
+                @if($recentBadOrders->count() > 0)
+                <hr>
+                <h6 class="text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Products with High Bad Orders (Last 7 Days)
+                </h6>
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm">
-                        <thead class="table-light">
+                    <table class="table table-sm table-hover">
+                        <thead>
                             <tr>
-                                <th>Invoice</th>
                                 <th>Product</th>
-                                <th class="text-end">Amount</th>
-                                <th>Date</th>
+                                <th>DR Numbers</th>
+                                <th>Batch Numbers</th>
+                                <th class="text-center">Total BO</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($recentSales as $sale)
+                            @foreach($recentBadOrders as $bo)
                             <tr>
-                                <td><span class="badge bg-secondary">{{ $sale->invoice_number }}</span></td>
-                                <td>{{ $sale->finishedProduct->name }}</td>
-                                <td class="text-success fw-bold text-end">₱{{ number_format($sale->total_amount, 2) }}</td>
-                                <td><small class="text-muted">{{ $sale->sale_date->format('M d, h:i A') }}</small></td>
+                                <td><strong>{{ $bo['product']->name }}</strong></td>
+                                <td>
+                                    @if($bo['dr_numbers']->count() > 0)
+                                        @foreach($bo['dr_numbers']->take(3) as $dr)
+                                            <span class="badge bg-secondary">{{ $dr }}</span>
+                                        @endforeach
+                                        @if($bo['dr_numbers']->count() > 3)
+                                            <small class="text-muted">+{{ $bo['dr_numbers']->count() - 3 }} more</small>
+                                        @endif
+                                    @else
+                                        <small class="text-muted">No DR</small>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($bo['batch_numbers']->count() > 0)
+                                        @foreach($bo['batch_numbers']->take(3) as $batch)
+                                            <span class="badge bg-info">{{ $batch }}</span>
+                                        @endforeach
+                                        @if($bo['batch_numbers']->count() > 3)
+                                            <small class="text-muted">+{{ $bo['batch_numbers']->count() - 3 }} more</small>
+                                        @endif
+                                    @else
+                                        <small class="text-muted">No Batch</small>
+                                    @endif
+                                </td>
+                                <td class="text-center"><span class="badge bg-danger">{{ $bo['total_bo'] }} units</span></td>
                             </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-                @else
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-inbox display-4 d-block mb-2 opacity-25"></i>
-                    <p class="mb-0">No sales yet</p>
-                </div>
                 @endif
             </div>
-            <div class="card-footer bg-white border-0">
-                <a href="{{ route('sales.index') }}" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="bi bi-arrow-right me-2"></i>View All Sales
-                </a>
+        </div>
+    </div>
+</div>
+
+<!-- TOP PERFORMERS -->
+<div class="row mb-4">
+    <!-- Top Selling Products -->
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-trophy me-2 text-warning"></i>Best Selling Products (This Month)</h6>
+            </div>
+            <div class="card-body">
+                @if($topSellingProducts->count() > 0)
+                <div class="list-group list-group-flush">
+                    @foreach($topSellingProducts as $index => $item)
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-{{ $index === 0 ? 'warning' : ($index === 1 ? 'secondary' : 'primary') }} me-2">
+                                    #{{ $index + 1 }}
+                                </span>
+                                <strong>{{ $item->finishedProduct->name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ number_format($item->total_sold) }} units sold</small>
+                            </div>
+                            <strong class="text-success">₱{{ number_format($item->total_revenue, 2) }}</strong>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @else
+                <p class="text-center text-muted py-4 mb-0">No sales this month</p>
+                @endif
             </div>
         </div>
     </div>
 
-    <!-- Recent Stock Movements -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm h-100">
+    <!-- Top Customers -->
+    <div class="col-md-6">
+        <div class="card shadow-sm">
             <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Recent Stock Movements</h5>
+                <h6 class="mb-0"><i class="bi bi-people me-2 text-primary"></i>Top Customers (This Month)</h6>
             </div>
             <div class="card-body">
-                @if($recentStockMovements->count() > 0)
+                @if($topCustomers->count() > 0)
                 <div class="list-group list-group-flush">
-                    @foreach($recentStockMovements as $movement)
+                    @foreach($topCustomers as $index => $customer)
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-{{ $index === 0 ? 'warning' : ($index === 1 ? 'secondary' : 'primary') }} me-2">
+                                    #{{ $index + 1 }}
+                                </span>
+                                <strong>{{ $customer->customer_name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ $customer->purchase_count }} purchases</small>
+                            </div>
+                            <strong class="text-success">₱{{ number_format($customer->total_spent, 2) }}</strong>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @else
+                <p class="text-center text-muted py-4 mb-0">No customers this month</p>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BRANCH PERFORMANCE -->
+@if($branchSales->count() > 0)
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-shop me-2"></i>Branch Performance (This Month)</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Branch</th>
+                                <th class="text-center">Sales Count</th>
+                                <th class="text-end">Total Sales</th>
+                                <th class="text-end">Collected</th>
+                                <th class="text-center">Collection Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($branchSales as $branch)
+                            <tr>
+                                <td><strong>{{ $branch->branch->name ?? 'N/A' }}</strong></td>
+                                <td class="text-center">{{ $branch->sales_count }}</td>
+                                <td class="text-end">₱{{ number_format($branch->total_sales, 2) }}</td>
+                                <td class="text-end text-success">₱{{ number_format($branch->total_collected, 2) }}</td>
+                                <td class="text-center">
+                                    @php
+                                        $rate = $branch->total_sales > 0 ? ($branch->total_collected / $branch->total_sales) * 100 : 0;
+                                    @endphp
+                                    <span class="badge bg-{{ $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger') }}">
+                                        {{ number_format($rate, 1) }}%
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- RECENT ACTIVITY -->
+<div class="row mb-4">
+    <!-- Recent Sales -->
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Sales</h6>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                @if($recentSales->count() > 0)
+                <div class="list-group list-group-flush">
+                    @foreach($recentSales as $sale)
                     <div class="list-group-item px-0">
                         <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ $movement->finishedProduct->name }}</h6>
-                                <small class="text-muted">
-                                    @if($movement->movement_type === 'transfer_out')
-                                        <i class="bi bi-arrow-down-circle text-success"></i> Deployed to {{ $movement->branch?->name ?? 'Branch' }}
-                                    @elseif($movement->movement_type === 'return')
-                                        <i class="bi bi-arrow-up-circle text-warning"></i> Returned from {{ $movement->branch?->name ?? 'Branch' }}
-                                    @elseif($movement->movement_type === 'branch_transfer_out')
-                                        <i class="bi bi-arrow-right text-info"></i> Transfer to {{ $movement->toBranch?->name ?? 'Branch' }}
-                                    @elseif($movement->movement_type === 'branch_transfer_in')
-                                        <i class="bi bi-arrow-left text-primary"></i> From {{ $movement->fromBranch?->name ?? 'Branch' }}
-                                    @else
-                                        <i class="bi bi-arrow-repeat text-secondary"></i> {{ ucfirst(str_replace('_', ' ', $movement->movement_type)) }}
-                                    @endif
-                                </small>
-                                <br>
-                                <small class="text-muted">{{ $movement->movement_date->format('M d, h:i A') }}</small>
-                            </div>
                             <div>
-                                <span class="badge bg-primary">{{ $movement->quantity }} units</span>
+                                <strong>DR# {{ $sale->dr_number }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    {{ $sale->customer_name }} | {{ $sale->branch->name ?? 'N/A' }}
+                                    <br>
+                                    {{ $sale->sale_date->format('M d, h:i A') }}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <strong class="text-success">₱{{ number_format($sale->total_amount, 2) }}</strong>
+                                <br>
+                                <span class="badge bg-{{ $sale->payment_status_badge }}">
+                                    {{ $sale->payment_status_label }}
+                                </span>
                             </div>
                         </div>
                     </div>
                     @endforeach
                 </div>
                 @else
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-inbox display-4 d-block mb-2 opacity-25"></i>
-                    <p class="mb-0">No movements yet</p>
-                </div>
+                <p class="text-center text-muted py-4 mb-0">No recent sales</p>
                 @endif
             </div>
-            <div class="card-footer bg-white border-0">
-                <a href="{{ route('branch-inventory.index') }}" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="bi bi-arrow-right me-2"></i>View Branch Inventory
+            <div class="card-footer">
+                <a href="{{ route('sales.index') }}" class="btn btn-sm btn-outline-primary w-100">
+                    View All Sales
                 </a>
             </div>
         </div>
     </div>
 
-    <!-- Low Stock Finished Products -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>Low Stock - Finished Products
-                </h5>
+    <!-- Low Stock Alerts -->
+    <div class="col-md-6">
+        <div class="card shadow-sm border-warning">
+            <div class="card-header bg-warning">
+                <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Low Stock Alert</h6>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                 @if($lowStockFinished->count() > 0)
-                <ul class="list-group list-group-flush">
+                <div class="list-group list-group-flush">
                     @foreach($lowStockFinished as $product)
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <div class="fw-bold">{{ $product->name }}</div>
-                            <small class="text-muted">
-                                Warehouse: {{ $product->stock_on_hand }} units
-                                @if($product->stock_out > 0)
-                                    | Branches: {{ $product->stock_out }} units
-                                @endif
-                            </small>
-                        </div>
-                        <div>
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ $product->name }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Warehouse: {{ $product->stock_on_hand }} 
+                                    @if($product->stock_out > 0)
+                                        | Branches: {{ $product->stock_out }}
+                                    @endif
+                                </small>
+                            </div>
                             <span class="badge bg-{{ $product->stock_on_hand == 0 ? 'danger' : 'warning' }}">
                                 {{ $product->stock_on_hand }} / {{ $product->minimum_stock }}
                             </span>
                         </div>
-                    </li>
-                    @endforeach
-                </ul>
-                @else
-                <div class="text-center text-success py-4">
-                    <i class="bi bi-check-circle display-4 d-block mb-2 opacity-50"></i>
-                    <p class="mb-0">All products well stocked!</p>
-                </div>
-                @endif
-            </div>
-            <div class="card-footer bg-white border-0">
-                <a href="{{ route('finished-products.index') }}" class="btn btn-sm btn-outline-success w-100">
-                    <i class="bi bi-plus-circle me-2"></i>Restock Products
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Low Stock Raw Materials -->
-    <div class="col-md-6 mb-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>Low Stock - Raw Materials
-                </h5>
-            </div>
-            <div class="card-body">
-                @if($lowStockRaw->count() > 0)
-                <ul class="list-group list-group-flush">
-                    @foreach($lowStockRaw as $material)
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <div class="fw-bold">{{ $material->name }}</div>
-                            <small class="text-muted">{{ ucfirst($material->category) }}</small>
-                        </div>
-                        <span class="badge bg-{{ $material->quantity == 0 ? 'danger' : 'warning' }}">
-                            {{ $material->quantity }} {{ $material->unit }}
-                        </span>
-                    </li>
-                    @endforeach
-                </ul>
-                @else
-                <div class="text-center text-success py-4">
-                    <i class="bi bi-check-circle display-4 d-block mb-2 opacity-50"></i>
-                    <p class="mb-0">All materials well stocked!</p>
-                </div>
-                @endif
-            </div>
-            <div class="card-footer bg-white border-0">
-                <a href="{{ route('raw-materials.index') }}" class="btn btn-sm btn-outline-success w-100">
-                    <i class="bi bi-plus-circle me-2"></i>Restock Materials
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Branch Summary -->
-@if($branches->count() > 0)
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-white">
-        <h5 class="mb-0"><i class="bi bi-shop me-2"></i>Branch Inventory Summary</h5>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            @foreach($branches->take(4) as $branch)
-            <div class="col-md-3 mb-3">
-                <div class="card border-0 bg-light">
-                    <div class="card-body text-center">
-                        <i class="bi bi-shop text-primary fs-2 mb-2"></i>
-                        <h6 class="mb-1">{{ $branch->name }}</h6>
-                        <p class="mb-0 small text-muted">
-                            {{ $branch->inventory->where('quantity', '>', 0)->count() }} products
-                        </p>
-                        <a href="{{ route('branch-inventory.show', $branch) }}" class="btn btn-sm btn-outline-primary mt-2">
-                            View Details
-                        </a>
                     </div>
-                </div>
-            </div>
-            @endforeach
-        </div>
-        
-        @if($topProductsByBranch->count() > 0)
-        <hr class="my-3">
-        <h6 class="text-muted mb-3">Top Products in Branches</h6>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>Product</th>
-                        <th>Branch</th>
-                        <th class="text-end">Quantity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($topProductsByBranch as $item)
-                    <tr>
-                        <td class="fw-bold">{{ $item->name }}</td>
-                        <td><span class="badge bg-info">{{ $item->branch_name }}</span></td>
-                        <td class="text-end"><strong>{{ $item->quantity }}</strong> units</td>
-                    </tr>
                     @endforeach
-                </tbody>
-            </table>
+                </div>
+                @else
+                <p class="text-center text-success py-4 mb-0">All products well stocked!</p>
+                @endif
+            </div>
+            <div class="card-footer">
+                <a href="{{ route('finished-products.index') }}" class="btn btn-sm btn-warning w-100">
+                    Manage Inventory
+                </a>
+            </div>
         </div>
-        @endif
     </div>
 </div>
-@endif
 
 <style>
 .stats-card {
@@ -364,6 +678,10 @@
     margin: 0;
     opacity: 0.9;
     font-size: 0.9rem;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
 }
 </style>
 @endsection

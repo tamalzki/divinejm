@@ -9,14 +9,15 @@ class FinishedProduct extends Model
     protected $fillable = [
         'name',
         'sku',
+        'barcode',              // ← ADDED
         'product_type',
-        'quantity',              // DEPRECATED - keep for backwards compatibility but don't use
+        'quantity',
         'minimum_stock',
         'cost_price',
         'selling_price',
         'total_cost',
-        'stock_on_hand',        // PRIMARY: Stock available in warehouse
-        'stock_out',            // PRIMARY: Stock deployed to branches
+        'stock_on_hand',
+        'stock_out',
         'description',
         'manufacturing_date',
         'expiry_date',
@@ -34,11 +35,12 @@ class FinishedProduct extends Model
         'is_expired' => 'boolean',
     ];
 
-    // RELATIONSHIPS
-   public function saleItems()
-{
-    return $this->hasMany(SaleItem::class, 'finished_product_id');
-}
+    // ── RELATIONSHIPS ─────────────────────────────────────────────
+
+    public function saleItems()
+    {
+        return $this->hasMany(SaleItem::class, 'finished_product_id');
+    }
 
     public function restocks()
     {
@@ -74,110 +76,96 @@ class FinishedProduct extends Model
         return $this->hasMany(StockMovement::class);
     }
 
-    // COMPUTED PROPERTIES
-    
-    /**
-     * Get total inventory (warehouse + branches)
-     */
+    public function productionMixes()
+    {
+        return $this->hasMany(ProductionMix::class);
+    }
+
+    public function latestMix()
+    {
+        return $this->hasOne(ProductionMix::class)->latest();
+    }
+
+    public function completedMixes()
+    {
+        return $this->hasMany(ProductionMix::class)->where('status', 'completed');
+    }
+
+    public function pendingMixes()
+    {
+        return $this->hasMany(ProductionMix::class)->where('status', 'pending');
+    }
+
+    // ── COMPUTED PROPERTIES ───────────────────────────────────────
+
     public function getTotalInventoryAttribute()
     {
         return $this->stock_on_hand + $this->stock_out;
     }
 
-    /**
-     * Get available stock in warehouse
-     */
     public function getAvailableStockAttribute()
     {
         return $this->stock_on_hand;
     }
 
-    /**
-     * Get deployed stock (in branches)
-     */
     public function getDeployedStockAttribute()
     {
         return $this->stock_out;
     }
 
-    /**
-     * Check if product is low on stock (based on warehouse stock)
-     */
     public function isLowStock()
     {
         return $this->stock_on_hand <= $this->minimum_stock;
     }
 
-    /**
-     * Get stock status
-     */
     public function getStockStatusAttribute()
     {
-        if ($this->stock_on_hand == 0 && $this->stock_out == 0) {
-            return 'out_of_stock';
-        } elseif ($this->stock_on_hand == 0 && $this->stock_out > 0) {
-            return 'all_deployed';
-        } elseif ($this->isLowStock()) {
-            return 'low_stock';
-        }
+        if ($this->stock_on_hand == 0 && $this->stock_out == 0) return 'out_of_stock';
+        if ($this->stock_on_hand == 0 && $this->stock_out > 0)  return 'all_deployed';
+        if ($this->isLowStock())                                 return 'low_stock';
         return 'in_stock';
     }
 
-    /**
-     * Get stock status badge color
-     */
     public function getStockBadgeColorAttribute()
     {
         return match($this->stock_status) {
             'out_of_stock' => 'danger',
             'all_deployed' => 'warning',
-            'low_stock' => 'warning',
-            'in_stock' => 'success',
-            default => 'secondary'
+            'low_stock'    => 'warning',
+            'in_stock'     => 'success',
+            default        => 'secondary',
         };
     }
 
-    /**
-     * Get stock status label
-     */
     public function getStockStatusLabelAttribute()
     {
         return match($this->stock_status) {
             'out_of_stock' => 'Out of Stock',
             'all_deployed' => 'All Deployed',
-            'low_stock' => 'Low Stock',
-            'in_stock' => 'In Stock',
-            default => 'Unknown'
+            'low_stock'    => 'Low Stock',
+            'in_stock'     => 'In Stock',
+            default        => 'Unknown',
         };
     }
 
-    // PRODUCT TYPE HELPERS
-    public function isManufactured()
-    {
-        return $this->product_type === 'manufactured';
-    }
+    // ── PRODUCT TYPE HELPERS ──────────────────────────────────────
 
-    public function isConsigned()
-    {
-        return $this->product_type === 'consigned';
-    }
+    public function isManufactured() { return $this->product_type === 'manufactured'; }
+    public function isConsigned()    { return $this->product_type === 'consigned'; }
 
     public function calculateTotalCost()
     {
         if ($this->isManufactured()) {
             return $this->recipes()->sum(\DB::raw('quantity_needed * cost_per_unit'));
         }
-        
         return $this->cost_price;
     }
 
-    // EXPIRY HELPERS
+    // ── EXPIRY HELPERS ────────────────────────────────────────────
+
     public function isExpiringSoon($days = 7)
     {
-        if (!$this->expiry_date) {
-            return false;
-        }
-        
+        if (!$this->expiry_date) return false;
         return $this->expiry_date->diffInDays(now()) <= $days && !$this->is_expired;
     }
 
@@ -192,84 +180,65 @@ class FinishedProduct extends Model
 
     public function daysUntilExpiry()
     {
-        if (!$this->expiry_date) {
-            return null;
-        }
-        
+        if (!$this->expiry_date) return null;
         return max(0, $this->expiry_date->diffInDays(now()));
     }
 
-    // STOCK MOVEMENT HELPERS
-    
-    /**
-     * Add stock from production/restock
-     */
+    // ── STOCK MOVEMENT HELPERS ────────────────────────────────────
+
     public function addStock($quantity)
     {
         $this->increment('stock_on_hand', $quantity);
-        // Don't update 'quantity' field anymore
     }
 
-    /**
-     * Deploy stock to branch
-     */
     public function deployToBranch($quantity)
     {
         if ($quantity > $this->stock_on_hand) {
             throw new \Exception("Insufficient stock. Available: {$this->stock_on_hand}");
         }
-
         $this->decrement('stock_on_hand', $quantity);
         $this->increment('stock_out', $quantity);
     }
 
-    /**
-     * Return stock from branch
-     */
     public function returnFromBranch($quantity)
     {
         if ($quantity > $this->stock_out) {
             throw new \Exception("Cannot return more than deployed. Deployed: {$this->stock_out}");
         }
-
         $this->increment('stock_on_hand', $quantity);
         $this->decrement('stock_out', $quantity);
     }
 
-    /**
-     * Sell stock from warehouse
-     */
     public function sellStock($quantity)
     {
         if ($quantity > $this->stock_on_hand) {
             throw new \Exception("Insufficient stock for sale. Available: {$this->stock_on_hand}");
         }
-
         $this->decrement('stock_on_hand', $quantity);
     }
 
-    // ADD THIS TO YOUR FinishedProduct MODEL
-// File: app/Models/FinishedProduct.php
+    // ── BARCODE HELPER ────────────────────────────────────────────
 
-// Add this method to the existing FinishedProduct class:
+    /**
+     * Generate a unique barcode string for this product.
+     * Format: DJM-XXXXXX  e.g. DJM-000042
+     * Called after create() so the ID is available.
+     */
+    public function generateBarcode(): string
+    {
+        $base      = 'DJM-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+        $candidate = $base;
+        $suffix    = 0;
 
-public function productionMixes()
-{
-    return $this->hasMany(ProductionMix::class);
-}
+        while (
+            static::where('barcode', $candidate)
+                  ->where('id', '!=', $this->id)
+                  ->exists()
+        ) {
+            $suffix++;
+            $candidate = $base . '-' . $suffix;
+        }
 
-public function latestMix()
-{
-    return $this->hasOne(ProductionMix::class)->latest();
-}
-
-public function completedMixes()
-{
-    return $this->hasMany(ProductionMix::class)->where('status', 'completed');
-}
-
-public function pendingMixes()
-{
-    return $this->hasMany(ProductionMix::class)->where('status', 'pending');
-}
+        return $candidate;
+    }
 }

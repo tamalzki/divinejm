@@ -53,29 +53,17 @@
                     </button>
                 </div>
                 <div class="card-body p-3">
-                    <!-- Column Headers -->
                     <div class="row g-2 mb-2 px-2">
-                        <div class="col-md-4">
-                            <small class="text-muted fw-bold">Material</small>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted fw-bold">Quantity</small>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted fw-bold">Available Stock</small>
-                        </div>
-                        <div class="col-md-2">
-                            <small class="text-muted fw-bold">Action</small>
-                        </div>
+                        <div class="col-md-4"><small class="text-muted fw-bold">Material</small></div>
+                        <div class="col-md-3"><small class="text-muted fw-bold">Quantity</small></div>
+                        <div class="col-md-3"><small class="text-muted fw-bold">Available Stock</small></div>
+                        <div class="col-md-2"><small class="text-muted fw-bold">Action</small></div>
                     </div>
-                    
                     <div id="ingredientsContainer"></div>
                     <div class="alert alert-warning py-2 mb-0" id="noIngredientsAlert">
                         <small><i class="bi bi-exclamation-triangle me-1"></i>Add at least one ingredient</small>
                     </div>
                 </div>
-                
-                <!-- Cost Summary -->
                 <div class="card-footer bg-light" id="costSummary" style="display: none;">
                     <div class="row g-2 text-center">
                         <div class="col-md-3">
@@ -110,10 +98,30 @@
                             <label class="form-label mb-1"><strong>Product Name</strong> <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" value="{{ old('name') }}" required autofocus>
                         </div>
+
+                        {{-- ── BARCODE: auto-generated, read-only preview ── --}}
                         <div class="col-md-4">
-                            <label class="form-label mb-1"><strong>Barcode</strong></label>
-                            <input type="text" name="barcode" class="form-control" value="{{ old('barcode') }}">
+                            <label class="form-label mb-1">
+                                <strong>Barcode</strong>
+                                <span class="badge bg-success ms-1" style="font-size:.65rem;font-weight:600;vertical-align:middle">
+                                    <i class="bi bi-magic"></i> Auto-generated
+                                </span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light" style="font-size:.8rem">
+                                    <i class="bi bi-upc-scan text-muted"></i>
+                                </span>
+                                <input type="text"
+                                       class="form-control bg-light text-muted"
+                                       value="DJM-XXXXXX"
+                                       readonly
+                                       title="Barcode is automatically generated when you save the product">
+                            </div>
+                            <small class="text-muted" style="font-size:.72rem">
+                                <i class="bi bi-info-circle me-1"></i>Assigned automatically on save
+                            </small>
                         </div>
+
                         <div class="col-12">
                             <label class="form-label mb-1"><strong>Description</strong></label>
                             <textarea name="description" class="form-control" rows="2">{{ old('description') }}</textarea>
@@ -174,23 +182,14 @@ let selectedMaterials = new Set();
 function updateProductType() {
     const isManufactured = document.getElementById('typeManufactured').checked;
     document.getElementById('recipeCard').style.display = isManufactured ? 'block' : 'none';
-    
-    // Update step numbers in icons
-    const productInfoIcon = document.getElementById('productInfoIcon');
-    const pricingIcon = document.getElementById('pricingIcon');
-    
-    if (isManufactured) {
-        productInfoIcon.className = 'bi bi-3-circle me-2';
-        pricingIcon.className = 'bi bi-4-circle me-2';
-    } else {
-        productInfoIcon.className = 'bi bi-2-circle me-2';
-        pricingIcon.className = 'bi bi-3-circle me-2';
-    }
-    
+
+    document.getElementById('productInfoIcon').className = isManufactured ? 'bi bi-3-circle me-2' : 'bi bi-2-circle me-2';
+    document.getElementById('pricingIcon').className     = isManufactured ? 'bi bi-4-circle me-2' : 'bi bi-3-circle me-2';
+
     document.getElementById('costPriceInput').readOnly = isManufactured;
     document.getElementById('costPriceInput').classList.toggle('bg-light', isManufactured);
     document.getElementById('costHint').textContent = isManufactured ? 'Auto-calculated from recipe ✓' : 'Enter purchase cost';
-    
+
     if (isManufactured && ingredientCount === 0) addIngredient();
 }
 
@@ -236,10 +235,8 @@ function handleMaterialSelect(index) {
     const option = select.options[select.selectedIndex];
     if (select.value) {
         selectedMaterials.add(parseInt(select.value));
-        const unit = option.dataset.unit;
-        const available = option.dataset.available;
-        document.getElementById(`unit-${index}`).textContent = unit;
-        document.getElementById(`available-${index}`).textContent = `${available} ${unit}`;
+        document.getElementById(`unit-${index}`).textContent      = option.dataset.unit;
+        document.getElementById(`available-${index}`).textContent = `${option.dataset.available} ${option.dataset.unit}`;
         updateAllSelects();
         calculateCost(index);
     }
@@ -247,10 +244,9 @@ function handleMaterialSelect(index) {
 
 function calculateCost(index) {
     const select = document.querySelector(`select[data-index="${index}"]`);
-    const input = document.querySelector(`input[data-index="${index}"]`);
+    const input  = document.querySelector(`input[data-index="${index}"]`);
     if (select.value && input.value) {
-        const option = select.options[select.selectedIndex];
-        const cost = parseFloat(option.dataset.price) * parseFloat(input.value);
+        const cost = parseFloat(select.options[select.selectedIndex].dataset.price) * parseFloat(input.value);
         document.getElementById(`cost-${index}`).textContent = `Cost: ₱${cost.toFixed(2)}`;
     }
     calculateTotalCost();
@@ -260,10 +256,9 @@ function calculateTotalCost() {
     let total = 0;
     for (let i = 0; i < ingredientCount; i++) {
         const select = document.querySelector(`select[data-index="${i}"]`);
-        const input = document.querySelector(`input[data-index="${i}"]`);
+        const input  = document.querySelector(`input[data-index="${i}"]`);
         if (select && input && select.value && input.value) {
-            const price = parseFloat(select.options[select.selectedIndex].dataset.price);
-            total += price * parseFloat(input.value);
+            total += parseFloat(select.options[select.selectedIndex].dataset.price) * parseFloat(input.value);
         }
     }
     document.getElementById('totalCost').textContent = total.toFixed(2);
@@ -272,29 +267,31 @@ function calculateTotalCost() {
 }
 
 function calculateCostPerUnit() {
-    const total = parseFloat(document.getElementById('totalCost').textContent);
-    const units = parseFloat(document.getElementById('unitsPerBatch').value) || 1;
+    const total   = parseFloat(document.getElementById('totalCost').textContent);
+    const units   = parseFloat(document.getElementById('unitsPerBatch').value) || 1;
     const perUnit = total / units;
-    document.getElementById('costPerUnit').textContent = perUnit.toFixed(2);
-    document.getElementById('costPriceInput').value = perUnit.toFixed(2);
+    document.getElementById('costPerUnit').textContent   = perUnit.toFixed(2);
+    document.getElementById('costPriceInput').value      = perUnit.toFixed(2);
     calculateProfit();
 }
 
 function calculateProfit() {
-    const cost = parseFloat(document.getElementById('costPriceInput').value) || 0;
+    const cost    = parseFloat(document.getElementById('costPriceInput').value) || 0;
     const selling = parseFloat(document.getElementById('sellingPrice').value) || 0;
-    const div = document.getElementById('profitMargin');
+    const div     = document.getElementById('profitMargin');
     if (cost && selling) {
         const profit = selling - cost;
         const margin = ((profit / selling) * 100).toFixed(1);
-        div.innerHTML = profit > 0 ? `<small class="text-success"><i class="bi bi-graph-up"></i> Profit: ₱${profit.toFixed(2)} (${margin}%)</small>` : `<small class="text-danger"><i class="bi bi-graph-down"></i> Loss: ₱${Math.abs(profit).toFixed(2)}</small>`;
+        div.innerHTML = profit > 0
+            ? `<small class="text-success"><i class="bi bi-graph-up"></i> Profit: ₱${profit.toFixed(2)} (${margin}%)</small>`
+            : `<small class="text-danger"><i class="bi bi-graph-down"></i> Loss: ₱${Math.abs(profit).toFixed(2)}</small>`;
     } else {
         div.innerHTML = '';
     }
 }
 
 function removeIngredient(index) {
-    const row = document.getElementById(`ingredient-${index}`);
+    const row    = document.getElementById(`ingredient-${index}`);
     const select = row.querySelector('.material-select');
     if (select.value) selectedMaterials.delete(parseInt(select.value));
     row.remove();
@@ -317,11 +314,10 @@ function updateAllSelects() {
 document.getElementById('typeManufactured').addEventListener('change', updateProductType);
 document.getElementById('typeConsigned').addEventListener('change', updateProductType);
 document.getElementById('sellingPrice').addEventListener('input', calculateProfit);
-document.getElementById('productForm').addEventListener('submit', function(e) {
+document.getElementById('productForm').addEventListener('submit', function (e) {
     if (document.getElementById('typeManufactured').checked && !document.getElementById('ingredientsContainer').children.length) {
         e.preventDefault();
         alert('⚠️ Add at least one ingredient for manufactured products');
-        return false;
     }
 });
 

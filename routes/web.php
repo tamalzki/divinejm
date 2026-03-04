@@ -30,6 +30,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('raw-materials/{rawMaterial}/restock', [RawMaterialController::class, 'restock'])
         ->name('raw-materials.restock');
     
+    Route::post('/finished-products/{finishedProduct}/regenerate-barcode',
+    [FinishedProductController::class, 'regenerateBarcode'])
+    ->name('finished-products.regenerate-barcode');
+    
     Route::resource('finished-products', FinishedProductController::class);
     Route::post('finished-products/{finishedProduct}/restock', [FinishedProductController::class, 'restock'])
         ->name('finished-products.restock');

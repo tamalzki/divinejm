@@ -81,13 +81,13 @@
                         <th class="text-center">Stock</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Last Production</th>
-                        <th class="text-center" style="min-width: 280px;">Actions</th>
+                        <th class="text-center" style="min-width: 320px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($products as $product)
                     @php
-                        $pendingMix = $product->pendingMixes->first();
+                        $pendingMix       = $product->pendingMixes->first();
                         $lastCompletedMix = $product->productionMixes()
                             ->where('status', 'completed')
                             ->orderBy('updated_at', 'desc')
@@ -143,6 +143,17 @@
                                 <a href="{{ route('finished-products.edit', $product) }}" class="btn btn-info text-white">
                                     <i class="bi bi-pencil-square"></i> Edit
                                 </a>
+
+                                {{-- ── Barcode Download ── --}}
+                                @if($product->barcode)
+                                <button type="button"
+                                        class="btn btn-dark"
+                                        title="Download Barcode"
+                                        onclick="downloadBarcode('{{ $product->barcode }}', '{{ addslashes($product->name) }}')">
+                                    <i class="bi bi-upc-scan"></i> Barcode
+                                </button>
+                                @endif
+
                                 <button type="button" class="btn btn-danger" onclick="confirmDelete({{ $product->id }}, '{{ $product->name }}', {{ $pendingMix ? 'true' : 'false' }})">
                                     <i class="bi bi-trash-fill"></i> Delete
                                 </button>
@@ -197,12 +208,59 @@
     </div>
 </div>
 
+{{-- Hidden off-screen SVG used for barcode generation --}}
+<svg id="bc-hidden-svg" style="position:absolute;left:-9999px;top:-9999px;visibility:hidden"></svg>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script>
 function confirmDelete(productId, productName, hasPendingMix) {
     document.getElementById('deleteProductName').textContent = productName;
     document.getElementById('deleteForm').action = `/finished-products/${productId}`;
     document.getElementById('pendingMixWarning').style.display = hasPendingMix ? 'block' : 'none';
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function downloadBarcode(code, name) {
+    const svg = document.getElementById('bc-hidden-svg');
+
+    // Render barcode into hidden SVG
+    JsBarcode(svg, code, {
+        format:       'CODE128',
+        lineColor:    '#0f172a',
+        background:   '#ffffff',
+        width:        2.5,
+        height:       70,
+        displayValue: true,
+        fontSize:     13,
+        font:         'monospace',
+        fontOptions:  '700',
+        textMargin:   5,
+        margin:       12,
+    });
+
+    // Convert SVG → Canvas → PNG download
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const blob    = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url     = URL.createObjectURL(blob);
+    const img     = new Image();
+
+    img.onload = function () {
+        const scale  = 3; // 3× for high-res / print quality
+        const canvas = document.createElement('canvas');
+        canvas.width  = img.width  * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+
+        const a      = document.createElement('a');
+        a.href       = canvas.toDataURL('image/png');
+        a.download   = `barcode-${code}.png`;
+        a.click();
+    };
+
+    img.src = url;
 }
 </script>
 

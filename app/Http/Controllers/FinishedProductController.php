@@ -43,16 +43,15 @@ class FinishedProductController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'sku'          => 'required|string|max:255|unique:finished_products',
-            'product_type' => 'required|in:manufactured,consigned',
-            'quantity'     => 'required|numeric|min:0',
-            'minimum_stock'=> 'required|numeric|min:0',
-            'cost_price'   => 'required|numeric|min:0',
-            'selling_price'=> 'required|numeric|min:0',
-            'description'  => 'nullable|string',
-            // barcode is NOT validated from input — we auto-generate it after save
+        $request->validate([
+            'name'          => 'required|string|max:255',
+            'sku'           => 'required|string|max:255|unique:finished_products',
+            'product_type'  => 'required|in:manufactured,consigned',
+            'quantity'      => 'required|numeric|min:0',
+            'minimum_stock' => 'required|numeric|min:0',
+            'cost_price'    => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0',
+            'description'   => 'nullable|string',
 
             'ingredients'            => 'required_if:product_type,manufactured|array',
             'ingredients.*.id'       => 'required_with:ingredients|exists:raw_materials,id',
@@ -62,23 +61,30 @@ class FinishedProductController extends Controller
         try {
             DB::beginTransaction();
 
-            $validated['stock_on_hand'] = $validated['quantity'];
-            $validated['stock_out']     = 0;
-            $validated['total_cost']    = $validated['cost_price'];
+            // ── Build only the columns that exist on the table ──────
+            $product = FinishedProduct::create([
+                'name'          => $request->name,
+                'sku'           => $request->sku,
+                'product_type'  => $request->product_type,
+                'quantity'      => $request->quantity,
+                'stock_on_hand' => $request->quantity,
+                'stock_out'     => 0,
+                'minimum_stock' => $request->minimum_stock,
+                'cost_price'    => $request->cost_price,
+                'selling_price' => $request->selling_price,
+                'total_cost'    => $request->cost_price,
+                'description'   => $request->description,
+            ]);
 
-            if ($request->has('units_per_batch')) {
-                $validated['units_per_batch'] = $request->input('units_per_batch');
+            // ── Auto-generate barcode after we have the ID ──────────
+            // Only if the barcode column exists (migration has been run)
+            if (Schema::hasColumn('finished_products', 'barcode')) {
+                $product->barcode = $product->generateBarcode();
+                $product->save();
             }
 
-            // ── Create product (barcode will be added right after) ──
-            $product = FinishedProduct::create($validated);
-
-            // ── Auto-generate barcode using the new ID ──────────────
-            $product->barcode = $product->generateBarcode();
-            $product->save();
-
             // ── Save recipe for manufactured products ───────────────
-            if ($validated['product_type'] === 'manufactured' && !empty($request->ingredients)) {
+            if ($request->product_type === 'manufactured' && $request->filled('ingredients')) {
                 foreach ($request->ingredients as $ingredient) {
                     if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
                         $rawMaterial = RawMaterial::find($ingredient['id']);
@@ -87,7 +93,7 @@ class FinishedProductController extends Controller
                             'finished_product_id' => $product->id,
                             'raw_material_id'     => $ingredient['id'],
                             'quantity_needed'     => $ingredient['quantity'],
-                            'cost_per_unit'       => $rawMaterial->unit_price,
+                            'cost_per_unit'       => $rawMaterial ? $rawMaterial->unit_price : 0,
                         ]);
                     }
                 }
@@ -96,7 +102,7 @@ class FinishedProductController extends Controller
             DB::commit();
 
             return redirect()->route('finished-products.show', $product)
-                ->with('success', "✅ Product '{$product->name}' created successfully! Barcode: {$product->barcode}");
+                ->with('success', "✅ Product '{$product->name}' created successfully!");
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -144,14 +150,13 @@ class FinishedProductController extends Controller
 
     public function update(Request $request, FinishedProduct $finishedProduct)
     {
-        $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'sku'          => 'required|string|max:255|unique:finished_products,sku,' . $finishedProduct->id,
-            'minimum_stock'=> 'required|numeric|min:0',
-            'cost_price'   => 'required|numeric|min:0',
-            'selling_price'=> 'required|numeric|min:0',
-            'description'  => 'nullable|string',
-            // barcode is never updated via form — it stays as generated
+        $request->validate([
+            'name'          => 'required|string|max:255',
+            'sku'           => 'required|string|max:255|unique:finished_products,sku,' . $finishedProduct->id,
+            'minimum_stock' => 'required|numeric|min:0',
+            'cost_price'    => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0',
+            'description'   => 'nullable|string',
 
             'ingredients'            => 'required_if:product_type,manufactured|array',
             'ingredients.*.id'       => 'required_with:ingredients|exists:raw_materials,id',
@@ -161,12 +166,19 @@ class FinishedProductController extends Controller
         try {
             DB::beginTransaction();
 
-            $finishedProduct->update($validated);
+            $finishedProduct->update([
+                'name'          => $request->name,
+                'sku'           => $request->sku,
+                'minimum_stock' => $request->minimum_stock,
+                'cost_price'    => $request->cost_price,
+                'selling_price' => $request->selling_price,
+                'description'   => $request->description,
+            ]);
 
             if ($finishedProduct->product_type === 'manufactured') {
                 $finishedProduct->recipes()->delete();
 
-                if (!empty($request->ingredients)) {
+                if ($request->filled('ingredients')) {
                     foreach ($request->ingredients as $ingredient) {
                         if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
                             $rawMaterial = RawMaterial::find($ingredient['id']);
@@ -175,7 +187,7 @@ class FinishedProductController extends Controller
                                 'finished_product_id' => $finishedProduct->id,
                                 'raw_material_id'     => $ingredient['id'],
                                 'quantity_needed'     => $ingredient['quantity'],
-                                'cost_per_unit'       => $rawMaterial->unit_price,
+                                'cost_per_unit'       => $rawMaterial ? $rawMaterial->unit_price : 0,
                             ]);
                         }
                     }
@@ -239,9 +251,6 @@ class FinishedProductController extends Controller
         }
     }
 
-    // ── REGENERATE BARCODE ────────────────────────────────────────
-    // Route: POST /finished-products/{finishedProduct}/regenerate-barcode
-    // Name:  finished-products.regenerate-barcode
     public function regenerateBarcode(FinishedProduct $finishedProduct)
     {
         $finishedProduct->barcode = $finishedProduct->generateBarcode();

@@ -219,50 +219,59 @@
         padding: .65rem 1rem;
         border-top: 1px solid #f1f5f9;
         background: #fafafa;
+        flex-wrap: wrap;
+        gap: .5rem;
     }
     .rm-footer .page-info {
         font-size: .73rem;
         color: #94a3b8;
     }
-
-    /* Override Laravel pagination to be compact */
-    .rm-footer nav { display: flex; align-items: center; }
-    .rm-footer .pagination {
+    .rm-pagination {
         display: flex;
+        align-items: center;
         gap: .2rem;
-        margin: 0;
-        padding: 0;
-        list-style: none;
     }
-    .rm-footer .pagination .page-item .page-link {
+    .pg-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 28px;
+        min-width: 30px;
         height: 28px;
-        padding: 0 .45rem;
-        font-size: .75rem;
+        padding: 0 .55rem;
+        font-size: .73rem;
         font-weight: 600;
         border-radius: 5px;
         border: 1px solid #e2e8f0;
         color: #475569;
         background: #fff;
-        text-decoration: none;
+        text-decoration: none !important;
+        cursor: pointer;
         transition: all .15s;
+        white-space: nowrap;
     }
-    .rm-footer .pagination .page-item.active .page-link {
-        background: #0d9488;
-        border-color: #0d9488;
-        color: #fff;
-    }
-    .rm-footer .pagination .page-item .page-link:hover:not([aria-disabled]) {
+    a.pg-btn:hover {
         background: #f0fdfa;
         border-color: #0d9488;
         color: #0d9488;
     }
-    .rm-footer .pagination .page-item.disabled .page-link {
-        color: #cbd5e1;
+    .pg-active {
+        background: #0d9488 !important;
+        border-color: #0d9488 !important;
+        color: #fff !important;
+        cursor: default;
+    }
+    .pg-disabled {
+        color: #cbd5e1 !important;
+        border-color: #f1f5f9 !important;
+        background: #fafafa !important;
+        cursor: default;
         pointer-events: none;
+    }
+    .pg-ellipsis {
+        color: #94a3b8;
+        font-size: .73rem;
+        padding: 0 .2rem;
+        line-height: 28px;
     }
 
     /* ── Add Button ──────────────────────────────────────────── */
@@ -414,7 +423,7 @@
                     {{-- Actions --}}
                     <td class="text-center" style="white-space:nowrap">
                         <a href="{{ route('raw-materials.show', $material) }}" class="act-btn act-manage">
-                            <i class="bi bi-arrow-left-right"></i>Manage
+                            <i class="bi bi-arrow-left-right"></i>Re-stock
                         </a>
                         <a href="{{ route('raw-materials.edit', $material) }}" class="act-btn act-edit" style="margin-left:.2rem">
                             <i class="bi bi-pencil-square"></i>Edit
@@ -447,14 +456,59 @@
         </table>
     </div>
 
-    {{-- Footer / Pagination --}}
+    {{-- Footer / Pagination (fully custom — no Bootstrap SVG arrows) --}}
+    @if($rawMaterials->total() > 0)
     <div class="rm-footer">
         <span class="page-info">
             Showing {{ $rawMaterials->firstItem() }}–{{ $rawMaterials->lastItem() }}
             of {{ $rawMaterials->total() }} materials
         </span>
-        {{ $rawMaterials->links() }}
+
+        @if($rawMaterials->lastPage() > 1)
+        <div class="rm-pagination">
+            {{-- Prev --}}
+            @if($rawMaterials->onFirstPage())
+                <span class="pg-btn pg-disabled">&#8592; Prev</span>
+            @else
+                <a href="{{ $rawMaterials->previousPageUrl() }}" class="pg-btn">&#8592; Prev</a>
+            @endif
+
+            {{-- Page numbers --}}
+            @php
+                $current = $rawMaterials->currentPage();
+                $last    = $rawMaterials->lastPage();
+                $start   = max(1, $current - 2);
+                $end     = min($last, $current + 2);
+            @endphp
+
+            @if($start > 1)
+                <a href="{{ $rawMaterials->url(1) }}" class="pg-btn">1</a>
+                @if($start > 2)<span class="pg-ellipsis">…</span>@endif
+            @endif
+
+            @for($p = $start; $p <= $end; $p++)
+                @if($p === $current)
+                    <span class="pg-btn pg-active">{{ $p }}</span>
+                @else
+                    <a href="{{ $rawMaterials->url($p) }}" class="pg-btn">{{ $p }}</a>
+                @endif
+            @endfor
+
+            @if($end < $last)
+                @if($end < $last - 1)<span class="pg-ellipsis">…</span>@endif
+                <a href="{{ $rawMaterials->url($last) }}" class="pg-btn">{{ $last }}</a>
+            @endif
+
+            {{-- Next --}}
+            @if($rawMaterials->hasMorePages())
+                <a href="{{ $rawMaterials->nextPageUrl() }}" class="pg-btn">Next &#8594;</a>
+            @else
+                <span class="pg-btn pg-disabled">Next &#8594;</span>
+            @endif
+        </div>
+        @endif
     </div>
+    @endif
 </div>
 
 

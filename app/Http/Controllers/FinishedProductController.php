@@ -15,11 +15,26 @@ use Illuminate\Support\Facades\Schema;
 
 class FinishedProductController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $products = FinishedProduct::with(['recipes.rawMaterial', 'pendingMixes', 'productionMixes'])
-            ->orderBy('name')
-            ->paginate(15);
+        $query = FinishedProduct::with(['recipes.rawMaterial', 'pendingMixes', 'productionMixes'])
+            ->orderBy('name');
+
+        // Search by name
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        // Filter by type or stock level
+        if ($request->filter === 'manufactured') {
+            $query->where('product_type', 'manufactured');
+        } elseif ($request->filter === 'consigned') {
+            $query->where('product_type', 'consigned');
+        } elseif ($request->filter === 'low') {
+            $query->whereColumn('stock_on_hand', '<=', 'minimum_stock');
+        }
+
+        $products = $query->paginate(15)->withQueryString();
 
         $pendingMixes   = \App\Models\ProductionMix::where('status', 'pending')->count();
         $lowStockCount  = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->count();
@@ -61,7 +76,6 @@ class FinishedProductController extends Controller
         try {
             DB::beginTransaction();
 
-            // ── Build only the columns that exist on the table ──────
             $product = FinishedProduct::create([
                 'name'          => $request->name,
                 'sku'           => $request->sku,
@@ -76,19 +90,17 @@ class FinishedProductController extends Controller
                 'description'   => $request->description,
             ]);
 
-            // ── Auto-generate barcode after we have the ID ──────────
-            // Only if the barcode column exists (migration has been run)
+            // Auto-generate barcode after we have the ID
             if (Schema::hasColumn('finished_products', 'barcode')) {
                 $product->barcode = $product->generateBarcode();
                 $product->save();
             }
 
-            // ── Save recipe for manufactured products ───────────────
+            // Save recipe for manufactured products
             if ($request->product_type === 'manufactured' && $request->filled('ingredients')) {
                 foreach ($request->ingredients as $ingredient) {
                     if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
                         $rawMaterial = RawMaterial::find($ingredient['id']);
-
                         ProductRecipe::create([
                             'finished_product_id' => $product->id,
                             'raw_material_id'     => $ingredient['id'],
@@ -182,7 +194,6 @@ class FinishedProductController extends Controller
                     foreach ($request->ingredients as $ingredient) {
                         if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
                             $rawMaterial = RawMaterial::find($ingredient['id']);
-
                             ProductRecipe::create([
                                 'finished_product_id' => $finishedProduct->id,
                                 'raw_material_id'     => $ingredient['id'],

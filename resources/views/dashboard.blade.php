@@ -358,11 +358,7 @@
                     @endforeach
                 </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ route('production-mixes.index') }}" class="btn btn-sm btn-warning w-100">
-                    <i class="bi bi-plus-circle me-2"></i>Start Production
-                </a>
-            </div>
+            
         </div>
     </div>
     @endif

@@ -33,6 +33,25 @@ class BranchInventoryController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
+        // Also get finished products with stock (no batch required)
+        $availableProducts = FinishedProduct::where('stock_on_hand', '>', 0)
+            ->orderBy('name')
+            ->get()
+            ->map(function($product) {
+                // Create a "virtual batch" for products without batch tracking
+                return (object)[
+                    'id' => 'product_' . $product->id,
+                    'product_id' => $product->id,
+                    'product' => $product,
+                    'batch_number' => null,
+                    'actual_output' => $product->stock_on_hand,
+                    'expiration_date' => null,
+                ];
+            });
+        
+        // Merge batches and products
+        $availableBatches = $availableBatches->concat($availableProducts);
+        
         // Get stock movements for this branch
         $stockMovements = StockMovement::where('branch_id', $branch->id)
             ->with(['finishedProduct', 'user'])
@@ -43,115 +62,138 @@ class BranchInventoryController extends Controller
         return view('branch-inventory.show', compact('branch', 'availableBatches', 'stockMovements'));
     }
 
-    // Deploy stock from warehouse to branch (with batch tracking)
-    // Replace the transfer() method in BranchInventoryController with this:
+    public function transfer(Request $request, Branch $branch)
+    {
+        $validated = $request->validate([
+            'customer_name' => 'required|string|max:255',
+            'dr_number' => 'required|string|max:255',
+            'movement_date' => 'required|date',
+            'total_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.production_mix_id' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.extra_quantity' => 'nullable|numeric|min:0',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
+        ]);
 
-public function transfer(Request $request, Branch $branch)
-{
-    $validated = $request->validate([
-        'customer_name' => 'required|string|max:255',
-        'dr_number' => 'required|string|max:255',
-        'movement_date' => 'required|date',
-        'total_amount' => 'nullable|numeric|min:0',
-        'notes' => 'nullable|string',
-        'items' => 'required|array|min:1',
-        'items.*.production_mix_id' => 'required|exists:production_mixes,id',
-        'items.*.quantity' => 'required|numeric|min:0.01',
-        'items.*.extra_quantity' => 'nullable|numeric|min:0',
-        'items.*.unit_price' => 'nullable|numeric|min:0',
-    ]);
+        try {
+            DB::beginTransaction();
 
-    try {
-        DB::beginTransaction();
+            $deployedItems = [];
 
-        $deployedItems = [];
+            foreach ($validated['items'] as $itemData) {
+                $mixId = $itemData['production_mix_id'];
+                
+                // Check if it's a direct product or a production batch
+                if (str_starts_with($mixId, 'product_')) {
+                    // Direct product deployment (no batch)
+                    $productId = (int) str_replace('product_', '', $mixId);
+                    $product = FinishedProduct::lockForUpdate()->findOrFail($productId);
+                    
+                    $regularQty = $itemData['quantity'];
+                    $extraQty = $itemData['extra_quantity'] ?? 0;
+                    $totalQty = $regularQty + $extraQty;
+                    
+                    if ($totalQty > $product->stock_on_hand) {
+                        throw new \Exception("Insufficient stock for {$product->name}! Only {$product->stock_on_hand} units available.");
+                    }
+                    
+                    $product->decrement('stock_on_hand', $totalQty);
+                    $product->increment('stock_out', $totalQty);
+                    
+                    $batchNumber = null;
+                    $expirationDate = null;
+                    
+                } else {
+                    // Production batch deployment
+                    $mix = ProductionMix::with('product')->lockForUpdate()->findOrFail($mixId);
+                    $product = $mix->product;
+                    
+                    $regularQty = $itemData['quantity'];
+                    $extraQty = $itemData['extra_quantity'] ?? 0;
+                    $totalQty = $regularQty + $extraQty;
+                    
+                    if ($totalQty > $mix->actual_output) {
+                        throw new \Exception("Insufficient stock in batch {$mix->batch_number}! Only {$mix->actual_output} units available for {$product->name}.");
+                    }
+                    
+                    $mix->decrement('actual_output', $totalQty);
+                    $product->decrement('stock_on_hand', $totalQty);
+                    $product->increment('stock_out', $totalQty);
+                    
+                    $batchNumber = $mix->batch_number;
+                    $expirationDate = $mix->expiration_date;
+                }
+                
+                // Add to branch inventory
+                $inventory = BranchInventory::where('branch_id', $branch->id)
+                    ->where('finished_product_id', $product->id)
+                    ->where('batch_number', $batchNumber)
+                    ->first();
 
-        foreach ($validated['items'] as $itemData) {
-            $mix = ProductionMix::with('product')->findOrFail($itemData['production_mix_id']);
-            
-            $regularQty = $itemData['quantity'];
-            $extraQty = $itemData['extra_quantity'] ?? 0;
-            $totalQty = $regularQty + $extraQty;
+                if ($inventory) {
+                    $inventory->increment('quantity', $regularQty);
+                } else {
+                    BranchInventory::create([
+                        'branch_id' => $branch->id,
+                        'finished_product_id' => $product->id,
+                        'quantity' => $regularQty,
+                        'batch_number' => $batchNumber,
+                        'expiration_date' => $expirationDate,
+                    ]);
+                }
 
-            // Check if enough stock in batch
-            if ($totalQty > $mix->actual_output) {
-                throw new \Exception("Insufficient stock in batch {$mix->batch_number}! Only {$mix->actual_output} units available for {$mix->product->name}.");
-            }
-
-            // Deduct from mix and warehouse
-            $mix->decrement('actual_output', $totalQty);
-            $mix->product->decrement('stock_on_hand', $totalQty);
-            $mix->product->increment('stock_out', $totalQty);
-
-            // Add regular quantity to branch inventory
-            $inventory = BranchInventory::where('branch_id', $branch->id)
-                ->where('finished_product_id', $mix->product->id)
-                ->where('batch_number', $mix->batch_number)
-                ->first();
-
-            if ($inventory) {
-                $inventory->increment('quantity', $regularQty);
-            } else {
-                BranchInventory::create([
-                    'branch_id' => $branch->id,
-                    'finished_product_id' => $mix->product->id,
-                    'quantity' => $regularQty,
-                    'batch_number' => $mix->batch_number,
-                    'expiration_date' => $mix->expiration_date,
-                ]);
-            }
-
-            // Record regular stock movement
-            StockMovement::create([
-                'finished_product_id' => $mix->product->id,
-                'branch_id' => $branch->id,
-                'movement_type' => 'transfer_out',
-                'quantity' => $regularQty,
-                'batch_number' => $mix->batch_number,
-                'expiration_date' => $mix->expiration_date,
-                'movement_date' => $validated['movement_date'],
-                'reference_number' => $validated['dr_number'],
-                'customer_name' => $validated['customer_name'],
-                'notes' => $validated['notes'],
-                'user_id' => Auth::id(),
-            ]);
-
-            // Record extra/free products if any
-            if ($extraQty > 0) {
+                // Record stock movement
                 StockMovement::create([
-                    'finished_product_id' => $mix->product->id,
+                    'finished_product_id' => $product->id,
                     'branch_id' => $branch->id,
-                    'movement_type' => 'extra_free',
-                    'quantity' => $extraQty,
-                    'batch_number' => $mix->batch_number,
-                    'expiration_date' => $mix->expiration_date,
+                    'movement_type' => 'transfer_out',
+                    'quantity' => $regularQty,
+                    'batch_number' => $batchNumber,
+                    'expiration_date' => $expirationDate,
                     'movement_date' => $validated['movement_date'],
                     'reference_number' => $validated['dr_number'],
                     'customer_name' => $validated['customer_name'],
-                    'notes' => "Extra/Free (Expense) - " . ($validated['notes'] ?? 'Complimentary'),
+                    'notes' => $validated['notes'],
                     'user_id' => Auth::id(),
                 ]);
+
+                // Record extra/free if any
+                if ($extraQty > 0) {
+                    StockMovement::create([
+                        'finished_product_id' => $product->id,
+                        'branch_id' => $branch->id,
+                        'movement_type' => 'extra_free',
+                        'quantity' => $extraQty,
+                        'batch_number' => $batchNumber,
+                        'expiration_date' => $expirationDate,
+                        'movement_date' => $validated['movement_date'],
+                        'reference_number' => $validated['dr_number'],
+                        'customer_name' => $validated['customer_name'],
+                        'notes' => "Extra/Free (Expense) - " . ($validated['notes'] ?? 'Complimentary'),
+                        'user_id' => Auth::id(),
+                    ]);
+                }
+
+                $batchInfo = $batchNumber ? " (Batch: {$batchNumber})" : " (No Batch)";
+                $deployedItems[] = "{$product->name}{$batchInfo} ({$regularQty}" . ($extraQty > 0 ? " + {$extraQty} extra" : "") . ")";
             }
 
-            $deployedItems[] = "{$mix->product->name} ({$regularQty}" . ($extraQty > 0 ? " + {$extraQty} extra" : "") . ")";
+            $branch->addCustomer($validated['customer_name']);
+
+            DB::commit();
+
+            $itemsList = implode(', ', $deployedItems);
+            return redirect()->route('branch-inventory.show', $branch)
+                ->with('success', "Deployed to {$validated['customer_name']} - DR#{$validated['dr_number']}: {$itemsList}");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', 'Deployment failed: ' . $e->getMessage());
         }
-
-        // Add customer to branch if not exists
-        $branch->addCustomer($validated['customer_name']);
-
-        DB::commit();
-
-        $itemsList = implode(', ', $deployedItems);
-        return redirect()->route('branch-inventory.show', $branch)
-            ->with('success', "Deployed to {$validated['customer_name']} - DR#{$validated['dr_number']}: {$itemsList}");
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return back()->withInput()->with('error', 'Deployment failed: ' . $e->getMessage());
     }
-}
 
-    // Return BO (Bad Orders) - Return stock from branch to warehouse
     public function returnStock(Request $request, Branch $branch)
     {
         $validated = $request->validate([
@@ -163,7 +205,6 @@ public function transfer(Request $request, Branch $branch)
 
         $branchInventory = BranchInventory::findOrFail($validated['branch_inventory_id']);
 
-        // Check if enough stock at branch
         if ($validated['quantity'] > $branchInventory->quantity) {
             return back()->withInput()->with('error', "Insufficient stock at area! Only {$branchInventory->quantity} units available.");
         }
@@ -175,19 +216,15 @@ public function transfer(Request $request, Branch $branch)
             $batchNumber = $branchInventory->batch_number;
             $expirationDate = $branchInventory->expiration_date;
 
-            // If returning full quantity, delete the inventory record
             if ($validated['quantity'] >= $branchInventory->quantity) {
                 $branchInventory->delete();
             } else {
-                // Partial return - reduce quantity
                 $branchInventory->decrement('quantity', $validated['quantity']);
             }
 
-            // Return to warehouse
             $product->increment('stock_on_hand', $validated['quantity']);
             $product->decrement('stock_out', $validated['quantity']);
 
-            // Return to MIX batch if batch number exists
             if ($batchNumber) {
                 $mix = ProductionMix::where('batch_number', $batchNumber)->first();
                 if ($mix) {
@@ -195,7 +232,6 @@ public function transfer(Request $request, Branch $branch)
                 }
             }
 
-            // Record stock movement
             StockMovement::create([
                 'finished_product_id' => $product->id,
                 'branch_id' => $branch->id,
@@ -210,7 +246,7 @@ public function transfer(Request $request, Branch $branch)
 
             DB::commit();
 
-            $batchInfo = $batchNumber ? " (Batch: {$batchNumber})" : "";
+            $batchInfo = $batchNumber ? " (Batch: {$batchNumber})" : " (No Batch)";
             return redirect()->route('branch-inventory.show', $branch)
                 ->with('success', "Returned {$validated['quantity']} units of {$product->name}{$batchInfo} to warehouse!");
 

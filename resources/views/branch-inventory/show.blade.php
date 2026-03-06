@@ -33,7 +33,7 @@
             </div>
             <form action="{{ route('branch-inventory.transfer', $branch) }}" method="POST" id="deployForm">
                 @csrf
-                <div class="modal-body">
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                     <!-- DR Header Info -->
                     <div class="row mb-4">
                         <div class="col-md-4">
@@ -107,7 +107,7 @@
                         <textarea name="notes" class="form-control" rows="2" placeholder="Additional notes about this delivery..."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="position: sticky; bottom: 0; background: white; z-index: 1050; border-top: 1px solid #dee2e6;">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success btn-lg">
                         <i class="bi bi-truck me-2"></i>Deploy to {{ $branch->name }}
@@ -180,7 +180,7 @@
                         @foreach($batches as $batch)
                             <div class="d-flex justify-content-between align-items-center border-bottom py-1">
                                 <small>
-                                    <span class="badge bg-secondary">{{ $batch->batch_number }}</span>
+                                    <span class="badge bg-secondary">{{ $batch->batch_number ?? 'No Batch' }}</span>
                                 </small>
                                 <small class="text-success"><strong>{{ $batch->actual_output }} units</strong></small>
                             </div>
@@ -241,7 +241,7 @@
                                         <i class="bi bi-arrow-counterclockwise me-1"></i>Return BO
                                     </button>
 
-                                    <!-- Return BO Modal (keep existing modal code) -->
+                                    <!-- Return BO Modal -->
                                     <div class="modal fade" id="returnModal{{ $item->id }}" tabindex="-1">
                                         <div class="modal-dialog">
                                             <div class="modal-content">
@@ -447,12 +447,15 @@
 
 /* ===== DROPDOWN MENU ===== */
 
-/* Dropdown Container */
+/* Dropdown Container - LIMITED WIDTH */
 .select2-container--bootstrap-5 .select2-dropdown {
     border: 1px solid #dee2e6 !important;
     border-radius: 0.375rem !important;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
     z-index: 9999 !important;
+    max-width: 500px !important;
+    width: auto !important;
+    min-width: 300px !important;
 }
 
 /* Search Box in Dropdown */
@@ -490,6 +493,9 @@
     padding: 8px 12px !important;
     font-size: 0.875rem !important;
     line-height: 1.4 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
 
 .select2-results__option--selectable {
@@ -506,6 +512,20 @@
 .select2-results__option--selected {
     background-color: #e9ecef !important;
     color: #495057 !important;
+}
+
+/* ===== SPECIFIC DROPDOWN WIDTHS ===== */
+
+/* Customer Select Dropdown */
+#customerSelect + .select2-container .select2-dropdown {
+    max-width: 350px !important;
+    min-width: 300px !important;
+}
+
+/* Batch Select Dropdown in Table */
+.batch-select + .select2-container .select2-dropdown {
+    max-width: 450px !important;
+    min-width: 350px !important;
 }
 
 /* ===== TABLE BATCH SELECT (SMALLER) ===== */
@@ -539,20 +559,46 @@ span.select2-container {
     right: 22px !important;
 }
 
+/* ===== FIX SCROLLING & SUBMIT BUTTON ISSUES ===== */
+
+/* Modal body scrollable */
+.modal-body {
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* Modal footer always visible and clickable */
+.modal-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: white !important;
+    z-index: 1050 !important;
+    border-top: 1px solid #dee2e6 !important;
+    margin-top: 0 !important;
+}
+
+/* Modal content structure */
+.modal-content {
+    position: relative;
+    z-index: 1040;
+}
+
+/* Ensure dropdown doesn't block clicks */
+.select2-container {
+    z-index: auto !important;
+}
+
 /* ===== RESPONSIVE FIXES ===== */
-
-/* Prevent Horizontal Scroll */
-.select2-dropdown {
-    max-width: 100% !important;
-}
-
-.select2-results__option {
-    word-wrap: break-word !important;
-    white-space: normal !important;
-}
 
 /* Mobile Optimization */
 @media (max-width: 768px) {
+    .select2-container--bootstrap-5 .select2-dropdown {
+        max-width: 90vw !important;
+        min-width: 280px !important;
+    }
+    
     .select2-results__option {
         padding: 10px 12px !important;
         font-size: 0.9rem !important;
@@ -560,6 +606,10 @@ span.select2-container {
     
     .select2-search--dropdown .select2-search__field {
         font-size: 1rem !important;
+    }
+    
+    .modal-body {
+        max-height: 60vh !important;
     }
 }
 </style>
@@ -572,23 +622,23 @@ let selectedBatches = []; // Track selected batches
 $(document).ready(function() {
     // Initialize Select2 for customer when modal opens
     $('#deployModal').on('shown.bs.modal', function() {
-    if (!$('#customerSelect').hasClass('select2-hidden-accessible')) {
-        $('#customerSelect').select2({
-            theme: 'bootstrap-5',
-            dropdownParent: $('#deployModal'),
-            placeholder: '-- Select Customer --',
-            width: '100%',
-            tags: true  // Allow adding new customers
-        });
-        
-        // AUTO-FOCUS SEARCH FOR CUSTOMER TOO
-        $('#customerSelect').on('select2:open', function(e) {
-            setTimeout(function() {
-                document.querySelector('.select2-search__field').focus();
-            }, 100);
-        });
-    }
-});
+        if (!$('#customerSelect').hasClass('select2-hidden-accessible')) {
+            $('#customerSelect').select2({
+                theme: 'bootstrap-5',
+                dropdownParent: $('#deployModal'),
+                placeholder: '-- Select Customer --',
+                width: '100%',
+                tags: true  // Allow adding new customers
+            });
+            
+            // AUTO-FOCUS SEARCH FOR CUSTOMER
+            $('#customerSelect').on('select2:open', function(e) {
+                setTimeout(function() {
+                    document.querySelector('.select2-search__field').focus();
+                }, 100);
+            });
+        }
+    });
     
     // Reset form when modal closes
     $('#deployModal').on('hidden.bs.modal', function() {
@@ -609,6 +659,11 @@ $(document).ready(function() {
     
     // Add first row automatically
     addProductRow();
+    
+    // CLOSE DROPDOWN WHEN SCROLLING MODAL
+    $('#deployModal .modal-body').on('scroll', function() {
+        $('.select2-hidden-accessible').select2('close');
+    });
 });
 
 function addProductRow() {

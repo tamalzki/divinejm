@@ -74,8 +74,10 @@
                 
                 <div id="customersContainer" class="border rounded p-3 bg-light">
                     <div id="customersList">
-                        <!-- Customers will be added here dynamically -->
-                        @if(!$branch->customers || count($branch->customers) === 0)
+                        @php
+                            $existingCustomers = old('customers', $branch->customers ?? []);
+                        @endphp
+                        @if(empty($existingCustomers))
                             <p class="text-muted text-center mb-0" id="emptyMessage">No customers added yet. Click "Add Customer" to add one.</p>
                         @endif
                     </div>
@@ -108,6 +110,9 @@
                 <button type="submit" class="btn btn-warning">
                     <i class="bi bi-save me-2"></i>Update Branch
                 </button>
+                <a href="{{ route('branches.show', $branch) }}" class="btn btn-info text-white">
+                    <i class="bi bi-eye me-2"></i>View Branch
+                </a>
                 <a href="{{ route('branches.index') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
@@ -117,33 +122,36 @@
 <script>
 let customerIndex = 0;
 
-function addCustomer() {
+function addCustomer(name = '', phone = '') {
     const emptyMessage = document.getElementById('emptyMessage');
     if (emptyMessage) {
         emptyMessage.remove();
     }
 
+    const idx = customerIndex;
     const customerHtml = `
-        <div class="card mb-2" id="customer-${customerIndex}">
+        <div class="card mb-2" id="customer-${idx}">
             <div class="card-body py-2">
                 <div class="row align-items-center">
                     <div class="col-md-5">
                         <input type="text" 
-                               name="customers[${customerIndex}][name]" 
+                               name="customers[${idx}][name]" 
                                class="form-control form-control-sm" 
                                placeholder="Customer Name"
+                               value="${escapeHtml(name)}"
                                required>
                     </div>
                     <div class="col-md-5">
                         <input type="text" 
-                               name="customers[${customerIndex}][phone]" 
+                               name="customers[${idx}][phone]" 
                                class="form-control form-control-sm" 
-                               placeholder="Phone Number">
+                               placeholder="Phone Number"
+                               value="${escapeHtml(phone)}">
                     </div>
                     <div class="col-md-2 text-end">
                         <button type="button" 
                                 class="btn btn-sm btn-danger" 
-                                onclick="removeCustomer(${customerIndex})">
+                                onclick="removeCustomer(${idx})">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -160,33 +168,28 @@ function removeCustomer(index) {
     const customerElement = document.getElementById(`customer-${index}`);
     customerElement.remove();
 
-    // Check if no customers left
     const customersList = document.getElementById('customersList');
     if (customersList.children.length === 0) {
         customersList.innerHTML = '<p class="text-muted text-center mb-0" id="emptyMessage">No customers added yet. Click "Add Customer" to add one.</p>';
     }
 }
 
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str || ''));
+    return div.innerHTML;
+}
+
 // Load existing customers when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    @if(old('customers'))
-        // If there are validation errors, restore old customers
-        @foreach(old('customers', []) as $index => $customer)
-            addCustomer();
-            document.querySelector(`[name="customers[${customerIndex - 1}][name]"]`).value = "{{ $customer['name'] ?? '' }}";
-            document.querySelector(`[name="customers[${customerIndex - 1}][phone]"]`).value = "{{ $customer['phone'] ?? '' }}";
-        @endforeach
-    @elseif({{ json_encode($branch->customers ?? []) }})
-        // Load existing customers from database
-        const existingCustomers = @json($branch->customers ?? []);
-        if (existingCustomers && existingCustomers.length > 0) {
-            existingCustomers.forEach(customer => {
-                addCustomer();
-                document.querySelector(`[name="customers[${customerIndex - 1}][name]"]`).value = customer.name || '';
-                document.querySelector(`[name="customers[${customerIndex - 1}][phone]"]`).value = customer.phone || '';
-            });
-        }
-    @endif
+    // Pass PHP data cleanly into JS — no Blade inside JS string literals
+    const existingCustomers = @json($existingCustomers ?? []);
+
+    if (Array.isArray(existingCustomers) && existingCustomers.length > 0) {
+        existingCustomers.forEach(function(customer) {
+            addCustomer(customer.name || '', customer.phone || '');
+        });
+    }
 });
 </script>
 @endsection

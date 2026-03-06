@@ -34,11 +34,9 @@ class BranchController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        // Auto-uppercase the code
         $validated['code'] = strtoupper($validated['code']);
         $validated['is_active'] = $request->has('is_active');
         
-        // Convert customers array to proper format
         if (isset($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);
         }
@@ -47,6 +45,12 @@ class BranchController extends Controller
 
         return redirect()->route('branches.index')
             ->with('success', "Branch '{$validated['name']}' created successfully!");
+    }
+
+    public function show(Branch $branch)
+    {
+        $branch->loadCount('inventory');
+        return view('branches.show', compact('branch'));
     }
 
     public function edit(Branch $branch)
@@ -68,11 +72,9 @@ class BranchController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        // Auto-uppercase the code
         $validated['code'] = strtoupper($validated['code']);
         $validated['is_active'] = $request->has('is_active');
         
-        // Convert customers array to proper format
         if (isset($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);
         } else {
@@ -81,13 +83,12 @@ class BranchController extends Controller
 
         $branch->update($validated);
 
-        return redirect()->route('branches.index')
+        return redirect()->route('branches.show', $branch)
             ->with('success', "Branch '{$validated['name']}' updated successfully!");
     }
 
     public function destroy(Branch $branch)
     {
-        // Check if branch has inventory
         if ($branch->inventory()->count() > 0) {
             return back()->with('error', "Cannot delete '{$branch->name}' - branch has {$branch->inventory()->count()} products in inventory!");
         }

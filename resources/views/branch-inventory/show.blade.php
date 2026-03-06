@@ -395,7 +395,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <style>
-/* Fix Select2 dropdown styling */
+/* Customer Select2 Styling */
 .select2-container--bootstrap-5 .select2-selection,
 .select2-container .select2-selection--single {
     height: 38px !important;
@@ -432,6 +432,79 @@
     background-color: #0d6efd !important;
     color: white !important;
 }
+
+/* PRODUCT/BATCH SELECT2 STYLING - CRITICAL FIX */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__clear {
+    color: #dc3545 !important;
+    font-size: 1.2rem !important;
+    margin-right: 5px !important;
+}
+
+/* Fix for selected item display in table */
+span.select2-container {
+    width: 100% !important;
+    display: block !important;
+}
+
+.select2-container .select2-selection--single .select2-selection__rendered {
+    padding-right: 30px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Search box styling */
+.select2-search--dropdown .select2-search__field {
+    border: 1px solid #dee2e6 !important;
+    border-radius: 0.375rem !important;
+    padding: 0.5rem !important;
+    width: 100% !important;
+}
+
+.select2-search--dropdown .select2-search__field:focus {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+    outline: none !important;
+}
+
+/* Results styling */
+.select2-results__option {
+    padding: 0.5rem 1rem !important;
+}
+
+.select2-results__option--selectable {
+    cursor: pointer !important;
+}
+
+/* Make dropdown appear properly in modal */
+.select2-dropdown {
+    z-index: 9999 !important;
+}
+
+/* Fix small select in table */
+.batch-select + .select2-container {
+    font-size: 0.875rem !important;
+}
+
+.batch-select + .select2-container .select2-selection--single {
+    height: 32px !important;
+    padding: 0.25rem 0.5rem !important;
+    min-height: 32px !important;
+}
+
+.batch-select + .select2-container .select2-selection__rendered {
+    line-height: 1.3 !important;
+    padding-top: 2px !important;
+}
+
+.batch-select + .select2-container .select2-selection__arrow {
+    height: 30px !important;
+}
+
+/* Clear button for batch select */
+.batch-select + .select2-container .select2-selection__clear {
+    margin-top: -2px !important;
+}
 </style>
 
 <script>
@@ -442,16 +515,23 @@ let selectedBatches = []; // Track selected batches
 $(document).ready(function() {
     // Initialize Select2 for customer when modal opens
     $('#deployModal').on('shown.bs.modal', function() {
-        if (!$('#customerSelect').hasClass('select2-hidden-accessible')) {
-            $('#customerSelect').select2({
-                theme: 'bootstrap-5',
-                dropdownParent: $('#deployModal'),
-                placeholder: '-- Select Customer --',
-                width: '100%',
-                tags: true  // Allow adding new customers
-            });
-        }
-    });
+    if (!$('#customerSelect').hasClass('select2-hidden-accessible')) {
+        $('#customerSelect').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#deployModal'),
+            placeholder: '-- Select Customer --',
+            width: '100%',
+            tags: true  // Allow adding new customers
+        });
+        
+        // AUTO-FOCUS SEARCH FOR CUSTOMER TOO
+        $('#customerSelect').on('select2:open', function(e) {
+            setTimeout(function() {
+                document.querySelector('.select2-search__field').focus();
+            }, 100);
+        });
+    }
+});
     
     // Reset form when modal closes
     $('#deployModal').on('hidden.bs.modal', function() {
@@ -571,6 +651,7 @@ function initializeProductSelect2(index) {
             placeholder: '-- Select Product/Batch --',
             width: '100%',
             allowClear: true,
+            dropdownAutoWidth: true,
             // Enable search
             matcher: function(params, data) {
                 // If there are no search terms, return all data
@@ -586,6 +667,14 @@ function initializeProductSelect2(index) {
                 // Return null if term doesn't match
                 return null;
             }
+        });
+        
+        // AUTO-FOCUS SEARCH BOX WHEN DROPDOWN OPENS
+        selectElement.on('select2:open', function(e) {
+            // Focus the search field automatically
+            setTimeout(function() {
+                document.querySelector('.select2-search__field').focus();
+            }, 100);
         });
         
         // Handle selection change

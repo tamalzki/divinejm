@@ -918,7 +918,10 @@ function calculateRow(index) {
     // Check if exceeds available
     if (total > availableStock && availableStock > 0) {
         $(`#availStock${index}`).html(`<span class="text-danger">⚠️ Exceeds available! (${availableStock} max)</span>`);
-    
+    } else if (availableStock > 0) {
+        $(`#availStock${index}`);
+    }
+
     $(`#rowTotal${index}`).text('₱' + amount.toLocaleString('en-PH', {minimumFractionDigits: 2}));
     
     calculateGrandTotal();

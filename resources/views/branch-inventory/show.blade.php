@@ -473,15 +473,18 @@ function addProductRow() {
     // Generate options excluding already selected batches
     const options = availableBatches
         .filter(batch => !selectedBatches.includes(batch.id))
-        .map(batch => `
-            <option value="${batch.id}" 
-                    data-stock="${batch.actual_output}"
-                    data-product="${batch.product.name}"
-                    data-batch="${batch.batch_number}"
-                    data-price="${batch.product.selling_price || 0}">
-                ${batch.product.name} - Batch: ${batch.batch_number} (${batch.actual_output} avail)
-            </option>
-        `).join('');
+        .map(batch => {
+            const batchDisplay = batch.batch_number || 'No Batch';
+            return `
+                <option value="${batch.id}" 
+                        data-stock="${batch.actual_output}"
+                        data-product="${batch.product.name}"
+                        data-batch="${batch.batch_number || ''}"
+                        data-price="${batch.product.selling_price || 0}">
+                    ${batch.product.name} - ${batchDisplay} (${batch.actual_output} avail)
+                </option>
+            `;
+        }).join('');
     
     row.innerHTML = `
         <td>
@@ -587,9 +590,11 @@ function updateAllDropdowns() {
                 option.value = batchId;
                 option.dataset.stock = batch.actual_output;
                 option.dataset.product = batch.product.name;
-                option.dataset.batch = batch.batch_number;
+                option.dataset.batch = batch.batch_number || '';
                 option.dataset.price = batch.product.selling_price || 0;
-                option.textContent = `${batch.product.name} - Batch: ${batch.batch_number} (${batch.actual_output} avail)`;
+                
+                const batchDisplay = batch.batch_number || 'No Batch';
+                option.textContent = `${batch.product.name} - ${batchDisplay} (${batch.actual_output} avail)`;
                 
                 if (isCurrentSelection) {
                     option.selected = true;

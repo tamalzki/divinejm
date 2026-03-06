@@ -447,7 +447,8 @@ $(document).ready(function() {
                 theme: 'bootstrap-5',
                 dropdownParent: $('#deployModal'),
                 placeholder: '-- Select Customer --',
-                width: '100%'
+                width: '100%',
+                tags: true  // Allow adding new customers
             });
         }
     });
@@ -456,6 +457,14 @@ $(document).ready(function() {
     $('#deployModal').on('hidden.bs.modal', function() {
         $('#deployForm')[0].reset();
         $('#productsTableBody').empty();
+        
+        // Destroy all Select2 instances in the table
+        $('.batch-select').each(function() {
+            if ($(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2('destroy');
+            }
+        });
+        
         selectedBatches = [];
         productIndex = 0;
         addProductRow();
@@ -469,6 +478,7 @@ function addProductRow() {
     const tbody = document.getElementById('productsTableBody');
     const row = document.createElement('tr');
     row.id = `productRow${productIndex}`;
+    const currentIndex = productIndex;
     
     // Generate options excluding already selected batches
     const options = availableBatches
@@ -488,165 +498,251 @@ function addProductRow() {
     
     row.innerHTML = `
         <td>
-            <select name="items[${productIndex}][production_mix_id]" class="form-select form-select-sm batch-select" data-index="${productIndex}" required onchange="updateBatchInfo(${productIndex})">
+            <select name="items[${currentIndex}][production_mix_id]" 
+                    class="form-select form-select-sm batch-select" 
+                    data-index="${currentIndex}" 
+                    id="batchSelect${currentIndex}"
+                    required>
                 <option value="">-- Select Product/Batch --</option>
                 ${options}
             </select>
-            <small class="text-muted available-stock" id="availStock${productIndex}"></small>
+            <small class="text-muted available-stock" id="availStock${currentIndex}"></small>
         </td>
         <td class="text-center">
-            <span class="badge bg-info" id="availBadge${productIndex}">-</span>
+            <span class="badge bg-info" id="availBadge${currentIndex}">-</span>
         </td>
         <td>
-            <input type="number" name="items[${productIndex}][quantity]" class="form-control form-control-sm qty-forsale" data-index="${productIndex}" step="0.01" min="0" placeholder="0" required oninput="calculateRow(${productIndex})">
+            <input type="number" 
+                   name="items[${currentIndex}][quantity]" 
+                   class="form-control form-control-sm qty-forsale" 
+                   data-index="${currentIndex}" 
+                   step="0.01" 
+                   min="0" 
+                   placeholder="0" 
+                   required 
+                   oninput="calculateRow(${currentIndex})">
         </td>
         <td>
-            <input type="number" name="items[${productIndex}][extra_quantity]" class="form-control form-control-sm qty-extra" data-index="${productIndex}" step="0.01" min="0" value="0" placeholder="0" oninput="calculateRow(${productIndex})">
+            <input type="number" 
+                   name="items[${currentIndex}][extra_quantity]" 
+                   class="form-control form-control-sm qty-extra" 
+                   data-index="${currentIndex}" 
+                   step="0.01" 
+                   min="0" 
+                   value="0" 
+                   placeholder="0" 
+                   oninput="calculateRow(${currentIndex})">
         </td>
         <td>
-            <input type="number" name="items[${productIndex}][unit_price]" class="form-control form-control-sm unit-price" data-index="${productIndex}" step="0.01" min="0" placeholder="0.00" oninput="calculateRow(${productIndex})">
+            <input type="number" 
+                   name="items[${currentIndex}][unit_price]" 
+                   class="form-control form-control-sm unit-price" 
+                   data-index="${currentIndex}" 
+                   step="0.01" 
+                   min="0" 
+                   placeholder="0.00" 
+                   oninput="calculateRow(${currentIndex})">
         </td>
         <td class="text-end">
-            <strong class="row-total" id="rowTotal${productIndex}">₱0.00</strong>
+            <strong class="row-total" id="rowTotal${currentIndex}">₱0.00</strong>
         </td>
         <td>
-            <button type="button" class="btn btn-sm btn-danger" onclick="removeProductRow(${productIndex})">
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeProductRow(${currentIndex})">
                 <i class="bi bi-trash"></i>
             </button>
         </td>
     `;
     
     tbody.appendChild(row);
+    
+    // Initialize Select2 for this product dropdown
+    initializeProductSelect2(currentIndex);
+    
     productIndex++;
 }
 
+function initializeProductSelect2(index) {
+    const selectElement = $(`#batchSelect${index}`);
+    
+    if (!selectElement.hasClass('select2-hidden-accessible')) {
+        selectElement.select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#deployModal'),
+            placeholder: '-- Select Product/Batch --',
+            width: '100%',
+            allowClear: true,
+            // Enable search
+            matcher: function(params, data) {
+                // If there are no search terms, return all data
+                if ($.trim(params.term) === '') {
+                    return data;
+                }
+
+                // Search in the text
+                if (data.text.toUpperCase().indexOf(params.term.toUpperCase()) > -1) {
+                    return data;
+                }
+
+                // Return null if term doesn't match
+                return null;
+            }
+        });
+        
+        // Handle selection change
+        selectElement.on('select2:select', function(e) {
+            updateBatchInfo(index);
+        });
+        
+        // Handle clearing
+        selectElement.on('select2:clear', function(e) {
+            clearBatchInfo(index);
+        });
+    }
+}
+
 function updateBatchInfo(index) {
-    const select = document.querySelector(`select[data-index="${index}"]`);
-    const option = select.options[select.selectedIndex];
-    const previousValue = select.dataset.previousValue;
+    const select = $(`#batchSelect${index}`);
+    const selectedOption = select.find('option:selected');
+    const previousValue = select.data('previousValue');
     
     // Remove previously selected batch from tracking
     if (previousValue) {
-        const prevIndex = selectedBatches.indexOf(parseInt(previousValue));
+        const prevIndex = selectedBatches.indexOf(previousValue);
         if (prevIndex > -1) {
             selectedBatches.splice(prevIndex, 1);
         }
     }
     
-    if (option.value) {
-        const batchId = parseInt(option.value);
-        const stock = option.dataset.stock;
-        const price = option.dataset.price;
+    const selectedValue = select.val();
+    
+    if (selectedValue) {
+        const stock = selectedOption.data('stock');
+        const price = selectedOption.data('price');
         
         // Add to selected batches
-        selectedBatches.push(batchId);
-        select.dataset.previousValue = option.value;
+        selectedBatches.push(selectedValue);
+        select.data('previousValue', selectedValue);
         
-        document.getElementById(`availStock${index}`).textContent = `${stock} units available`;
-        document.getElementById(`availBadge${index}`).textContent = stock;
+        $(`#availStock${index}`).text(`${stock} units available`);
+        $(`#availBadge${index}`).text(stock);
         
         // Auto-fill price
-        document.querySelector(`.unit-price[data-index="${index}"]`).value = price;
+        $(`.unit-price[data-index="${index}"]`).val(price);
         
         // Update all other dropdowns to exclude this batch
         updateAllDropdowns();
         
         calculateRow(index);
-    } else {
-        document.getElementById(`availStock${index}`).textContent = '';
-        document.getElementById(`availBadge${index}`).textContent = '-';
-        select.dataset.previousValue = '';
     }
+}
+
+function clearBatchInfo(index) {
+    const select = $(`#batchSelect${index}`);
+    const previousValue = select.data('previousValue');
+    
+    // Remove from selected batches
+    if (previousValue) {
+        const prevIndex = selectedBatches.indexOf(previousValue);
+        if (prevIndex > -1) {
+            selectedBatches.splice(prevIndex, 1);
+        }
+    }
+    
+    $(`#availStock${index}`).text('');
+    $(`#availBadge${index}`).text('-');
+    select.data('previousValue', '');
+    
+    // Update all other dropdowns
+    updateAllDropdowns();
+    
+    calculateRow(index);
 }
 
 function updateAllDropdowns() {
     // Update each dropdown to hide selected batches
-    document.querySelectorAll('.batch-select').forEach(selectElement => {
-        const currentValue = selectElement.value;
-        const index = selectElement.dataset.index;
+    $('.batch-select').each(function() {
+        const selectElement = $(this);
+        const currentValue = selectElement.val();
+        const index = selectElement.data('index');
+        
+        // Destroy Select2 temporarily
+        if (selectElement.hasClass('select2-hidden-accessible')) {
+            selectElement.select2('destroy');
+        }
         
         // Clear and rebuild options
-        const currentOptions = Array.from(selectElement.options).map(opt => ({
-            value: opt.value,
-            text: opt.text,
-            selected: opt.selected,
-            dataset: {
-                stock: opt.dataset.stock,
-                product: opt.dataset.product,
-                batch: opt.dataset.batch,
-                price: opt.dataset.price
-            }
-        }));
-        
-        selectElement.innerHTML = '<option value="">-- Select Product/Batch --</option>';
+        selectElement.empty();
+        selectElement.append('<option value="">-- Select Product/Batch --</option>');
         
         availableBatches.forEach(batch => {
             const batchId = batch.id;
-            const isCurrentSelection = parseInt(currentValue) === batchId;
+            const isCurrentSelection = currentValue === batchId;
             const isAlreadySelected = selectedBatches.includes(batchId) && !isCurrentSelection;
             
             if (!isAlreadySelected) {
-                const option = document.createElement('option');
-                option.value = batchId;
-                option.dataset.stock = batch.actual_output;
-                option.dataset.product = batch.product.name;
-                option.dataset.batch = batch.batch_number || '';
-                option.dataset.price = batch.product.selling_price || 0;
-                
                 const batchDisplay = batch.batch_number || 'No Batch';
-                option.textContent = `${batch.product.name} - ${batchDisplay} (${batch.actual_output} avail)`;
+                const option = $('<option></option>')
+                    .val(batchId)
+                    .data('stock', batch.actual_output)
+                    .data('product', batch.product.name)
+                    .data('batch', batch.batch_number || '')
+                    .data('price', batch.product.selling_price || 0)
+                    .text(`${batch.product.name} - ${batchDisplay} (${batch.actual_output} avail)`);
                 
                 if (isCurrentSelection) {
-                    option.selected = true;
+                    option.prop('selected', true);
                 }
                 
-                selectElement.appendChild(option);
+                selectElement.append(option);
             }
         });
+        
+        // Re-initialize Select2
+        initializeProductSelect2(index);
     });
 }
 
 function calculateRow(index) {
-    const select = document.querySelector(`select[data-index="${index}"]`);
-    const option = select.options[select.selectedIndex];
-    const availableStock = parseFloat(option.dataset.stock || 0);
+    const select = $(`#batchSelect${index}`);
+    const selectedOption = select.find('option:selected');
+    const availableStock = parseFloat(selectedOption.data('stock') || 0);
     
-    const qtySale = parseFloat(document.querySelector(`.qty-forsale[data-index="${index}"]`).value || 0);
-    const qtyExtra = parseFloat(document.querySelector(`.qty-extra[data-index="${index}"]`).value || 0);
-    const unitPrice = parseFloat(document.querySelector(`.unit-price[data-index="${index}"]`).value || 0);
+    const qtySale = parseFloat($(`.qty-forsale[data-index="${index}"]`).val() || 0);
+    const qtyExtra = parseFloat($(`.qty-extra[data-index="${index}"]`).val() || 0);
+    const unitPrice = parseFloat($(`.unit-price[data-index="${index}"]`).val() || 0);
     
     const total = qtySale + qtyExtra;
     const amount = qtySale * unitPrice;
     
     // Check if exceeds available
-    if (total > availableStock) {
-        document.getElementById(`availStock${index}`).innerHTML = `<span class="text-danger">⚠️ Exceeds available! (${availableStock} max)</span>`;
-    } else {
-        document.getElementById(`availStock${index}`).innerHTML = `<span class="text-success">${availableStock} units available</span>`;
+    if (total > availableStock && availableStock > 0) {
+        $(`#availStock${index}`).html(`<span class="text-danger">⚠️ Exceeds available! (${availableStock} max)</span>`);
+    } else if (availableStock > 0) {
+        $(`#availStock${index}`).html(`<span class="text-success">${availableStock} units available</span>`);
     }
     
-    document.getElementById(`rowTotal${index}`).textContent = '₱' + amount.toLocaleString('en-PH', {minimumFractionDigits: 2});
+    $(`#rowTotal${index}`).text('₱' + amount.toLocaleString('en-PH', {minimumFractionDigits: 2}));
     
     calculateGrandTotal();
 }
 
 function calculateGrandTotal() {
     let grand = 0;
-    document.querySelectorAll('.unit-price').forEach((input, i) => {
-        const qty = parseFloat(document.querySelectorAll('.qty-forsale')[i]?.value || 0);
-        const price = parseFloat(input.value || 0);
+    $('.unit-price').each(function(i) {
+        const qty = parseFloat($('.qty-forsale').eq(i).val() || 0);
+        const price = parseFloat($(this).val() || 0);
         grand += qty * price;
     });
     
-    document.getElementById('grandTotal').textContent = '₱' + grand.toLocaleString('en-PH', {minimumFractionDigits: 2});
+    $('#grandTotal').text('₱' + grand.toLocaleString('en-PH', {minimumFractionDigits: 2}));
 }
 
 function removeProductRow(index) {
-    const row = document.getElementById(`productRow${index}`);
-    if (row) {
+    const row = $(`#productRow${index}`);
+    if (row.length) {
         // Get the selected batch ID before removing
-        const select = row.querySelector('.batch-select');
-        const selectedBatchId = parseInt(select.value);
+        const select = row.find('.batch-select');
+        const selectedBatchId = select.val();
         
         // Remove from selectedBatches array
         if (selectedBatchId) {
@@ -654,6 +750,11 @@ function removeProductRow(index) {
             if (batchIndex > -1) {
                 selectedBatches.splice(batchIndex, 1);
             }
+        }
+        
+        // Destroy Select2 instance
+        if (select.hasClass('select2-hidden-accessible')) {
+            select.select2('destroy');
         }
         
         // Remove the row

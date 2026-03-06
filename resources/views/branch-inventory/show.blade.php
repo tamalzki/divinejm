@@ -824,7 +824,7 @@ function updateBatchInfo(index) {
         selectedBatches.push(selectedValue);
         select.data('previousValue', selectedValue);
         
-        $(`#availStock${index}`).text(`${stock} units available`);
+       
         $(`#availBadge${index}`).text(stock);
         
         // Auto-fill price

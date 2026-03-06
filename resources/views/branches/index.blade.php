@@ -58,22 +58,26 @@
                         </td>
                         <td>
                             @php
-                                $customers = $branch->customers_list ?? [];
+                                $customers = $branch->customers ?? [];
+                                $total     = count($customers);
+                                $preview   = array_slice($customers, 0, 3);
                             @endphp
-                            @if(count($customers) > 0)
+                            @if($total > 0)
                                 <div class="d-flex flex-column gap-1">
-                                    @foreach(array_slice($customers, 0, 2) as $customer)
+                                    @foreach($preview as $customer)
                                         <small>
                                             <i class="bi bi-person-circle text-primary me-1"></i>
-                                            {{ $customer }}
+                                            {{ $customer['name'] ?? $customer }}
                                         </small>
                                     @endforeach
-                                    @if(count($customers) > 2)
-                                        <small class="text-muted">+{{ count($customers) - 2 }} more</small>
+                                    @if($total > 3)
+                                        <small>
+                                            <span class="badge bg-secondary">+{{ $total - 3 }} more</span>
+                                        </small>
                                     @endif
                                 </div>
                             @else
-                                <span class="text-muted">No customers</span>
+                                <span class="text-muted small">No customers</span>
                             @endif
                         </td>
                         <td class="text-center">

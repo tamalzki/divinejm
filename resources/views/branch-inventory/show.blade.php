@@ -395,70 +395,79 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <style>
-/* Customer Select2 Styling */
-.select2-container--bootstrap-5 .select2-selection,
-.select2-container .select2-selection--single {
+/* ===== CUSTOMER & PRODUCT SELECT2 STYLING ===== */
+
+/* Base Select2 Container */
+.select2-container--bootstrap-5 .select2-selection--single {
     height: 38px !important;
     border: 1px solid #dee2e6 !important;
     border-radius: 0.375rem !important;
     padding: 0.375rem 0.75rem !important;
     background-color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
 }
 
+/* Selected Text Display */
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
     line-height: 1.5 !important;
-    padding-left: 0 !important;
+    padding: 0 !important;
+    padding-right: 35px !important;
     color: #212529 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
 
+/* Dropdown Arrow */
 .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
     height: 36px !important;
-    right: 5px !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
 }
 
+/* Clear Button (X) */
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__clear {
+    color: #dc3545 !important;
+    font-size: 1.1rem !important;
+    margin-right: 8px !important;
+    position: absolute !important;
+    right: 25px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+}
+
+/* Focus State */
 .select2-container--bootstrap-5 .select2-selection--single:focus,
 .select2-container--bootstrap-5 .select2-selection--single:focus-within {
     border-color: #86b7fe !important;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
 }
 
-/* Dropdown menu */
+/* ===== DROPDOWN MENU ===== */
+
+/* Dropdown Container */
 .select2-container--bootstrap-5 .select2-dropdown {
     border: 1px solid #dee2e6 !important;
     border-radius: 0.375rem !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+    z-index: 9999 !important;
 }
 
-.select2-container--bootstrap-5 .select2-results__option--highlighted {
-    background-color: #0d6efd !important;
-    color: white !important;
+/* Search Box in Dropdown */
+.select2-search--dropdown {
+    padding: 8px !important;
+    background: #f8f9fa !important;
+    border-bottom: 1px solid #dee2e6 !important;
 }
 
-/* PRODUCT/BATCH SELECT2 STYLING - CRITICAL FIX */
-.select2-container--bootstrap-5 .select2-selection--single .select2-selection__clear {
-    color: #dc3545 !important;
-    font-size: 1.2rem !important;
-    margin-right: 5px !important;
-}
-
-/* Fix for selected item display in table */
-span.select2-container {
-    width: 100% !important;
-    display: block !important;
-}
-
-.select2-container .select2-selection--single .select2-selection__rendered {
-    padding-right: 30px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-}
-
-/* Search box styling */
 .select2-search--dropdown .select2-search__field {
     border: 1px solid #dee2e6 !important;
     border-radius: 0.375rem !important;
     padding: 0.5rem !important;
     width: 100% !important;
+    font-size: 0.875rem !important;
 }
 
 .select2-search--dropdown .select2-search__field:focus {
@@ -467,43 +476,91 @@ span.select2-container {
     outline: none !important;
 }
 
-/* Results styling */
+/* Results List */
+.select2-results {
+    max-height: 300px !important;
+    overflow-y: auto !important;
+}
+
+.select2-results__options {
+    padding: 4px 0 !important;
+}
+
 .select2-results__option {
-    padding: 0.5rem 1rem !important;
+    padding: 8px 12px !important;
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
 }
 
 .select2-results__option--selectable {
     cursor: pointer !important;
 }
 
-/* Make dropdown appear properly in modal */
-.select2-dropdown {
-    z-index: 9999 !important;
+/* Highlighted Option (Hover/Keyboard) */
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #0d6efd !important;
+    color: white !important;
 }
 
-/* Fix small select in table */
-.batch-select + .select2-container {
-    font-size: 0.875rem !important;
+/* Selected Option */
+.select2-results__option--selected {
+    background-color: #e9ecef !important;
+    color: #495057 !important;
 }
 
+/* ===== TABLE BATCH SELECT (SMALLER) ===== */
+
+/* Batch Select Container Width */
+span.select2-container {
+    width: 100% !important;
+    display: block !important;
+}
+
+/* Small Batch Select in Table */
 .batch-select + .select2-container .select2-selection--single {
     height: 32px !important;
     padding: 0.25rem 0.5rem !important;
     min-height: 32px !important;
+    font-size: 0.875rem !important;
 }
 
 .batch-select + .select2-container .select2-selection__rendered {
-    line-height: 1.3 !important;
-    padding-top: 2px !important;
+    line-height: 1.2 !important;
+    padding: 0 !important;
+    padding-right: 30px !important;
 }
 
 .batch-select + .select2-container .select2-selection__arrow {
     height: 30px !important;
 }
 
-/* Clear button for batch select */
 .batch-select + .select2-container .select2-selection__clear {
-    margin-top: -2px !important;
+    font-size: 1rem !important;
+    right: 22px !important;
+}
+
+/* ===== RESPONSIVE FIXES ===== */
+
+/* Prevent Horizontal Scroll */
+.select2-dropdown {
+    max-width: 100% !important;
+}
+
+.select2-results__option {
+    word-wrap: break-word !important;
+    white-space: normal !important;
+}
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+    .select2-results__option {
+        padding: 10px 12px !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .select2-search--dropdown .select2-search__field {
+        font-size: 1rem !important;
+    }
 }
 </style>
 

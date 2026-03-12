@@ -96,11 +96,7 @@
                                title="View Area">
                                 <i class="bi bi-eye"></i> View
                             </a>
-                            <a href="{{ route('branch-inventory.show', $branch) }}" 
-                               class="btn btn-sm btn-outline-info me-1"
-                               title="View Inventory">
-                                <i class="bi bi-box-seam"></i> Inventory
-                            </a>
+                            
                             <a href="{{ route('branches.edit', $branch) }}" 
                                class="btn btn-sm btn-outline-warning me-1"
                                title="Edit Area">

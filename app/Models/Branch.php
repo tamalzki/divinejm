@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use App\Models\Sale;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,15 +21,17 @@ class Branch extends Model
         'is_active' => 'boolean',
     ];
 
+    
+
     public function inventory()
     {
         return $this->hasMany(\App\Models\BranchInventory::class);
     }
 
     public function sales()
-    {
-        return $this->hasMany(Sale::class);
-    }
+{
+    return $this->hasMany(Sale::class);
+}
 
     // Helper to get customers from JSON - UPDATED TO HANDLE OBJECTS
     public function getCustomersListAttribute()
@@ -75,4 +78,6 @@ class Branch extends Model
             $this->save();
         }
     }
+
+    
 }

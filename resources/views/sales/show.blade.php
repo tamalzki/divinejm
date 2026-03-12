@@ -1,286 +1,132 @@
 @extends('layouts.sidebar')
-
-@section('page-title', 'DR#' . $sale->dr_number . ' - Sales History')
-
+@section('page-title', $customerName . ' — DRs')
 @section('content')
-<div class="mb-4">
-    <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-2"></i>Back to Sales
-    </a>
-</div>
+
+<style>
+    .dj-back { display:inline-flex; align-items:center; gap:.3rem; font-size:.75rem; color:var(--text-secondary); text-decoration:none; padding:.18rem .5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); }
+    .dj-back:hover { background:var(--bg-page); color:var(--text-primary); }
+
+    .dj-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden; }
+    .dj-card-header { display:flex; align-items:center; justify-content:space-between; padding:.55rem 1rem; border-bottom:1px solid var(--border); background:var(--bg-page); }
+    .dj-card-title { font-size:.78rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:.4rem; }
+
+    .data-table { width:100%; border-collapse:collapse; font-size:.80rem; }
+    .data-table thead th { background:var(--brand-deep); color:rgba(255,255,255,.88); font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:.52rem .9rem; white-space:nowrap; border:none; }
+    .data-table tbody td { padding:.52rem .9rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .data-table tbody tr:last-child td { border-bottom:none; }
+    .data-table tbody tr:hover td { background:var(--accent-faint); cursor:pointer; }
+
+    .pill { display:inline-block; padding:.12rem .5rem; border-radius:4px; font-size:.68rem; font-weight:700; }
+    .pill-danger  { background:var(--s-danger-bg);  color:var(--s-danger-text); }
+    .pill-warning { background:var(--s-warning-bg); color:var(--s-warning-text); }
+    .pill-success { background:var(--s-success-bg); color:var(--s-success-text); }
+    .pill-info    { background:var(--s-info-bg);    color:var(--s-info-text); }
+
+    .btn-view { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; padding:.22rem .6rem; border-radius:4px; border:1px solid var(--accent); color:var(--accent); background:transparent; text-decoration:none; white-space:nowrap; }
+    .btn-view:hover { background:var(--accent); color:#fff; }
+
+    .dj-search-wrap { position:relative; }
+    .dj-search-icon { position:absolute; left:.65rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:.8rem; pointer-events:none; }
+    .dj-search-input { padding:.32rem .7rem .32rem 2rem; font-size:.78rem; border:1px solid var(--border); border-radius:5px; background:var(--bg-card); color:var(--text-primary); width:220px; outline:none; }
+    .dj-search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
+
+    .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); font-size:.82rem; }
+
+    .balance-red   { color:var(--s-danger-text);  font-weight:700; }
+    .balance-green { color:var(--s-success-text); font-weight:700; }
+</style>
 
 @if(session('success'))
-<div class="alert alert-success alert-dismissible fade show">
-    <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
 @endif
 
-@if(session('error'))
-<div class="alert alert-danger alert-dismissible fade show">
-    <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
-<!-- DR Summary Card -->
-<div class="card shadow-sm mb-4 border-primary" style="border-width: 2px;">
-    <div class="card-header bg-primary text-white">
-        <div class="d-flex justify-content-between align-items-center">
-            <h4 class="mb-0"><i class="bi bi-receipt me-2"></i>DR# {{ $sale->dr_number }}</h4>
-            <span class="badge bg-light text-dark fs-6">{{ $drSales->count() }} Sale(s)</span>
+{{-- Page header --}}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ route('sales.index') }}" class="dj-back">
+            <i class="bi bi-arrow-left"></i> Sales
+        </a>
+        <div>
+            <h5 class="fw-bold mb-0" style="font-size:.93rem">
+                <i class="bi bi-person-circle me-1" style="color:var(--accent)"></i>{{ $customerName }}
+            </h5>
+            <span style="font-size:.68rem;color:var(--text-muted)">
+                {{ $branch->name }} &middot; {{ $sales->count() }} {{ Str::plural('DR', $sales->count()) }}
+            </span>
         </div>
     </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-3">
-                <small class="text-muted">Area/Branch:</small>
-                <div><strong>{{ $sale->branch->name }}</strong></div>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">Customer:</small>
-                <div><strong>{{ $sale->customer_name }}</strong></div>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">First Sale:</small>
-                <div>{{ $drSales->first()->sale_date->format('M d, Y') }}</div>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">Latest Sale:</small>
-                <div>{{ $drSales->last()->sale_date->format('M d, Y') }}</div>
-            </div>
-        </div>
-
-        <hr>
-
-        <!-- DR-Level Payment Summary -->
-        <div class="row">
-            <div class="col-md-3">
-                <small class="text-muted">Total Sold:</small>
-                <h4 class="mb-0">₱{{ number_format($drTotalSold, 2) }}</h4>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">Total Paid:</small>
-                <h4 class="mb-0 text-success">₱{{ number_format($drTotalPaid, 2) }}</h4>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">Balance:</small>
-                <h4 class="mb-0 {{ $drBalance > 0 ? 'text-danger' : 'text-success' }}">
-                    ₱{{ number_format($drBalance, 2) }}
-                </h4>
-            </div>
-            <div class="col-md-3">
-                <small class="text-muted">Overall Status:</small>
-                <div>
-                    @php
-                        if ($drTotalPaid >= $drTotalSold) {
-                            $drStatus = 'Paid';
-                            $drBadge = 'success';
-                        } elseif ($drTotalPaid > 0) {
-                            $drStatus = 'Partial';
-                            $drBadge = 'warning';
-                        } else {
-                            $drStatus = 'To Be Collected';
-                            $drBadge = 'danger';
-                        }
-                    @endphp
-                    <span class="badge bg-{{ $drBadge }} fs-6">{{ $drStatus }}</span>
-                </div>
-            </div>
-        </div>
+    <div class="dj-search-wrap">
+        <i class="bi bi-search dj-search-icon"></i>
+        <input type="text" id="searchInput" class="dj-search-input" placeholder="Search DR#..." autocomplete="off">
     </div>
 </div>
 
-<!-- Sales History -->
-<div class="card shadow-sm">
-    <div class="card-header bg-white">
-        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Sales History</h5>
+{{-- DR list --}}
+<div class="dj-card">
+    <div class="dj-card-header">
+        <span class="dj-card-title"><i class="bi bi-file-earmark-text" style="color:var(--accent)"></i> Delivery Receipts</span>
     </div>
-    <div class="card-body">
-        @foreach($drSales as $index => $saleRecord)
-        <div class="card mb-3 {{ $saleRecord->id === $sale->id ? 'border-primary' : '' }}">
-            <div class="card-header {{ $saleRecord->id === $sale->id ? 'bg-primary text-white' : 'bg-light' }}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        Sale #{{ $index + 1 }} - {{ $saleRecord->sale_date->format('F d, Y') }}
-                        @if($saleRecord->id === $sale->id)
-                            <span class="badge bg-light text-primary ms-2">Current</span>
-                        @endif
-                    </h6>
-                    <span class="badge bg-{{ $saleRecord->payment_status_badge }}">
-                        {{ $saleRecord->payment_status_label }}
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>DR #</th>
+                    <th>Date</th>
+                    <th class="text-center">Products</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Balance</th>
+                    <th>Payment</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="drTableBody">
+            @forelse($sales as $sale)
+            <tr class="dr-row" onclick="window.location='{{ route('sales.dr', $sale->id) }}'" data-dr="{{ strtolower($sale->dr_number) }}">
+                <td>
+                    <span style="font-weight:700;color:var(--accent)">{{ $sale->dr_number }}</span>
+                </td>
+                <td style="font-size:.77rem;color:var(--text-secondary);white-space:nowrap">
+                    {{ $sale->sale_date->format('M d, Y') }}
+                </td>
+                <td class="text-center">
+                    <span class="pill pill-info">{{ $sale->items->count() }} {{ Str::plural('item', $sale->items->count()) }}</span>
+                </td>
+                <td class="text-end" style="font-weight:600">&#8369;{{ number_format($sale->total_amount, 2) }}</td>
+                <td class="text-end">
+                    <span class="{{ $sale->balance > 0 ? 'balance-red' : 'balance-green' }}">
+                        &#8369;{{ number_format($sale->balance, 2) }}
                     </span>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Products Table -->
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Product</th>
-                                <th>Batch#</th>
-                                <th class="text-center">Sold</th>
-                                <th class="text-center">Unsold</th>
-                                <th class="text-center">BO</th>
-                                <th class="text-end">Price</th>
-                                <th class="text-end">Discount</th>
-                                <th class="text-end">Subtotal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($saleRecord->items as $item)
-                            <tr>
-                                <td>
-                                    <strong>{{ $item->finishedProduct->name }}</strong><br>
-                                    <small class="text-muted">SKU: {{ $item->finishedProduct->sku }}</small>
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ $item->batch_number ?? 'N/A' }}</span>
-                                </td>
-                                <td class="text-center">
-                                    <strong class="text-success">{{ $item->quantity_sold }}</strong>
-                                </td>
-                                <td class="text-center">
-                                    @if($item->quantity_unsold > 0)
-                                        <span class="text-warning">{{ $item->quantity_unsold }}</span>
-                                    @else
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                </td>
-                                <td class="text-center">
-                                    @if($item->quantity_bo > 0)
-                                        <span class="text-danger">{{ $item->quantity_bo }}</span>
-                                        <i class="bi bi-arrow-return-left text-danger" title="Returned to warehouse"></i>
-                                    @else
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">₱{{ number_format($item->unit_price, 2) }}</td>
-                                <td class="text-end">
-                                    @if($item->discount > 0)
-                                        <span class="text-danger">-₱{{ number_format($item->discount, 2) }}</span>
-                                    @else
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                </td>
-                                <td class="text-end"><strong>₱{{ number_format($item->subtotal, 2) }}</strong></td>
-                            </tr>
-                            @if($item->notes)
-                            <tr>
-                                <td colspan="8" class="bg-light">
-                                    <small><i class="bi bi-info-circle me-1"></i><strong>Note:</strong> {{ $item->notes }}</small>
-                                </td>
-                            </tr>
-                            @endif
-                            @endforeach
-                        </tbody>
-                        <tfoot class="table-light">
-                            <tr>
-                                <th colspan="7" class="text-end">TOTAL:</th>
-                                <th class="text-end">₱{{ number_format($saleRecord->total_amount, 2) }}</th>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <!-- Payment Info -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-body py-2">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <small>Amount Paid:</small>
-                                    <strong class="text-success">₱{{ number_format($saleRecord->amount_paid, 2) }}</strong>
-                                </div>
-                                @if($saleRecord->payment_mode)
-                                <div class="d-flex justify-content-between mb-1">
-                                    <small>Payment Mode:</small>
-                                    <strong>{{ $saleRecord->payment_mode_label }}</strong>
-                                </div>
-                                @endif
-                                @if($saleRecord->payment_reference)
-                                <div class="d-flex justify-content-between mb-1">
-                                    <small>Reference:</small>
-                                    <strong>{{ $saleRecord->payment_reference }}</strong>
-                                </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-body py-2">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <small>Created by:</small>
-                                    <strong>{{ $saleRecord->user->name ?? 'System' }}</strong>
-                                </div>
-                                <div class="d-flex justify-content-between mb-1">
-                                    <small>Created:</small>
-                                    <span>{{ $saleRecord->created_at->format('M d, Y g:i A') }}</span>
-                                </div>
-                                @if($saleRecord->notes)
-                                <div class="mt-2">
-                                    <small class="text-muted">Notes:</small>
-                                    <div><small>{{ $saleRecord->notes }}</small></div>
-                                </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="mt-3 d-flex gap-2">
-                    <a href="{{ route('sales.edit', $saleRecord) }}" class="btn btn-sm btn-warning">
-                        <i class="bi bi-pencil me-1"></i>Edit Payment
+                </td>
+                <td>
+                    @if($sale->payment_status === 'paid')
+                        <span class="pill pill-success">Paid</span>
+                    @elseif($sale->payment_status === 'partial')
+                        <span class="pill pill-warning">Partial</span>
+                    @else
+                        <span class="pill pill-danger">To Collect</span>
+                    @endif
+                </td>
+                <td class="text-center" onclick="event.stopPropagation()">
+                    <a href="{{ route('sales.dr', $sale->id) }}" class="btn-view">
+                        <i class="bi bi-pencil-square"></i> Record Sales
                     </a>
-                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $saleRecord->id }}">
-                        <i class="bi bi-trash me-1"></i>Delete
-                    </button>
-                </div>
-
-                <!-- Delete Modal -->
-                <div class="modal fade" id="deleteModal{{ $saleRecord->id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header bg-danger text-white">
-                                <h5 class="modal-title">Delete Sale #{{ $index + 1 }}</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete this sale?</p>
-                                <div class="alert alert-warning">
-                                    <strong>Date:</strong> {{ $saleRecord->sale_date->format('M d, Y') }}<br>
-                                    <strong>Amount:</strong> ₱{{ number_format($saleRecord->total_amount, 2) }}<br>
-                                    <strong>Products:</strong> {{ $saleRecord->items->count() }} item(s)
-                                </div>
-                                <p class="text-danger">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>
-                                    <strong>This will:</strong>
-                                </p>
-                                <ul class="text-danger">
-                                    <li>Return sold quantities to branch inventory</li>
-                                    <li>Reverse any BO returns to warehouse</li>
-                                    <li>Remove this sale from the DR history</li>
-                                </ul>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ route('sales.destroy', $saleRecord) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger">
-                                        <i class="bi bi-trash me-2"></i>Delete Sale
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endforeach
+                </td>
+            </tr>
+            @empty
+            <tr><td colspan="7" class="empty-state">No DRs found for this customer.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
     </div>
 </div>
+
+<script>
+document.getElementById('searchInput').addEventListener('input', function() {
+    var q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.dr-row').forEach(function(row) {
+        row.style.display = (!q || row.dataset.dr.includes(q)) ? '' : 'none';
+    });
+});
+</script>
+
 @endsection

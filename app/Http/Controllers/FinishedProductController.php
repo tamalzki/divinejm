@@ -20,12 +20,10 @@ class FinishedProductController extends Controller
         $query = FinishedProduct::with(['recipes.rawMaterial', 'pendingMixes', 'productionMixes'])
             ->orderBy('name');
 
-        // Search by name
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
 
-        // Filter by type or stock level
         if ($request->filter === 'manufactured') {
             $query->where('product_type', 'manufactured');
         } elseif ($request->filter === 'consigned') {
@@ -90,13 +88,11 @@ class FinishedProductController extends Controller
                 'description'   => $request->description,
             ]);
 
-            // Auto-generate barcode after we have the ID
             if (Schema::hasColumn('finished_products', 'barcode')) {
                 $product->barcode = $product->generateBarcode();
                 $product->save();
             }
 
-            // Save recipe for manufactured products
             if ($request->product_type === 'manufactured' && $request->filled('ingredients')) {
                 foreach ($request->ingredients as $ingredient) {
                     if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
@@ -268,5 +264,20 @@ class FinishedProductController extends Controller
         $finishedProduct->save();
 
         return back()->with('success', "Barcode regenerated: {$finishedProduct->barcode}");
+    }
+
+    public function adjust(Request $request, FinishedProduct $finishedProduct)
+    {
+        $request->validate([
+            'new_stock' => 'required|numeric|min:0',
+        ]);
+
+        $newStock = (int) $request->new_stock;
+
+        $finishedProduct->stock_on_hand = $newStock;
+        $finishedProduct->quantity      = $newStock;
+        $finishedProduct->save();
+
+        return back()->with('success', "Stock for '{$finishedProduct->name}' updated to {$newStock} units.");
     }
 }

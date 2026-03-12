@@ -4,334 +4,352 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Login - Divine JM Foods</title>
-    
-    <link href="https://fonts.bunny.net/css?family=Nunito:400,600,700" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
+    <title>Sign In — Divine JM Foods</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         :root {
-            --primary-blue: #3e7487;
-            --dark-blue: #2f5966;
-            --light-blue: #5a95ab;
-            --primary-pink: #F08080;
+            --brand-deep:  #2c2c38;
+            --accent:      #3b5bdb;
+            --accent-h:    #2f4ac2;
+            --border:      #e4e4e0;
+            --text-p:      #1c1c1a;
+            --text-s:      #44443e;
+            --text-m:      #8a8a82;
+            --bg-page:     #f5f5f2;
+            --bg-card:     #ffffff;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            background: var(--bg-page);
+            color: var(--text-p);
         }
 
         body {
-            font-family: 'Nunito', sans-serif;
-            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
-            min-height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            min-height: 100vh;
+            padding: 1.5rem;
         }
 
-        .login-container {
-            width: 100%;
-            max-width: 450px;
-        }
-
+        /* ── Card ── */
         .login-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 480px;
             overflow: hidden;
         }
 
-        .login-header {
-            background: white;
-            padding: 40px 30px 30px;
-            text-align: center;
+        .login-card-bar {
+            height: 4px;
+            background: var(--brand-deep);
         }
 
-        .logo-container {
-            margin: 0 auto 20px;
-            max-width: 200px;
+        /* Header */
+        .login-head {
+            padding: 2rem 2.5rem 1.75rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: .9rem;
         }
 
-        .logo-container img {
-            width: 100%;
-            height: auto;
-        }
-
-        .login-header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0 0 5px 0;
-            color: var(--primary-blue);
-        }
-
-        .login-header p {
-            margin: 0;
-            color: #6b7280;
-            font-size: 14px;
-        }
-
-        .login-body {
-            padding: 30px 30px 40px;
-            background: #f9fafb;
-        }
-
-        .form-label {
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 8px;
-        }
-
-        .form-control {
-            padding: 12px 16px;
-            border: 2px solid #e5e7eb;
+        .login-logo {
+            width: 50px;
+            height: 50px;
             border-radius: 10px;
-            font-size: 15px;
-            transition: all 0.3s ease;
-            background: white;
+            background: var(--brand-deep);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
         }
 
-        .form-control:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 3px rgba(62, 116, 135, 0.1);
-            background: white;
+        .login-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
-        .input-group-icon {
-            position: relative;
+        .login-logo i { font-size: 22px; color: #fff; }
+
+        .login-head-text h1 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-p);
+            line-height: 1.2;
         }
 
-        .input-group-icon i {
+        .login-head-text p {
+            font-size: .78rem;
+            color: var(--text-m);
+            margin-top: .2rem;
+        }
+
+        /* Body */
+        .login-body { padding: 2.5rem 2.5rem 2.75rem; }
+
+        /* Alert */
+        .login-alert {
+            padding: .6rem .9rem;
+            border-radius: 6px;
+            font-size: .78rem;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: flex-start;
+            gap: .42rem;
+            line-height: 1.4;
+        }
+
+        .login-alert i { flex-shrink: 0; margin-top: .06rem; }
+        .login-alert.danger  { background: #fee2e2; color: #9b1c1c; }
+        .login-alert.success { background: #dcfce7; color: #15622e; }
+
+        /* Fields */
+        .field { margin-bottom: 1.75rem; }
+
+        .field label {
+            display: block;
+            font-size: .78rem;
+            font-weight: 600;
+            color: var(--text-s);
+            margin-bottom: .33rem;
+        }
+
+        .input-wrap { position: relative; }
+
+        .input-wrap .ico {
             position: absolute;
-            left: 16px;
+            left: .75rem;
             top: 50%;
             transform: translateY(-50%);
-            color: #9ca3af;
-            font-size: 18px;
-        }
-
-        .input-group-icon .form-control {
-            padding-left: 45px;
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background: var(--primary-blue);
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(62, 116, 135, 0.3);
-        }
-
-        .btn-login:hover {
-            background: var(--dark-blue);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(62, 116, 135, 0.4);
-        }
-
-        .form-check-input:checked {
-            background-color: var(--primary-blue);
-            border-color: var(--primary-blue);
-        }
-
-        .form-check-input:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 0.25rem rgba(62, 116, 135, 0.25);
-        }
-
-        .forgot-password {
-            color: var(--primary-blue);
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-
-        .forgot-password:hover {
-            color: var(--dark-blue);
-            text-decoration: underline;
-        }
-
-        .alert {
-            border-radius: 10px;
-            border: none;
-        }
-
-        .alert-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-
-        .alert-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-
-        .system-info {
-            text-align: center;
-            margin-top: 30px;
-            color: white;
-            font-size: 14px;
-        }
-
-        .system-info a {
-            color: white;
-            text-decoration: underline;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .login-card {
-            animation: fadeIn 0.5s ease;
-        }
-
-        /* Decorative cloud shapes */
-        .cloud-decoration {
-            position: fixed;
-            opacity: 0.1;
+            font-size: .88rem;
+            color: var(--text-m);
             pointer-events: none;
         }
 
-        .cloud-1 {
-            top: 10%;
-            left: 5%;
-            font-size: 80px;
-            color: white;
+        .input-wrap input {
+            width: 100%;
+            padding: .8rem .9rem .8rem 2.3rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: .88rem;
+            color: var(--text-p);
+            background: var(--bg-card);
+            outline: none;
+            transition: border .12s, box-shadow .12s;
         }
 
-        .cloud-2 {
-            bottom: 15%;
-            right: 8%;
-            font-size: 100px;
-            color: white;
+        .input-wrap input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,91,219,.1);
+        }
+
+        .input-wrap input.err { border-color: #dc2626; }
+        .input-wrap input::placeholder { color: var(--text-m); }
+
+        .show-pass {
+            position: absolute;
+            right: .75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: var(--text-m);
+            font-size: .88rem;
+            line-height: 1;
+        }
+
+        .show-pass:hover { color: var(--text-s); }
+
+        .field-err {
+            font-size: .72rem;
+            color: #dc2626;
+            margin-top: .22rem;
+            display: block;
+        }
+
+        /* Extras */
+        .form-extras {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.35rem;
+        }
+
+        .check-wrap {
+            display: flex;
+            align-items: center;
+            gap: .38rem;
+            cursor: pointer;
+        }
+
+        .check-wrap input[type="checkbox"] {
+            width: 13px;
+            height: 13px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .check-wrap span { font-size: .78rem; color: var(--text-s); }
+
+        /* Submit */
+        .btn-signin {
+            width: 100%;
+            padding: .72rem 1rem;
+            background: var(--brand-deep);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: .88rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+            transition: background .12s;
+        }
+
+        .btn-signin:hover  { background: var(--accent); }
+        .btn-signin:active { opacity: .9; }
+
+        /* Footer */
+        .login-foot {
+            padding: 1rem 2.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .38rem;
+            font-size: .72rem;
+            color: var(--text-m);
+        }
+
+        .login-foot i { color: var(--accent); }
+
+        .login-note {
+            margin-top: 1.1rem;
+            font-size: .72rem;
+            color: var(--text-m);
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <!-- Decorative Clouds -->
-    <i class="bi bi-cloud-fill cloud-decoration cloud-1"></i>
-    <i class="bi bi-cloud-fill cloud-decoration cloud-2"></i>
 
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <div class="logo-container">
-                    <!-- Replace this src with your actual logo path -->
-                    <img src="{{ asset('images/divine-jm-logo.jpeg') }}" alt="Divine JM Foods">
-                </div>
-                <h1>Welcome Back</h1>
-                <p>Inventory & Branch Management System</p>
-            </div>
+<div class="login-card">
+    <div class="login-card-bar"></div>
 
-            <div class="login-body">
-                @if($errors->any())
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>Login Failed!</strong> {{ $errors->first() }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                @endif
-
-                @if(session('status'))
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    {{ session('status') }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                @endif
-
-                <form method="POST" action="{{ route('login') }}">
-                    @csrf
-
-                    <div class="mb-4">
-                        <label for="email" class="form-label">Email Address</label>
-                        <div class="input-group-icon">
-                            <i class="bi bi-envelope-fill"></i>
-                            <input id="email" 
-                                   type="email" 
-                                   class="form-control @error('email') is-invalid @enderror" 
-                                   name="email" 
-                                   value="{{ old('email') }}" 
-                                   required 
-                                   autocomplete="email" 
-                                   autofocus
-                                   placeholder="Enter your email">
-                            @error('email')
-                                <span class="invalid-feedback" role="alert">
-                                    <strong>{{ $message }}</strong>
-                                </span>
-                            @enderror
-                        </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group-icon">
-                            <i class="bi bi-lock-fill"></i>
-                            <input id="password" 
-                                   type="password" 
-                                   class="form-control @error('password') is-invalid @enderror" 
-                                   name="password" 
-                                   required 
-                                   autocomplete="current-password"
-                                   placeholder="Enter your password">
-                            @error('password')
-                                <span class="invalid-feedback" role="alert">
-                                    <strong>{{ $message }}</strong>
-                                </span>
-                            @enderror
-                        </div>
-                    </div>
-
-                    <div class="mb-4 d-flex justify-content-between align-items-center">
-                        <div class="form-check">
-                            <input class="form-check-input" 
-                                   type="checkbox" 
-                                   name="remember" 
-                                   id="remember" 
-                                   {{ old('remember') ? 'checked' : '' }}>
-                            <label class="form-check-label" for="remember">
-                                Remember Me
-                            </label>
-                        </div>
-
-                        @if (Route::has('password.request'))
-                            <a class="forgot-password" href="{{ route('password.request') }}">
-                                Forgot Password?
-                            </a>
-                        @endif
-                    </div>
-
-                    <button type="submit" class="btn btn-login">
-                        <i class="bi bi-box-arrow-in-right me-2"></i>
-                        Sign In
-                    </button>
-                </form>
-            </div>
+    <div class="login-head">
+        <div class="login-logo">
+            <img src="{{ asset('images/divine-jm-logo.jpeg') }}"
+                 alt=""
+                 onerror="this.style.display='none';this.parentNode.innerHTML='<i class=\'bi bi-box-seam\'></i>'">
         </div>
-
-        <div class="system-info">
-            <p class="mb-0">
-                <i class="bi bi-shield-lock-fill me-1"></i>
-                Secure Login • Divine JM Foods
-            </p>
-            <p class="mb-0 mt-2">
-                <small>© {{ date('Y') }} Divine JM Foods. All rights reserved.</small>
-            </p>
+        <div class="login-head-text">
+            <h1>Divine JM Foods</h1>
+            <p>Inventory &amp; Branch Management System</p>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="login-body">
+
+        @if($errors->any())
+        <div class="login-alert danger">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <div><strong>Login failed.</strong> {{ $errors->first() }}</div>
+        </div>
+        @endif
+
+        @if(session('status'))
+        <div class="login-alert success">
+            <i class="bi bi-check-circle-fill"></i>
+            <div>{{ session('status') }}</div>
+        </div>
+        @endif
+
+        <form method="POST" action="{{ route('login') }}">
+            @csrf
+
+            <div class="field">
+                <label for="email">Email address</label>
+                <div class="input-wrap">
+                    <i class="bi bi-envelope ico"></i>
+                    <input id="email"
+                           type="email"
+                           name="email"
+                           class="{{ $errors->has('email') ? 'err' : '' }}"
+                           value="{{ old('email') }}"
+                           placeholder="you@divinejm.com"
+                           required
+                           autofocus
+                           autocomplete="email">
+                </div>
+                @error('email')<span class="field-err">{{ $message }}</span>@enderror
+            </div>
+
+            <div class="field">
+                <label for="password">Password</label>
+                <div class="input-wrap">
+                    <i class="bi bi-lock ico"></i>
+                    <input id="password"
+                           type="password"
+                           name="password"
+                           class="{{ $errors->has('password') ? 'err' : '' }}"
+                           placeholder="Enter your password"
+                           required
+                           autocomplete="current-password">
+                    <button type="button" class="show-pass" onclick="togglePass()">
+                        <i class="bi bi-eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+                @error('password')<span class="field-err">{{ $message }}</span>@enderror
+            </div>
+
+            <div class="form-extras">
+                <label class="check-wrap">
+                    <input type="checkbox" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                    <span>Remember me</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-signin">
+                <i class="bi bi-box-arrow-in-right"></i>
+                Sign In
+            </button>
+        </form>
+    </div>
+
+    <div class="login-foot">
+        <i class="bi bi-shield-check"></i>
+        Secure access &nbsp;·&nbsp; &copy; {{ date('Y') }} Divine JM Foods
+    </div>
+</div>
+
+<p class="login-note">Contact your administrator if you need access.</p>
+
+<script>
+function togglePass() {
+    var inp  = document.getElementById('password');
+    var icon = document.getElementById('eyeIcon');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    icon.className = inp.type === 'text' ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+</script>
+
 </body>
 </html>

@@ -1,142 +1,147 @@
 @extends('layouts.sidebar')
-
-@section('page-title', 'Area Inventory')
-
+@section('page-title', 'Deliver Products')
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-geo-alt me-2"></i>Area Inventory Overview</h2>
+
+<style>
+    .bi-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden; }
+
+    .data-table { width:100%; border-collapse:collapse; font-size:.80rem; }
+    .data-table thead th { background:var(--brand-deep); color:rgba(255,255,255,.88); font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:.52rem .9rem; white-space:nowrap; border:none; }
+    .data-table tbody td { padding:.52rem .9rem; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text-primary); }
+    .data-table tbody tr:last-child td { border-bottom:none; }
+    .data-table tbody tr:hover td { background:var(--accent-faint); }
+
+    .bi-toolbar { display:flex; align-items:center; gap:.5rem; margin-bottom:.75rem; flex-wrap:wrap; }
+    .bi-search-wrap { position:relative; display:flex; align-items:center; }
+    .bi-search-icon { position:absolute; left:.65rem; color:var(--text-muted); font-size:.8rem; pointer-events:none; }
+    .bi-search-input { height:32px; padding:0 1rem 0 2rem; border:1px solid var(--border); border-radius:6px; font-size:.79rem; color:var(--text-primary); background:var(--bg-card); width:260px; outline:none; }
+    .bi-search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
+    .bi-search-input::placeholder { color:var(--text-muted); }
+
+    .btn-new { display:inline-flex; align-items:center; gap:.3rem; padding:.3rem .85rem; background:var(--accent); color:#fff !important; border-radius:6px; font-size:.78rem; font-weight:600; text-decoration:none !important; border:none; cursor:pointer; transition:background .14s; white-space:nowrap; }
+    .btn-new:hover { background:var(--accent-hover); }
+
+    .btn-view { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid var(--accent); color:var(--accent) !important; background:transparent; border-radius:5px; font-size:.72rem; font-weight:600; text-decoration:none !important; transition:all .13s; cursor:pointer; }
+    .btn-view:hover { background:var(--accent); color:#fff !important; }
+
+    .dr-badge { display:inline-block; background:var(--accent-light); color:var(--accent); border-radius:4px; padding:.1rem .45rem; font-size:.72rem; font-weight:700; }
+    .prod-badge { display:inline-block; background:#e2e8f0; color:var(--text-secondary); border-radius:20px; padding:.1rem .55rem; font-size:.71rem; font-weight:600; }
+    .val-text { font-weight:700; color:var(--s-success-text); }
+
+    .bi-footer { display:flex; align-items:center; justify-content:space-between; padding:.5rem .9rem; border-top:1px solid var(--border); background:var(--bg-page); font-size:.72rem; color:var(--text-muted); }
+
+    .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); }
+    .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
+    .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
+
+    .alert-bar { padding:.55rem 1rem; border-radius:var(--radius); margin-bottom:.75rem; font-size:.8rem; display:flex; align-items:center; gap:.5rem; }
+    .alert-bar.success { background:var(--s-success-bg); color:var(--s-success-text); border:1px solid #bbf7d0; }
+    .alert-bar.danger  { background:var(--s-danger-bg);  color:var(--s-danger-text);  border:1px solid #fca5a5; }
+</style>
+
+@if(session('success'))
+<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
+@endif
+@if(session('error'))
+<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
+@endif
+
+{{-- Header --}}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h5 class="fw-bold mb-0" style="font-size:.95rem">
+            <i class="bi bi-truck me-2" style="color:var(--accent)"></i>Deliveries
+        </h5>
+        <p class="mb-0" style="font-size:.71rem;color:var(--text-muted)">All product deliveries to customers</p>
+    </div>
+    <a href="{{ route('branch-inventory.create-delivery') }}" class="btn-new">
+        <i class="bi bi-plus-lg"></i> Deliver to Customer
+    </a>
 </div>
 
-<!-- Summary Cards -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card border-primary">
-            <div class="card-body text-center">
-                <i class="bi bi-geo-alt text-primary fs-1"></i>
-                <h3 class="mt-2 mb-0">{{ $branches->count() }}</h3>
-                <small class="text-muted">Total Areas</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-success">
-            <div class="card-body text-center">
-                <i class="bi bi-check-circle text-success fs-1"></i>
-                <h3 class="mt-2 mb-0">{{ $branches->sum(fn($b) => $b->inventory->where('quantity', '>', 0)->count()) }}</h3>
-                <small class="text-muted">Products in Stock</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Table View -->
-<div class="card shadow-sm">
-    <div class="card-header bg-white">
-        <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>All Areas</h5>
-            <input type="text" id="searchArea" class="form-control form-control-sm" style="max-width: 250px;" placeholder="Search area...">
-        </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 30%;">Area Name</th>
-                        <th style="width: 25%;">Location</th>
-                        <th class="text-center" style="width: 15%;">Products</th>
-                        <th style="width: 30%;">Top Products</th>
-                        <th class="text-center" style="width: 10%;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="areaTableBody">
-                    @forelse($branches as $branch)
-                    @php
-                        $stockItems = $branch->inventory->where('quantity', '>', 0);
-                        $topProducts = $stockItems->sortByDesc('quantity')->take(3);
-                    @endphp
-                    <tr class="area-row">
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
-                                     style="width: 35px; height: 35px; font-size: 14px;">
-                                    <i class="bi bi-geo-alt"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">{{ $branch->name }}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <small class="text-muted">
-                                @if($branch->address)
-                                    <i class="bi bi-geo-alt me-1"></i>{{ Str::limit($branch->address, 30) }}
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </small>
-                        </td>
-                        <td class="text-center">
-                            @if($stockItems->count() > 0)
-                                <span class="badge bg-success fs-6">{{ $stockItems->count() }}</span>
-                            @else
-                                <span class="badge bg-secondary">0</span>
-                            @endif
-                        </td>
-                        <td>
-                            @if($topProducts->count() > 0)
-                                <div class="d-flex flex-wrap gap-1">
-                                    @foreach($topProducts as $item)
-                                        <span class="badge bg-light text-dark border" style="font-weight: normal;">
-                                            {{ $item->finishedProduct->name }}: <strong>{{ $item->quantity }}</strong>
-                                        </span>
-                                    @endforeach
-                                    @if($stockItems->count() > 3)
-                                        <span class="badge bg-light text-muted border" style="font-weight: normal;">
-                                            +{{ $stockItems->count() - 3 }} more
-                                        </span>
-                                    @endif
-                                </div>
-                            @else
-                                <small class="text-muted">No stock</small>
-                            @endif
-                        </td>
-                        <td class="text-center">
-                            <a href="{{ route('branch-inventory.show', $branch) }}" 
-                               class="btn btn-sm btn-primary">
-                                <i class="bi bi-box-seam me-1"></i>Deliver Foods
-                            </a>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
-                            <i class="bi bi-inbox display-4 opacity-25 d-block mb-2"></i>
-                            No areas found
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+{{-- Toolbar --}}
+<div class="bi-toolbar">
+    <div class="bi-search-wrap">
+        <i class="bi bi-search bi-search-icon"></i>
+        <input type="text" id="searchInput" class="bi-search-input" placeholder="Search DR#, customer, area..." autocomplete="off">
     </div>
 </div>
 
-<!-- Search Filter Script -->
+{{-- Table --}}
+<div class="bi-card">
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="white-space:nowrap">Date &darr;</th>
+                    <th>DR #</th>
+                    <th>Flow</th>
+                    <th>Products</th>
+                    <th class="text-end">Total Qty</th>
+                    <th>By</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="deliveryTableBody">
+            @forelse($deliveries as $delivery)
+            <tr class="delivery-row">
+                <td style="white-space:nowrap;font-size:.77rem;color:var(--text-secondary)">
+                    {{ \Carbon\Carbon::parse($delivery->movement_date)->format('M d, Y') }}
+                </td>
+                <td>
+                    <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}"
+                       style="font-weight:700;color:var(--accent);text-decoration:none;font-size:.82rem">
+                        {{ $delivery->dr_number }}
+                    </a>
+                </td>
+                <td>
+                    <span style="color:var(--text-muted);font-size:.73rem">Warehouse</span>
+                    <span style="color:var(--text-muted);font-size:.73rem"> &rarr; </span>
+                    <span style="color:var(--text-secondary);font-size:.75rem">{{ $delivery->branch_name }}</span>
+                    <span style="color:var(--text-muted);font-size:.73rem"> &rarr; </span>
+                    <strong style="font-size:.80rem;color:var(--text-primary)">{{ $delivery->customer_name }}</strong>
+                </td>
+                <td>
+                    <span class="prod-badge">{{ $delivery->product_count }} {{ Str::plural('product', $delivery->product_count) }}</span>
+                </td>
+                <td class="text-end" style="font-size:.80rem">{{ number_format($delivery->total_qty, 2) }}</td>
+                <td style="font-size:.76rem;color:var(--text-secondary)">{{ $delivery->recorded_by }}</td>
+                <td class="text-center">
+                    <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}" class="btn-view">
+                        <i class="bi bi-eye"></i> View
+                    </a>
+                </td>
+            </tr>
+            @empty
+            <tr>
+                <td colspan="7">
+                    <div class="empty-state">
+                        <i class="bi bi-truck"></i>
+                        <p>No deliveries yet.</p>
+                        <p><a href="{{ route('branch-inventory.create-delivery') }}" style="color:var(--accent)">Make your first delivery</a></p>
+                    </div>
+                </td>
+            </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+    <div class="bi-footer">
+        <span>Showing {{ $deliveries->firstItem() ?? 0 }}–{{ $deliveries->lastItem() ?? 0 }} of {{ $deliveries->total() }} {{ Str::plural('result', $deliveries->total()) }}</span>
+        <div>{{ $deliveries->appends(request()->query())->links() }}</div>
+    </div>
+</div>
+
 <script>
-document.getElementById('searchArea').addEventListener('keyup', function() {
-    const searchValue = this.value.toLowerCase();
-    const rows = document.querySelectorAll('.area-row');
-    
-    rows.forEach(row => {
-        const areaName = row.querySelector('td:first-child').textContent.toLowerCase();
-        const location = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-        
-        if (areaName.includes(searchValue) || location.includes(searchValue)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
+document.getElementById('searchInput').addEventListener('input', function() {
+    var val = this.value.toLowerCase().trim();
+    if (!val) {
+        document.querySelectorAll('.delivery-row').forEach(function(r){ r.style.display=''; });
+        return;
+    }
+    document.querySelectorAll('.delivery-row').forEach(function(row) {
+        var text = row.textContent.toLowerCase();
+        row.style.display = text.includes(val) ? '' : 'none';
     });
 });
 </script>

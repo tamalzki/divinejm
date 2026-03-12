@@ -2,488 +2,311 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\SaleItem;
-use App\Models\Branch;
-use App\Models\BranchInventory;
-use App\Models\FinishedProduct;
-use App\Models\StockMovement;
-use App\Models\ProductionMix;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SaleController extends Controller
 {
-    /**
-     * Display a listing of sales
-     */
+    // ──────────────────────────────────────────────────────────────────
+    // INDEX — summary grouped by Area → Customer
+    // ──────────────────────────────────────────────────────────────────
     public function index(Request $request)
     {
-        $query = Sale::with(['branch', 'items.finishedProduct', 'user'])
-            ->orderBy('sale_date', 'desc')
-            ->orderBy('created_at', 'desc');
+        $search = $request->get('search');
 
-        // Filters
-        if ($request->filled('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
-        }
-
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
-        }
-
-        if ($request->filled('dr_number')) {
-            $query->where('dr_number', 'like', '%' . $request->dr_number . '%');
-        }
-
-        if ($request->filled('customer_name')) {
-            $query->where('customer_name', 'like', '%' . $request->customer_name . '%');
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('sale_date', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('sale_date', '<=', $request->date_to);
-        }
-
-        $sales = $query->paginate(20);
-        $branches = Branch::orderBy('name')->get();
-
-        return view('sales.index', compact('sales', 'branches'));
-    }
-
-    /**
-     * Show the form for creating a new sale
-     */
-    public function create()
-    {
-        $branches = Branch::orderBy('name')->get();
-        return view('sales.create', compact('branches'));
-    }
-
-    /**
-     * Store a newly created sale - UPDATED: Allow multiple sales per DR + BO returns to warehouse
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'branch_id' => 'required|exists:branches,id',
-            'customer_name' => 'required|string',
-            'dr_number' => 'required|string',
-            'sale_date' => 'required|date',
-            'payment_status' => 'nullable|in:paid,to_be_collected',
-            'payment_mode' => 'nullable|in:cash,gcash,cheque,bank_transfer,other',
-            'payment_reference' => 'nullable|string',
-            'amount_paid' => 'nullable|numeric|min:0',
-            'payment_date' => 'nullable|date',
-            'notes' => 'nullable|string',
-            'items' => 'required|array|min:1',
-            'items.*.finished_product_id' => 'required|exists:finished_products,id',
-            'items.*.batch_number' => 'nullable|string',
-            'items.*.quantity_deployed' => 'nullable|numeric|min:0',
-            'items.*.quantity_sold' => 'required|numeric|min:0',
-            'items.*.quantity_unsold' => 'nullable|numeric|min:0',
-            'items.*.quantity_bo' => 'nullable|numeric|min:0',
-            'items.*.quantity_replaced' => 'nullable|numeric|min:0',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'items.*.discount' => 'nullable|numeric|min:0',
-            'items.*.notes' => 'nullable|string',
-        ]);
-
-        DB::transaction(function () use ($request) {
-            // Create the sale (NO duplicate check - allow multiple sales per DR)
-            $sale = Sale::create([
-                'branch_id' => $request->branch_id,
-                'customer_name' => $request->customer_name,
-                'dr_number' => $request->dr_number,
-                'sale_date' => $request->sale_date,
-                'amount_paid' => $request->amount_paid ?? 0,
-                'payment_status' => $request->payment_status ?? 'to_be_collected',
-                'payment_mode' => $request->payment_mode,
-                'payment_reference' => $request->payment_reference,
-                'payment_date' => $request->payment_date,
-                'notes' => $request->notes,
-                'user_id' => Auth::id(),
-            ]);
-
-            // Create sale items
-            foreach ($request->items as $itemData) {
-                // Skip if no quantity sold
-                if (empty($itemData['quantity_sold']) || $itemData['quantity_sold'] <= 0) {
-                    continue;
+        // Get all branches that have sales
+        $branches = Branch::whereHas('sales')
+            ->with(['sales' => function ($q) use ($search) {
+                if ($search) {
+                    $q->where(function ($sq) use ($search) {
+                        $sq->where('customer_name', 'like', "%{$search}%")
+                           ->orWhere('dr_number', 'like', "%{$search}%");
+                    });
                 }
+            }])
+            ->orderBy('name')
+            ->get();
 
-                $item = SaleItem::create([
-                    'sale_id' => $sale->id,
-                    'finished_product_id' => $itemData['finished_product_id'],
-                    'batch_number' => $itemData['batch_number'] ?? null,
-                    'quantity_deployed' => $itemData['quantity_deployed'] ?? 0,
-                    'quantity_sold' => $itemData['quantity_sold'],
-                    'quantity_unsold' => $itemData['quantity_unsold'] ?? 0,
-                    'quantity_bo' => $itemData['quantity_bo'] ?? 0,
-                    'quantity_replaced' => $itemData['quantity_replaced'] ?? 0,
-                    'unit_price' => $itemData['unit_price'],
-                    'discount' => $itemData['discount'] ?? 0,
-                    'notes' => $itemData['notes'] ?? null,
-                ]);
+        // Per branch → group sales by customer_name
+        $areaData = $branches->map(function ($branch) {
+            $customers = $branch->sales
+                ->groupBy('customer_name')
+                ->map(function ($sales, $customerName) use ($branch) {
+                    $totalDeployed = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+                        ->sum('quantity_deployed');
+                    $totalSold = SaleItem::whereIn('sale_id', $sales->pluck('id'))
+                        ->sum('quantity_sold');
+                    $totalBalance = $sales->sum('balance');
 
-                // CRITICAL: Deduct sold quantity from branch inventory
-                $inventory = BranchInventory::where('branch_id', $request->branch_id)
-                    ->where('finished_product_id', $itemData['finished_product_id'])
-                    ->where(function ($query) use ($itemData) {
-                        if (!empty($itemData['batch_number']) && $itemData['batch_number'] !== 'N/A') {
-                            $query->where('batch_number', $itemData['batch_number']);
-                        } else {
-                            $query->whereNull('batch_number');
-                        }
-                    })
-                    ->lockForUpdate()
-                    ->first();
+                    $uncollectedCount = $sales->whereIn('payment_status', ['to_be_collected', 'partial'])->count();
+                    $paidCount         = $sales->where('payment_status', 'paid')->count();
 
-                if ($inventory) {
-                    // Deduct sold + BO quantities from branch inventory
-                    $totalDeducted = $itemData['quantity_sold'] + ($itemData['quantity_bo'] ?? 0);
-                    
-                    if ($inventory->quantity < $totalDeducted) {
-                        throw new \Exception(
-                            "Insufficient inventory for " .
-                            $inventory->finishedProduct->name .
-                            ". Available: " .
-                            $inventory->quantity .
-                            ", Needed: " .
-                            $totalDeducted
-                        );
+                    if ($uncollectedCount > 0 && $paidCount === 0) {
+                        $overallStatus = 'to_be_collected';
+                    } elseif ($uncollectedCount > 0) {
+                        $overallStatus = 'partial';
+                    } else {
+                        $overallStatus = 'paid';
                     }
-                    
-                    $inventory->quantity -= $totalDeducted;
-                    $inventory->save();
 
-                    // Record stock movement for sale
-                    StockMovement::create([
-                        'branch_id' => $request->branch_id,
-                        'finished_product_id' => $itemData['finished_product_id'],
-                        'batch_number' => $itemData['batch_number'] ?? null,
-                        'movement_type' => 'sale',
-                        'quantity' => $itemData['quantity_sold'],
-                        'movement_date' => $request->sale_date,
-                        'reference_number' => $request->dr_number,
-                        'customer_name' => $request->customer_name,
-                        'notes' => "Sale to {$request->customer_name}",
-                        'user_id' => Auth::id(),
-                    ]);
-
-                    // CRITICAL: Return BO to warehouse and batch
-                    if (!empty($itemData['quantity_bo']) && $itemData['quantity_bo'] > 0) {
-                        $finishedProduct = FinishedProduct::lockForUpdate()->find($itemData['finished_product_id']);
-                        
-                        // Return to warehouse stock
-                        $finishedProduct->increment('stock_on_hand', $itemData['quantity_bo']);
-                        $finishedProduct->decrement('stock_out', $itemData['quantity_bo']);
-                        
-                        // Return to original batch if batch number exists
-                        if (!empty($itemData['batch_number']) && $itemData['batch_number'] !== 'N/A') {
-                            $productionMix = ProductionMix::where('batch_number', $itemData['batch_number'])
-                                ->lockForUpdate()
-                                ->first();
-                            if ($productionMix) {
-                                $productionMix->increment('actual_output', $itemData['quantity_bo']);
-                            }
-                        }
-                        
-                        // Record stock movement for BO return
-                        StockMovement::create([
-                            'branch_id' => $request->branch_id,
-                            'finished_product_id' => $itemData['finished_product_id'],
-                            'batch_number' => $itemData['batch_number'] ?? null,
-                            'movement_type' => 'return_bo',
-                            'quantity' => $itemData['quantity_bo'],
-                            'movement_date' => $request->sale_date,
-                            'reference_number' => $request->dr_number,
-                            'customer_name' => $request->customer_name,
-                            'notes' => "Bad Order returned to warehouse - " . ($itemData['notes'] ?? 'Damaged/Defective'),
-                            'user_id' => Auth::id(),
-                        ]);
-                    }
-                } else {
-                    throw new \Exception("Product not found in branch inventory: Finished Product ID {$itemData['finished_product_id']}, Batch: " . ($itemData['batch_number'] ?? 'N/A'));
-                }
-            }
-
-            // Add customer to branch if not exists
-            $branch = Branch::find($request->branch_id);
-            $branch->addCustomer($request->customer_name);
-        });
-
-        return redirect()->route('sales.index')->with('success', 'Sale recorded successfully! Bad orders returned to warehouse.');
-    }
-
-    /**
-     * Display the specified sale - UPDATED: Show all sales for this DR
-     */
-    public function show(Sale $sale)
-    {
-        $sale->load(['branch', 'items.finishedProduct', 'user']);
-        
-        // Get all sales for this DR
-        $drSales = Sale::where('branch_id', $sale->branch_id)
-            ->where('customer_name', $sale->customer_name)
-            ->where('dr_number', $sale->dr_number)
-            ->with(['items.finishedProduct', 'user'])
-            ->orderBy('sale_date', 'asc')
-            ->orderBy('created_at', 'asc')
-            ->get();
-
-        // Calculate totals for this DR
-        $drTotalSold = $drSales->sum('total_amount');
-        $drTotalPaid = $drSales->sum('amount_paid');
-        $drBalance = $drTotalSold - $drTotalPaid;
-
-        return view('sales.show', compact('sale', 'drSales', 'drTotalSold', 'drTotalPaid', 'drBalance'));
-    }
-
-    /**
-     * Show the form for editing the specified sale
-     */
-    public function edit(Sale $sale)
-    {
-        $branches = Branch::orderBy('name')->get();
-        $sale->load('items.finishedProduct');
-        return view('sales.edit', compact('sale', 'branches'));
-    }
-
-    /**
-     * Update the specified sale
-     */
-    public function update(Request $request, Sale $sale)
-    {
-        $request->validate([
-            'sale_date' => 'required|date',
-            'payment_mode' => 'nullable|in:cash,gcash,cheque,bank_transfer,other',
-            'payment_reference' => 'nullable|string',
-            'amount_paid' => 'nullable|numeric|min:0',
-            'payment_date' => 'nullable|date',
-            'notes' => 'nullable|string',
-        ]);
-
-        $sale->update([
-            'sale_date' => $request->sale_date,
-            'amount_paid' => $request->amount_paid ?? 0,
-            'payment_mode' => $request->payment_mode,
-            'payment_reference' => $request->payment_reference,
-            'payment_date' => $request->payment_date,
-            'notes' => $request->notes,
-        ]);
-
-        return redirect()->route('sales.show', $sale)->with('success', 'Sale updated successfully!');
-    }
-
-    /**
-     * Remove the specified sale - UPDATED: Also reverse BO returns
-     */
-    public function destroy(Sale $sale)
-    {
-        DB::transaction(function () use ($sale) {
-            // Return quantities to branch inventory
-            foreach ($sale->items as $item) {
-                $inventory = BranchInventory::where('branch_id', $sale->branch_id)
-                    ->where('finished_product_id', $item->finished_product_id)
-                    ->where(function ($query) use ($item) {
-                        if (!empty($item->batch_number)) {
-                            $query->where('batch_number', $item->batch_number);
-                        } else {
-                            $query->whereNull('batch_number');
-                        }
-                    })
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($inventory) {
-                    // Return sold + BO to branch
-                    $totalReturned = $item->quantity_sold + $item->quantity_bo;
-                    $inventory->quantity += $totalReturned;
-                    $inventory->save();
-                }
-                
-                // Reverse BO warehouse return if any
-                if ($item->quantity_bo > 0) {
-                    $finishedProduct = FinishedProduct::lockForUpdate()->find($item->finished_product_id);
-                    $finishedProduct->decrement('stock_on_hand', $item->quantity_bo);
-                    $finishedProduct->increment('stock_out', $item->quantity_bo);
-                    
-                    // Reverse batch return
-                    if (!empty($item->batch_number)) {
-                        $productionMix = ProductionMix::where('batch_number', $item->batch_number)
-                            ->lockForUpdate()
-                            ->first();
-                        if ($productionMix) {
-                            $productionMix->decrement('actual_output', $item->quantity_bo);
-                        }
-                    }
-                }
-            }
-
-            $sale->delete();
-        });
-
-        return redirect()->route('sales.index')->with('success', 'Sale deleted successfully!');
-    }
-
-    /**
-     * API: Get customers for a branch
-     */
-    public function getCustomers(Branch $branch)
-    {
-        $customers = $branch->customers_list ?? [];
-        
-        // Handle if customers is an array of objects (extract name field)
-        if (!empty($customers) && is_array($customers)) {
-            $customers = array_map(function($customer) {
-                if (is_array($customer) && isset($customer['name'])) {
-                    return $customer['name'];
-                } elseif (is_object($customer) && isset($customer->name)) {
-                    return $customer->name;
-                }
-                return $customer;
-            }, $customers);
-        }
-        
-        return response()->json([
-            'customers' => array_values($customers)
-        ]);
-    }
-
-    /**
-     * API: Get DR numbers deployed to this branch
-     */
-    public function getDRNumbers(Branch $branch)
-    {
-        $drNumbers = StockMovement::where('branch_id', $branch->id)
-            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
-            ->select('reference_number as dr_number')
-            ->selectRaw('COUNT(DISTINCT finished_product_id) as product_count')
-            ->whereNotNull('reference_number')
-            ->groupBy('reference_number')
-            ->orderBy('reference_number', 'desc')
-            ->get();
-
-        return response()->json([
-            'dr_numbers' => $drNumbers
-        ]);
-    }
-
-    /**
-     * API: Get products for a specific DR - UPDATED: Calculate remaining quantities
-     */
-    public function getDRProducts(Branch $branch, $drNumber)
-    {
-        // Get products originally deployed with this DR
-        $movements = StockMovement::with('finishedProduct')
-            ->where('branch_id', $branch->id)
-            ->where('reference_number', $drNumber)
-            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
-            ->get();
-
-        // Get already sold quantities from previous sales
-        $previousSales = Sale::where('branch_id', $branch->id)
-            ->where('dr_number', $drNumber)
-            ->with('items')
-            ->get();
-
-        $soldQuantities = [];
-        foreach ($previousSales as $sale) {
-            foreach ($sale->items as $item) {
-                $key = $item->finished_product_id . '_' . ($item->batch_number ?? 'no-batch');
-                if (!isset($soldQuantities[$key])) {
-                    $soldQuantities[$key] = 0;
-                }
-                $soldQuantities[$key] += $item->quantity_sold;
-            }
-        }
-
-        $products = $movements->map(function($movement) use ($soldQuantities) {
-            $key = $movement->finished_product_id . '_' . ($movement->batch_number ?? 'no-batch');
-            $alreadySold = $soldQuantities[$key] ?? 0;
-            $remaining = $movement->quantity - $alreadySold;
+                    return [
+                        'customer_name'   => $customerName,
+                        'branch_id'       => $branch->id,
+                        'dr_count'        => $sales->count(),
+                        'total_deployed'  => $totalDeployed,
+                        'total_sold'      => $totalSold,
+                        'total_balance'   => $totalBalance,
+                        'has_uncollected' => $uncollectedCount > 0,
+                        'overall_status'  => $overallStatus,
+                    ];
+                })->values();
 
             return [
-                'finished_product_id' => $movement->finished_product_id,
-                'product_name' => $movement->finishedProduct->name,
-                'sku' => $movement->finishedProduct->sku,
-                'batch_number' => $movement->batch_number ?? 'N/A',
-                'deployed_qty' => $movement->quantity,
-                'already_sold' => $alreadySold,
-                'remaining_qty' => max(0, $remaining),
-                'movement_type' => $movement->movement_type,
-                'selling_price' => $movement->finishedProduct->selling_price ?? 0,
+                'branch'    => $branch,
+                'customers' => $customers,
             ];
-        });
+        })->filter(fn($a) => $a['customers']->count() > 0)->values();
 
-        // Group by product and batch
-        $groupedProducts = $products->groupBy(function($item) {
-            return $item['finished_product_id'] . '_' . ($item['batch_number'] ?? 'no-batch');
-        })->map(function($group) {
-            $first = $group->first();
-            return [
-                'finished_product_id' => $first['finished_product_id'],
-                'product_name' => $first['product_name'],
-                'sku' => $first['sku'],
-                'batch_number' => $first['batch_number'],
-                'deployed_qty' => $group->sum('deployed_qty'),
-                'already_sold' => $group->sum('already_sold'),
-                'remaining_qty' => $group->sum('remaining_qty'),
-                'selling_price' => $first['selling_price'],
-            ];
-        })->values();
-
-        return response()->json([
-            'products' => $groupedProducts,
-            'has_previous_sales' => $previousSales->count() > 0,
-            'previous_sales_count' => $previousSales->count()
-        ]);
+        return view('sales.index', compact('areaData', 'search'));
     }
 
-    /**
-     * API: Get products available in branch
-     */
-    public function getProducts(Request $request, Branch $branch, $customerName)
+    // ──────────────────────────────────────────────────────────────────
+    // SHOW — all DRs for a specific branch + customer
+    // ──────────────────────────────────────────────────────────────────
+    public function show(Request $request, Branch $branch, string $customerName)
     {
-        $products = BranchInventory::with('finishedProduct')
-            ->where('branch_id', $branch->id)
-            ->where('quantity', '>', 0)
-            ->get()
-            ->map(function($item) {
-                return [
-                    'finished_product_id' => $item->finished_product_id,
-                    'product_name' => $item->finishedProduct->name,
-                    'sku' => $item->finishedProduct->sku,
-                    'batch_number' => $item->batch_number,
-                    'available_qty' => $item->quantity,
-                ];
-            });
+        $customerName = rawurldecode($customerName);
 
-        return response()->json([
-            'products' => $products
-        ]);
-    }
-
-    /**
-     * API: Check if DR already exists - UPDATED: Return info without blocking
-     */
-    public function checkDrNumber(Request $request, Branch $branch, $customerName, $drNumber)
-    {
-        $existingSales = Sale::where('branch_id', $branch->id)
+        $sales = Sale::where('branch_id', $branch->id)
             ->where('customer_name', $customerName)
-            ->where('dr_number', $drNumber)
-            ->with('items.finishedProduct')
+            ->with(['items.finishedProduct', 'user'])
+            ->orderBy('sale_date', 'desc')
+            ->orderBy('dr_number', 'desc')
             ->get();
 
-        return response()->json([
-            'exists' => $existingSales->count() > 0,
-            'sales_count' => $existingSales->count(),
-            'sales' => $existingSales
+        abort_if($sales->isEmpty(), 404);
+
+        return view('sales.show', compact('sales', 'branch', 'customerName'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // MARK SOLD — update quantity_sold on a single SaleItem
+    // ──────────────────────────────────────────────────────────────────
+    public function markSold(Request $request, SaleItem $saleItem)
+    {
+        $validated = $request->validate([
+            'quantity_sold' => 'required|numeric|min:0',
+            'quantity_bo'   => 'nullable|numeric|min:0',
         ]);
+
+        $deployed = $saleItem->quantity_deployed;
+        $sold     = min($validated['quantity_sold'], $deployed);
+        $bo       = min($validated['quantity_bo'] ?? $saleItem->quantity_bo, $deployed);
+        $unsold   = max(0, $deployed - $sold - $bo);
+
+        $saleItem->quantity_sold   = $sold;
+        $saleItem->quantity_bo     = $bo;
+        $saleItem->quantity_unsold = $unsold;
+        $saleItem->save();
+
+        $sale = $saleItem->sale->fresh();
+
+        return response()->json([
+            'quantity_sold'   => $saleItem->quantity_sold,
+            'quantity_unsold' => $saleItem->quantity_unsold,
+            'quantity_bo'     => $saleItem->quantity_bo,
+            'subtotal'        => $saleItem->subtotal,
+            'sale_total'      => $sale->total_amount,
+            'sale_balance'    => $sale->balance,
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // SOLD OUT ROW — max out one SaleItem
+    // ──────────────────────────────────────────────────────────────────
+    public function soldOutItem(Request $request, SaleItem $saleItem)
+    {
+        $saleItem->quantity_sold   = $saleItem->quantity_deployed;
+        $saleItem->quantity_unsold = 0;
+        $saleItem->save();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'quantity_sold'   => $saleItem->quantity_sold,
+                'quantity_unsold' => 0,
+                'subtotal'        => $saleItem->subtotal,
+                'sale_total'      => $saleItem->sale->total_amount,
+                'sale_balance'    => $saleItem->sale->balance,
+            ]);
+        }
+
+        return back()->with('success', 'Item marked as sold out.');
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // SOLD OUT DR — max out all items in a Sale
+    // ──────────────────────────────────────────────────────────────────
+    public function soldOutSale(Request $request, Sale $sale)
+    {
+        $itemData = [];
+
+        DB::transaction(function () use ($sale, &$itemData) {
+            foreach ($sale->items as $item) {
+                $item->quantity_sold   = $item->quantity_deployed;
+                $item->quantity_bo     = 0;
+                $item->quantity_unsold = 0;
+                $item->save();
+                $itemData[] = [
+                    'id'              => $item->id,
+                    'quantity_sold'   => $item->quantity_sold,
+                    'quantity_unsold' => 0,
+                    'quantity_bo'     => 0,
+                    'subtotal'        => $item->subtotal,
+                ];
+            }
+        });
+
+        $sale->refresh();
+
+        return response()->json([
+            'sale_total'   => $sale->total_amount,
+            'sale_balance' => $sale->balance,
+            'items'        => $itemData,
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // PAYMENT PAGE — dedicated page showing DR summary + payment form
+    // ──────────────────────────────────────────────────────────────────
+    public function paymentPage(Sale $sale)
+    {
+        $sale->load(['items.finishedProduct', 'branch', 'user']);
+        return view('sales.payment', compact('sale'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // UPDATE PAYMENT — record payment against a Sale
+    // ──────────────────────────────────────────────────────────────────
+    public function updatePayment(Request $request, Sale $sale)
+    {
+        $validated = $request->validate([
+            'amount_paid'             => 'required|numeric|min:0',
+            'payment_mode'            => 'required|in:cash,gcash,cheque,bank_transfer,other',
+            'payment_reference'       => 'nullable|string|max:255',
+            'payment_date'            => 'required|date',
+            'payment_status_override' => 'nullable|in:paid,partial,to_be_collected',
+            'notes'                   => 'nullable|string',
+        ]);
+
+        $data = [
+            'amount_paid'       => $validated['amount_paid'],
+            'payment_mode'      => $validated['payment_mode'],
+            'payment_reference' => $validated['payment_reference'] ?? null,
+            'payment_date'      => $validated['payment_date'],
+            'notes'             => $validated['notes'] ?? $sale->notes,
+        ];
+
+        // Allow manual override of payment status
+        if (!empty($validated['payment_status_override'])) {
+            $data['payment_status'] = $validated['payment_status_override'];
+            // Bypass the auto-calculation in booted() by setting amount_paid to match
+            if ($validated['payment_status_override'] === 'paid') {
+                $data['amount_paid'] = $sale->total_amount;
+            }
+        }
+
+        $sale->update($data);
+
+        return redirect()->route('sales.paymentPage', $sale)
+            ->with('success', 'Payment saved for DR# ' . $sale->dr_number);
+    }
+    // ──────────────────────────────────────────────────────────────────
+    // DR DETAIL — single DR edit page (qty sold + payment)
+    // ──────────────────────────────────────────────────────────────────
+    public function drDetail(Sale $sale)
+    {
+        $sale->load(['items.finishedProduct', 'branch', 'user']);
+        return view('sales.dr', compact('sale'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // DR UPDATE — save qty sold, BO, and payment in one shot
+    // ──────────────────────────────────────────────────────────────────
+    public function drUpdate(Request $request, Sale $sale)
+    {
+        $status = $request->input('payment_status_override', 'to_be_collected');
+        $isCollecting = in_array($status, ['paid', 'partial']);
+
+        $validated = $request->validate([
+            'items'                        => 'required|array',
+            'items.*.id'                   => 'required|exists:sale_items,id',
+            'items.*.quantity_sold'        => 'required|numeric|min:0',
+            'items.*.quantity_bo'          => 'nullable|numeric|min:0',
+            'amount_paid'                  => ($isCollecting ? 'required' : 'nullable') . '|numeric|min:0',
+            'payment_mode'                 => $isCollecting ? 'required|in:cash,gcash,cheque,bank_transfer,other' : 'nullable|in:cash,gcash,cheque,bank_transfer,other',
+            'payment_reference'            => 'nullable|string|max:255',
+            'payment_date'                 => $isCollecting ? 'required|date' : 'nullable|date',
+            'payment_status_override'      => 'nullable|in:paid,partial,to_be_collected',
+            'less_amount'                  => 'nullable|numeric|min:0',
+            'less_notes'                   => 'nullable|string|max:500',
+            'notes'                        => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $sale, $status, $isCollecting) {
+            foreach ($validated['items'] as $itemData) {
+                $item     = SaleItem::findOrFail($itemData['id']);
+                $deployed = $item->quantity_deployed;
+                $sold     = min($itemData['quantity_sold'], $deployed);
+                $bo       = min($itemData['quantity_bo'] ?? 0, $deployed);
+                $unsold   = max(0, $deployed - $sold - $bo);
+
+                $item->quantity_sold   = $sold;
+                $item->quantity_bo     = $bo;
+                $item->quantity_unsold = $unsold;
+                $item->subtotal        = $sold * $item->unit_price;
+                $item->save();
+            }
+
+            $sale->refresh();
+
+            $lessAmount = max(0, (float) ($validated['less_amount'] ?? 0));
+            $sale->less_amount = $lessAmount;
+            $sale->less_notes  = $validated['less_notes'] ?? null;
+
+            if ($status === 'to_be_collected') {
+                $sale->payment_status = 'to_be_collected';
+                $sale->amount_paid    = 0;
+                $sale->balance        = max(0, $sale->total_amount - $lessAmount);
+                $sale->saveQuietly();
+            } elseif ($status === 'paid') {
+                $sale->payment_status    = 'paid';
+                $sale->amount_paid       = max(0, $sale->total_amount - $lessAmount);
+                $sale->balance           = 0;
+                $sale->payment_mode      = $validated['payment_mode'] ?? $sale->payment_mode;
+                $sale->payment_reference = $validated['payment_reference'] ?? $sale->payment_reference;
+                $sale->payment_date      = $validated['payment_date'] ?? $sale->payment_date;
+                $sale->notes             = $validated['notes'] ?? $sale->notes;
+                $sale->saveQuietly();
+            } else {
+                // partial — but auto-upgrade to paid if amount_paid covers total
+                $amountPaid = $validated['amount_paid'] ?? 0;
+                $balance    = max(0, $sale->total_amount - $lessAmount) - $amountPaid;
+                $sale->amount_paid       = $amountPaid;
+                $sale->balance           = max(0, $balance);
+                $sale->payment_status    = $balance <= 0 ? 'paid' : 'partial';
+                $sale->payment_mode      = $validated['payment_mode'] ?? $sale->payment_mode;
+                $sale->payment_reference = $validated['payment_reference'] ?? $sale->payment_reference;
+                $sale->payment_date      = $validated['payment_date'] ?? $sale->payment_date;
+                $sale->notes             = $validated['notes'] ?? $sale->notes;
+                $sale->saveQuietly();
+            }
+        });
+
+        return redirect()->route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)])
+            ->with('success', 'DR# ' . $sale->dr_number . ' has been updated.');
     }
 }

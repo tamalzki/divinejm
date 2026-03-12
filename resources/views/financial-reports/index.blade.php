@@ -1,527 +1,289 @@
 @extends('layouts.sidebar')
-
-@section('page-title', 'Financial Reports')
-
+@section('page-title', 'Financial Report')
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-graph-up-arrow me-2"></i>Financial Reports</h2>
-    <button onclick="window.print()" class="btn btn-success">
-        <i class="bi bi-printer-fill me-2"></i>Print Report
+
+<style>
+    /* ── Filter bar ── */
+    .rpt-bar { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:.6rem .9rem; margin-bottom:.9rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .period-btn { font-size:.72rem; padding:.2rem .65rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-page); color:var(--text-secondary); cursor:pointer; text-decoration:none; white-space:nowrap; font-weight:600; transition:all .12s; }
+    .period-btn:hover { background:var(--accent-faint); color:var(--accent); border-color:var(--accent); }
+    .period-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .rpt-sep  { width:1px; height:18px; background:var(--border); flex-shrink:0; }
+    .date-input { padding:.22rem .48rem; font-size:.76rem; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); color:var(--text-primary); }
+    .rpt-select { padding:.22rem .48rem; font-size:.75rem; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); color:var(--text-primary); }
+    .btn-apply { font-size:.74rem; font-weight:600; padding:.24rem .75rem; border-radius:4px; background:var(--accent); color:#fff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; }
+    .btn-apply:hover { background:var(--accent-hover); }
+    .lbl { font-size:.70rem; color:var(--text-muted); white-space:nowrap; }
+
+    /* ── KPI tiles ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.65rem; margin-bottom:.9rem; }
+    .kpi-tile { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:.75rem 1rem; position:relative; overflow:hidden; }
+    .kpi-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--accent); border-radius:var(--radius) var(--radius) 0 0; }
+    .kpi-tile.green::before { background:#16a34a; }
+    .kpi-tile.amber::before { background:#d97706; }
+    .kpi-tile.red::before   { background:#dc2626; }
+    .kpi-tile.blue::before  { background:#0369a1; }
+    .kpi-tile.purple::before{ background:#7c3aed; }
+    .kpi-label { font-size:.60rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); display:block; margin-bottom:.2rem; }
+    .kpi-value { font-size:1.05rem; font-weight:700; color:var(--text-primary); display:block; line-height:1.2; }
+    .kpi-sub   { font-size:.67rem; color:var(--text-muted); margin-top:.2rem; display:block; }
+    .kpi-value.green { color:#16a34a; }
+    .kpi-value.amber { color:#d97706; }
+    .kpi-value.red   { color:#dc2626; }
+    .kpi-value.blue  { color:#0369a1; }
+
+    /* ── Two-column layout ── */
+    .rpt-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:.75rem; }
+    .rpt-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.75rem; margin-bottom:.75rem; }
+
+    /* ── Section card ── */
+    .sec-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .sec-head { background:var(--brand-deep); color:rgba(255,255,255,.9); padding:.48rem .85rem; display:flex; align-items:center; gap:.4rem; font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+    .sec-head i { opacity:.7; font-size:.8rem; }
+    .sec-body { padding:.65rem .85rem; }
+    .sec-scroll { overflow-x:auto; }
+
+    /* ── P&L statement ── */
+    .pl-table { width:100%; border-collapse:collapse; font-size:.78rem; }
+    .pl-table td { padding:.32rem .5rem; border-bottom:1px solid var(--border); }
+    .pl-table tr:last-child td { border-bottom:none; }
+    .pl-table .pl-group td { background:var(--bg-page); font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); padding:.28rem .5rem; border-bottom:none; }
+    .pl-table .pl-item td:first-child { padding-left:1.5rem; color:var(--text-secondary); }
+    .pl-table .pl-sub td { font-weight:700; }
+    .pl-table .pl-sub td:last-child { border-top:1px solid var(--border); }
+    .pl-table .pl-total td { font-weight:800; font-size:.82rem; background:var(--accent-faint); }
+    .pl-table .pl-total.profit td { background:#dcfce7; color:#15622e; }
+    .pl-table .pl-total.loss td   { background:#fee2e2; color:#9b1c1c; }
+    .pl-table td:last-child { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .pl-neg { color:#dc2626; }
+    .pl-pos { color:#16a34a; }
+
+    /* ── Data tables ── */
+    .dt { width:100%; border-collapse:collapse; font-size:.74rem; }
+    .dt thead th { background:var(--brand-deep); color:rgba(255,255,255,.88); padding:.38rem .6rem; font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; }
+    .dt tbody td { padding:.36rem .6rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .dt tbody tr:last-child td { border-bottom:none; }
+    .dt tbody tr:hover td { background:var(--accent-faint); }
+    .dt tfoot td { padding:.36rem .6rem; font-weight:700; font-size:.73rem; background:var(--bg-page); border-top:2px solid var(--border); }
+    .dt .tr { text-align:right; }
+    .dt .tc { text-align:center; }
+
+    /* ── Pill badges ── */
+    .pill { display:inline-flex; align-items:center; padding:.05rem .35rem; border-radius:3px; font-size:.62rem; font-weight:700; }
+    .pill-green  { background:var(--s-success-bg); color:var(--s-success-text); }
+    .pill-red    { background:var(--s-danger-bg);  color:var(--s-danger-text); }
+    .pill-amber  { background:var(--s-warning-bg); color:var(--s-warning-text); }
+    .pill-blue   { background:var(--s-info-bg);    color:var(--s-info-text); }
+
+    /* ── Progress bar ── */
+    .prog-bar { height:4px; background:var(--border); border-radius:2px; margin-top:.3rem; overflow:hidden; }
+    .prog-fill { height:100%; background:var(--accent); border-radius:2px; transition:width .3s; }
+
+    /* ── Margin meter ── */
+    .margin-badge { font-size:.65rem; font-weight:700; padding:.04rem .32rem; border-radius:3px; }
+
+    /* ── Empty state ── */
+    .empty-state { text-align:center; padding:2rem 1rem; color:var(--text-muted); font-size:.78rem; }
+    .empty-state i { font-size:1.8rem; display:block; opacity:.25; margin-bottom:.4rem; }
+
+    /* ── Section full width ── */
+    .rpt-full { margin-bottom:.75rem; }
+</style>
+
+{{-- Page header --}}
+<div class="d-flex align-items-center justify-content-between mb-2">
+    <div>
+        <h5 class="fw-bold mb-0" style="font-size:.93rem">
+            <i class="bi bi-bar-chart-line me-1" style="color:var(--accent)"></i>Financial Report
+        </h5>
+        <span style="font-size:.67rem;color:var(--text-muted)">
+            {{ $startDate->format('M d, Y') }} — {{ $endDate->format('M d, Y') }}
+            &nbsp;·&nbsp; {{ ucfirst($reportType) }}
+        </span>
+    </div>
+    <button onclick="window.print()" class="btn-apply" style="background:#16a34a">
+        <i class="bi bi-printer"></i> Print
     </button>
 </div>
 
-<!-- Date Filter -->
-<div class="card mb-4 no-print">
-    <div class="card-body">
-        <form action="{{ route('financial-reports.index') }}" method="GET" class="row g-3" id="filterForm">
-            <div class="col-md-4">
-                <label class="form-label fw-bold">Start Date</label>
-                <input type="date" 
-                       name="start_date" 
-                       id="startDate"
-                       class="form-control" 
-                       value="{{ $startDate instanceof \Carbon\Carbon ? $startDate->format('Y-m-d') : $startDate }}"
-                       onchange="submitWithLoading()">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-bold">End Date</label>
-                <input type="date" 
-                       name="end_date" 
-                       id="endDate"
-                       class="form-control" 
-                       value="{{ $endDate instanceof \Carbon\Carbon ? $endDate->format('Y-m-d') : $endDate }}"
-                       onchange="submitWithLoading()">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label fw-bold">Report Type</label>
-                <select name="report_type" class="form-select" onchange="submitWithLoading()">
-                    <option value="monthly" {{ $reportType == 'monthly' ? 'selected' : '' }}>Monthly</option>
-                    <option value="weekly" {{ $reportType == 'weekly' ? 'selected' : '' }}>Weekly</option>
-                    <option value="quarterly" {{ $reportType == 'quarterly' ? 'selected' : '' }}>Quarterly</option>
-                </select>
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="button" class="btn btn-secondary w-100" onclick="resetDates()">
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
-                </button>
-            </div>
-        </form>
-        
-        <!-- Loading Indicator -->
-        <div id="loadingIndicator" class="text-center mt-3" style="display: none;">
-            <div class="spinner-border text-success" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="text-muted mt-2 mb-0">Loading report...</p>
-        </div>
+{{-- Filter bar --}}
+<form method="GET" action="{{ route('financial-reports.index') }}" id="frForm">
+<div class="rpt-bar">
+    <span class="lbl">Period</span>
+    <a href="{{ route('financial-reports.index', array_merge(request()->except('report_type'), ['report_type'=>'monthly'])) }}"
+       class="period-btn {{ $reportType==='monthly' ? 'active':'' }}">Monthly</a>
+    <a href="{{ route('financial-reports.index', array_merge(request()->except('report_type'), ['report_type'=>'weekly'])) }}"
+       class="period-btn {{ $reportType==='weekly' ? 'active':'' }}">Weekly</a>
+    <a href="{{ route('financial-reports.index', array_merge(request()->except('report_type'), ['report_type'=>'quarterly'])) }}"
+       class="period-btn {{ $reportType==='quarterly' ? 'active':'' }}">Quarterly</a>
+    <div class="rpt-sep"></div>
+    <span class="lbl">From</span>
+    <input type="date" name="start_date" class="date-input" value="{{ $startDate->format('Y-m-d') }}">
+    <span class="lbl">To</span>
+    <input type="date" name="end_date"   class="date-input" value="{{ $endDate->format('Y-m-d') }}">
+    <input type="hidden" name="report_type" value="{{ $reportType }}">
+    <button type="submit" class="btn-apply"><i class="bi bi-search"></i> Apply</button>
+    <button type="button" class="btn-apply" style="background:var(--bg-page);color:var(--text-secondary);border:1px solid var(--border)"
+            onclick="resetDates()"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+</div>
+</form>
+
+{{-- ── KPI Row 1: P&L ── --}}
+<div class="kpi-grid">
+    <div class="kpi-tile">
+        <span class="kpi-label">Total Revenue</span>
+        <span class="kpi-value">&#8369;{{ number_format($totalSales, 2) }}</span>
+        <span class="kpi-sub">{{ $totalTransactions }} transactions · avg &#8369;{{ number_format($averageTransactionValue, 0) }}</span>
+    </div>
+    <div class="kpi-tile amber">
+        <span class="kpi-label">Gross Profit</span>
+        <span class="kpi-value amber">&#8369;{{ number_format($grossProfit, 2) }}</span>
+        <span class="kpi-sub">{{ number_format($grossProfitMargin, 1) }}% gross margin</span>
+    </div>
+    <div class="kpi-tile red">
+        <span class="kpi-label">Total Expenses</span>
+        <span class="kpi-value red">&#8369;{{ number_format($totalExpenses, 2) }}</span>
+        <span class="kpi-sub">{{ number_format($operatingExpenseRatio, 1) }}% of revenue</span>
+    </div>
+    <div class="kpi-tile {{ $netProfit >= 0 ? 'green' : 'red' }}">
+        <span class="kpi-label">Net {{ $netProfit >= 0 ? 'Profit' : 'Loss' }}</span>
+        <span class="kpi-value {{ $netProfit >= 0 ? 'green' : 'red' }}">&#8369;{{ number_format(abs($netProfit), 2) }}</span>
+        <span class="kpi-sub">{{ number_format($netProfitMargin, 1) }}% net margin</span>
     </div>
 </div>
 
-<!-- Screen View -->
-<div class="screen-only">
-    <!-- Summary Cards Row 1 -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stats-card">
-                <p class="mb-2">Total Sales</p>
-                <h3>₱{{ number_format($totalSales, 2) }}</h3>
-                <small class="text-white-50">{{ $totalTransactions }} transactions</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                <p class="mb-2">Gross Profit</p>
-                <h3>₱{{ number_format($grossProfit, 2) }}</h3>
-                <small class="text-white-50">{{ number_format($grossProfitMargin, 1) }}% margin</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
-                <p class="mb-2">Expenses</p>
-                <h3>₱{{ number_format($totalExpenses, 2) }}</h3>
-                <small class="text-white-50">{{ number_format($operatingExpenseRatio, 1) }}% of sales</small>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, {{ $netProfit >= 0 ? '#10b981, #059669' : '#ef4444, #dc2626' }});">
-                <p class="mb-2">Net Profit</p>
-                <h3>₱{{ number_format($netProfit, 2) }}</h3>
-                <small class="text-white-50">{{ number_format($netProfitMargin, 1) }}% margin</small>
-            </div>
-        </div>
+{{-- ── KPI Row 2: Cash & Collections ── --}}
+<div class="kpi-grid" style="margin-bottom:.9rem">
+    <div class="kpi-tile blue">
+        <span class="kpi-label">Cash in Hand</span>
+        <span class="kpi-value blue">&#8369;{{ number_format($cashInHand, 2) }}</span>
+        <span class="kpi-sub">After expenses &amp; deposits</span>
     </div>
-
-    <!-- Summary Cards Row 2 - NEW -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body text-center">
-                    <i class="bi bi-wallet2 text-success fs-1 mb-2"></i>
-                    <h5 class="mb-1">₱{{ number_format($cashInHand, 2) }}</h5>
-                    <small class="text-muted">Cash in Hand</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body text-center">
-                    <i class="bi bi-bank text-primary fs-1 mb-2"></i>
-                    <h5 class="mb-1">₱{{ number_format($cashInBank, 2) }}</h5>
-                    <small class="text-muted">Cash in Bank</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body text-center">
-                    <i class="bi bi-clock-history text-warning fs-1 mb-2"></i>
-                    <h5 class="mb-1">₱{{ number_format($totalReceivables, 2) }}</h5>
-                    <small class="text-muted">To Be Collected</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body text-center">
-                    <i class="bi bi-percent text-info fs-1 mb-2"></i>
-                    <h5 class="mb-1">{{ number_format($collectionEfficiency, 1) }}%</h5>
-                    <small class="text-muted">Collection Rate</small>
-                </div>
-            </div>
-        </div>
+    <div class="kpi-tile blue">
+        <span class="kpi-label">Cash in Bank</span>
+        <span class="kpi-value blue">&#8369;{{ number_format($cashInBank, 2) }}</span>
+        <span class="kpi-sub">Cumulative deposits</span>
     </div>
-
-    <!-- NEW: Sales by Customer Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-people me-2"></i>Sales by Customer</h5>
-                </div>
-                <div class="card-body">
-                    @if($salesByCustomer->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Customer</th>
-                                    <th>Area</th>
-                                    <th class="text-center">Transactions</th>
-                                    <th class="text-end">Total Sales</th>
-                                    <th class="text-end">Paid</th>
-                                    <th class="text-end">Balance</th>
-                                    <th class="text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($salesByCustomer as $customer)
-                                <tr>
-                                    <td class="fw-bold">{{ $customer->customer_name }}</td>
-                                    <td>{{ $customer->branch->name ?? 'N/A' }}</td>
-                                    <td class="text-center">{{ $customer->transaction_count }}</td>
-                                    <td class="text-end fw-bold">₱{{ number_format($customer->total_sales, 2) }}</td>
-                                    <td class="text-end text-success">₱{{ number_format($customer->total_paid, 2) }}</td>
-                                    <td class="text-end {{ $customer->balance > 0 ? 'text-danger' : 'text-muted' }}">
-                                        ₱{{ number_format($customer->balance, 2) }}
-                                    </td>
-                                    <td class="text-center">
-                                        @if($customer->balance <= 0)
-                                            <span class="badge bg-success">Paid</span>
-                                        @elseif($customer->total_paid > 0)
-                                            <span class="badge bg-warning">Partial</span>
-                                        @else
-                                            <span class="badge bg-danger">Unpaid</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr class="fw-bold">
-                                    <td colspan="2">TOTAL</td>
-                                    <td class="text-center">{{ $salesByCustomer->sum('transaction_count') }}</td>
-                                    <td class="text-end">₱{{ number_format($salesByCustomer->sum('total_sales'), 2) }}</td>
-                                    <td class="text-end text-success">₱{{ number_format($salesByCustomer->sum('total_paid'), 2) }}</td>
-                                    <td class="text-end text-danger">₱{{ number_format($salesByCustomer->sum('balance'), 2) }}</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">No customer sales data</p>
-                    @endif
-                </div>
-            </div>
-        </div>
+    <div class="kpi-tile amber">
+        <span class="kpi-label">To Be Collected</span>
+        <span class="kpi-value amber">&#8369;{{ number_format($totalReceivables, 2) }}</span>
+        <span class="kpi-sub">{{ $accountsReceivable->count() }} customers with balance</span>
     </div>
-
-    <!-- NEW: Deliveries by Customer -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Deliveries by Customer</h5>
-                </div>
-                <div class="card-body">
-                    @if($deliveriesByCustomer->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Customer</th>
-                                    <th class="text-center">DRs</th>
-                                    <th class="text-center">Products</th>
-                                    <th class="text-center">Total Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($deliveriesByCustomer as $delivery)
-                                <tr>
-                                    <td class="fw-bold">{{ $delivery['customer_name'] }}</td>
-                                    <td class="text-center">{{ $delivery['deliveries_count'] }}</td>
-                                    <td class="text-center">{{ $delivery['products_count'] }}</td>
-                                    <td class="text-center fw-bold">{{ $delivery['total_delivered'] }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">No delivery data</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        <!-- NEW: Accounts Receivable -->
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Accounts Receivable</h5>
-                </div>
-                <div class="card-body">
-                    @if($accountsReceivable->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Customer</th>
-                                    <th class="text-center">Unpaid</th>
-                                    <th class="text-end">Amount</th>
-                                    <th class="text-center">Days</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($accountsReceivable as $ar)
-                                <tr>
-                                    <td class="fw-bold">{{ $ar->customer_name }}</td>
-                                    <td class="text-center">{{ $ar->unpaid_count }}</td>
-                                    <td class="text-end text-danger fw-bold">₱{{ number_format($ar->total_receivable, 2) }}</td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $ar->days_outstanding > 30 ? 'danger' : ($ar->days_outstanding > 7 ? 'warning' : 'info') }}">
-                                            {{ $ar->days_outstanding }}d
-                                        </span>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr class="fw-bold">
-                                    <td>TOTAL</td>
-                                    <td class="text-center">{{ $accountsReceivable->sum('unpaid_count') }}</td>
-                                    <td class="text-end text-danger">₱{{ number_format($totalReceivables, 2) }}</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">All collections completed!</p>
-                    @endif
-                </div>
-            </div>
-        </div>
+    <div class="kpi-tile green">
+        <span class="kpi-label">Collection Rate</span>
+        <span class="kpi-value green">{{ number_format($collectionEfficiency, 1) }}%</span>
+        <span class="kpi-sub">
+            {{ $paymentSummary['paid_in_full'] }} paid · {{ $paymentSummary['partial_payments'] }} partial
+        </span>
     </div>
+</div>
 
-    <!-- NEW: Production Analysis -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Production Performance</h5>
-                </div>
-                <div class="card-body">
-                    @if($productionSummary->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Product</th>
-                                    <th class="text-center">Batches</th>
-                                    <th class="text-center">Expected</th>
-                                    <th class="text-center">Actual</th>
-                                    <th class="text-center">Rejected</th>
-                                    <th class="text-center">Good Output</th>
-                                    <th class="text-center">Variance %</th>
-                                    <th class="text-center">Rejection %</th>
-                                    <th class="text-center">Yield %</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($productionSummary as $prod)
-                                <tr>
-                                    <td class="fw-bold">{{ $prod['product_name'] }}</td>
-                                    <td class="text-center">{{ $prod['batches_count'] }}</td>
-                                    <td class="text-center">{{ number_format($prod['expected_output']) }}</td>
-                                    <td class="text-center fw-bold">{{ number_format($prod['actual_output']) }}</td>
-                                    <td class="text-center text-danger">{{ number_format($prod['rejected_quantity']) }}</td>
-                                    <td class="text-center text-success fw-bold">{{ number_format($prod['good_output']) }}</td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $prod['variance_percent'] >= 0 ? 'success' : 'danger' }}">
-                                            {{ $prod['variance_percent'] > 0 ? '+' : '' }}{{ number_format($prod['variance_percent'], 1) }}%
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $prod['rejection_rate'] < 5 ? 'success' : ($prod['rejection_rate'] < 10 ? 'warning' : 'danger') }}">
-                                            {{ number_format($prod['rejection_rate'], 1) }}%
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $prod['yield_rate'] >= 90 ? 'success' : ($prod['yield_rate'] >= 80 ? 'warning' : 'danger') }}">
-                                            {{ number_format($prod['yield_rate'], 1) }}%
-                                        </span>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">No production data</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
+{{-- ── Row: P&L Statement + Cash Flow ── --}}
+<div class="rpt-grid-2">
 
-    <!-- NEW: Production by Period -->
-    @if($productionByPeriod->count() > 0)
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Production Summary ({{ ucfirst($reportType) }})</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Period</th>
-                                    <th class="text-center">Batches</th>
-                                    <th class="text-center">Total Output</th>
-                                    <th class="text-center">Rejected</th>
-                                    <th>Top Products</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($productionByPeriod as $period)
-                                <tr>
-                                    <td class="fw-bold">{{ $period['period'] }}</td>
-                                    <td class="text-center">{{ $period['batches'] }}</td>
-                                    <td class="text-center fw-bold">{{ number_format($period['total_output']) }}</td>
-                                    <td class="text-center text-danger">{{ number_format($period['total_rejected']) }}</td>
-                                    <td>
-                                        <small>
-                                            @foreach($period['products']->take(3) as $p)
-                                                <span class="badge bg-secondary">{{ $p['name'] }}: {{ $p['quantity'] }}</span>
-                                            @endforeach
-                                        </small>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    <!-- Existing sections (Sales by Product & Expenses) -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Sales by Product</h5>
-                </div>
-                <div class="card-body">
-                    @if($salesByProduct->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Product</th>
-                                    <th class="text-center">Qty</th>
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Profit</th>
-                                    <th class="text-center">Margin</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($salesByProduct as $product)
-                                <tr>
-                                    <td class="fw-bold">{{ $product['product_name'] }}</td>
-                                    <td class="text-center">{{ $product['quantity'] }}</td>
-                                    <td class="text-end text-success fw-bold">₱{{ number_format($product['revenue'], 2) }}</td>
-                                    <td class="text-end fw-bold" style="color: {{ $product['profit'] >= 0 ? '#10b981' : '#ef4444' }}">
-                                        ₱{{ number_format($product['profit'], 2) }}
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $product['margin'] >= 30 ? 'success' : ($product['margin'] >= 15 ? 'warning' : 'danger') }}">
-                                            {{ number_format($product['margin'], 1) }}%
-                                        </span>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr class="fw-bold">
-                                    <td>TOTAL</td>
-                                    <td class="text-center">{{ $salesByProduct->sum('quantity') }}</td>
-                                    <td class="text-end text-success">₱{{ number_format($salesByProduct->sum('revenue'), 2) }}</td>
-                                    <td class="text-end" style="color: {{ $salesByProduct->sum('profit') >= 0 ? '#10b981' : '#ef4444' }}">
-                                        ₱{{ number_format($salesByProduct->sum('profit'), 2) }}
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">No sales data</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Expenses by Category</h5>
-                </div>
-                <div class="card-body">
-                    @if($expensesByCategory->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Category</th>
-                                    <th class="text-end">Amount</th>
-                                    <th class="text-center">%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($expensesByCategory as $category => $amount)
-                                <tr>
-                                    <td class="fw-bold">{{ ucfirst(str_replace('_', ' ', $category)) }}</td>
-                                    <td class="text-end text-danger fw-bold">₱{{ number_format($amount, 2) }}</td>
-                                    <td class="text-center">
-                                        <span class="badge bg-secondary">
-                                            {{ $totalExpenses > 0 ? number_format(($amount / $totalExpenses) * 100, 1) : 0 }}%
-                                        </span>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr class="fw-bold">
-                                    <td>TOTAL</td>
-                                    <td class="text-end text-danger">₱{{ number_format($totalExpenses, 2) }}</td>
-                                    <td class="text-center">100%</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    @else
-                    <p class="text-center text-muted py-4 mb-0">No expense data</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Income Statement -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Income Statement</h5>
-        </div>
-        <div class="card-body">
-            <table class="table table-borderless mb-0">
+    {{-- Profit & Loss --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-file-earmark-text"></i> Profit &amp; Loss Statement</div>
+        <div class="sec-body" style="padding:.5rem">
+            <table class="pl-table">
                 <tbody>
-                    <tr>
-                        <td class="fw-bold">Revenue (Sales)</td>
-                        <td class="text-end text-success fw-bold fs-5">₱{{ number_format($totalSales, 2) }}</td>
+                    {{-- Revenue --}}
+                    <tr class="pl-group"><td colspan="2">Revenue</td></tr>
+                    <tr class="pl-item">
+                        <td>Sales Revenue</td>
+                        <td>&#8369;{{ number_format($totalSales, 2) }}</td>
                     </tr>
-                    <tr>
-                        <td class="fw-bold text-muted ps-4">Less: Cost of Goods Sold</td>
-                        <td class="text-end text-muted">(₱{{ number_format($totalCOGS, 2) }})</td>
+                    <tr class="pl-sub">
+                        <td>Total Revenue</td>
+                        <td>&#8369;{{ number_format($totalSales, 2) }}</td>
                     </tr>
-                    <tr class="border-top">
-                        <td class="fw-bold">Gross Profit</td>
-                        <td class="text-end fw-bold" style="color: #f59e0b">₱{{ number_format($grossProfit, 2) }}</td>
+
+                    {{-- COGS --}}
+                    <tr class="pl-group"><td colspan="2">Cost of Goods Sold</td></tr>
+                    <tr class="pl-item">
+                        <td>Direct Product Costs</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($totalCOGS, 2) }})</td>
                     </tr>
-                    <tr>
-                        <td class="fw-bold text-danger ps-4">Less: Operating Expenses</td>
-                        <td class="text-end text-danger">(₱{{ number_format($totalExpenses, 2) }})</td>
+                    <tr class="pl-sub">
+                        <td>Gross Profit</td>
+                        <td class="{{ $grossProfit >= 0 ? 'pl-pos' : 'pl-neg' }}">&#8369;{{ number_format($grossProfit, 2) }}</td>
                     </tr>
-                    <tr class="border-top border-2">
-                        <td class="fw-bold fs-5">Net Income {{ $netProfit >= 0 ? '(Profit)' : '(Loss)' }}</td>
-                        <td class="text-end fw-bold fs-4" style="color: {{ $netProfit >= 0 ? '#10b981' : '#ef4444' }}">
-                            ₱{{ number_format($netProfit, 2) }}
-                        </td>
+
+                    {{-- Expenses --}}
+                    <tr class="pl-group"><td colspan="2">Operating Expenses</td></tr>
+                    @forelse($expensesByCategory as $cat => $amt)
+                    <tr class="pl-item">
+                        <td>{{ ucfirst(str_replace('_',' ',$cat)) }}</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($amt, 2) }})</td>
+                    </tr>
+                    @empty
+                    <tr class="pl-item"><td colspan="2" style="color:var(--text-muted);font-size:.72rem">No expenses recorded</td></tr>
+                    @endforelse
+                    <tr class="pl-sub">
+                        <td>Total Expenses</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($totalExpenses, 2) }})</td>
+                    </tr>
+
+                    {{-- Net --}}
+                    <tr class="pl-total {{ $netProfit >= 0 ? 'profit' : 'loss' }}">
+                        <td>Net {{ $netProfit >= 0 ? 'Profit' : 'Loss' }}</td>
+                        <td>&#8369;{{ number_format($netProfit, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- Cash Flow --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-arrow-left-right"></i> Cash Flow Summary</div>
+        <div class="sec-body" style="padding:.5rem">
+            <table class="pl-table">
+                <tbody>
+                    <tr class="pl-group"><td colspan="2">Operating Activities</td></tr>
+                    <tr class="pl-item">
+                        <td>Cash Sales Collected</td>
+                        <td class="pl-pos">&#8369;{{ number_format($cashSales, 2) }}</td>
+                    </tr>
+                    <tr class="pl-item">
+                        <td>Cash Expenses Paid</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($cashExpenses, 2) }})</td>
+                    </tr>
+                    <tr class="pl-item">
+                        <td>Bank Deposits</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($bankDeposits, 2) }})</td>
+                    </tr>
+                    <tr class="pl-sub">
+                        <td>Net Cash from Operations</td>
+                        <td class="{{ $cashFlow >= 0 ? 'pl-pos':'pl-neg' }}">&#8369;{{ number_format($cashFlow, 2) }}</td>
+                    </tr>
+
+                    <tr class="pl-group"><td colspan="2">Balances</td></tr>
+                    <tr class="pl-item">
+                        <td>Cash in Hand</td>
+                        <td>&#8369;{{ number_format($cashInHand, 2) }}</td>
+                    </tr>
+                    <tr class="pl-item">
+                        <td>Cash in Bank</td>
+                        <td>&#8369;{{ number_format($cashInBank, 2) }}</td>
+                    </tr>
+                    <tr class="pl-sub">
+                        <td>Total Cash Position</td>
+                        <td class="pl-pos">&#8369;{{ number_format($cashInHand + $cashInBank, 2) }}</td>
+                    </tr>
+
+                    <tr class="pl-group"><td colspan="2">Receivables</td></tr>
+                    <tr class="pl-item">
+                        <td>Total Collected</td>
+                        <td class="pl-pos">&#8369;{{ number_format($paymentSummary['total_collected'], 2) }}</td>
+                    </tr>
+                    <tr class="pl-item">
+                        <td>Pending Collection</td>
+                        <td class="pl-neg">&#8369;{{ number_format($totalReceivables, 2) }}</td>
+                    </tr>
+                    <tr class="pl-total {{ $totalReceivables > 0 ? 'loss' : 'profit' }}">
+                        <td>Collection Rate</td>
+                        <td>{{ number_format($collectionEfficiency, 1) }}%</td>
                     </tr>
                 </tbody>
             </table>
@@ -529,603 +291,357 @@
     </div>
 </div>
 
-<!-- Print View - Comprehensive Financial Report -->
-<div class="print-only">
-    <!-- Report Header -->
-    <div class="report-header">
-        <h1 class="company-name">CHIPSINVENTORY</h1>
-        <p class="company-tagline">Food Products Trading</p>
-        <h2 class="report-title">COMPREHENSIVE FINANCIAL REPORT</h2>
-        <p class="report-period">
-            For the Period: 
-            {{ $startDate instanceof \Carbon\Carbon ? $startDate->format('F d, Y') : $startDate }} 
-            to 
-            {{ $endDate instanceof \Carbon\Carbon ? $endDate->format('F d, Y') : $endDate }}
-        </p>
-        <p class="report-period">Report Type: {{ ucfirst($reportType) }}</p>
-        <p class="report-date">Report Generated: {{ now()->format('F d, Y h:i A') }}</p>
-    </div>
-
-    <hr class="report-divider">
-
-    <!-- EXECUTIVE SUMMARY -->
-    <div class="financial-section">
-        <h3 class="section-title">EXECUTIVE SUMMARY</h3>
-        
-        <table class="summary-table">
-            <tbody>
-                <tr>
-                    <td><strong>Total Revenue</strong></td>
-                    <td class="amount">₱{{ number_format($totalSales, 2) }}</td>
-                    <td><strong>Gross Profit</strong></td>
-                    <td class="amount">₱{{ number_format($grossProfit, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Total Expenses</strong></td>
-                    <td class="amount">₱{{ number_format($totalExpenses, 2) }}</td>
-                    <td><strong>Net Profit</strong></td>
-                    <td class="amount"><strong>₱{{ number_format($netProfit, 2) }}</strong></td>
-                </tr>
-                <tr>
-                    <td><strong>Cash in Hand</strong></td>
-                    <td class="amount">₱{{ number_format($cashInHand, 2) }}</td>
-                    <td><strong>Cash in Bank</strong></td>
-                    <td class="amount">₱{{ number_format($cashInBank, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>To Be Collected</strong></td>
-                    <td class="amount">₱{{ number_format($totalReceivables, 2) }}</td>
-                    <td><strong>Collection Rate</strong></td>
-                    <td class="amount">{{ number_format($collectionEfficiency, 1) }}%</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- INCOME STATEMENT -->
-    <div class="financial-section">
-        <h3 class="section-title">INCOME STATEMENT</h3>
-        
-        <table class="financial-table">
-            <tbody>
-                <tr class="section-header">
-                    <td colspan="2"><strong>REVENUE</strong></td>
-                </tr>
-                
-                @if($salesByProduct->count() > 0)
-                    <tr>
-                        <td style="padding-left: 30px;">Sales Revenue:</td>
-                        <td></td>
-                    </tr>
-                    @foreach($salesByProduct as $product)
-                    <tr>
-                        <td style="padding-left: 50px;">{{ $product['product_name'] }} ({{ number_format($product['quantity']) }} units)</td>
-                        <td class="amount">₱{{ number_format($product['revenue'], 2) }}</td>
-                    </tr>
-                    @endforeach
-                @endif
-                
-                <tr class="subtotal-row">
-                    <td><strong>Total Revenue</strong></td>
-                    <td class="amount"><strong>₱{{ number_format($totalSales, 2) }}</strong></td>
-                </tr>
-
-                <tr class="spacer"><td colspan="2"></td></tr>
-
-                <tr class="section-header">
-                    <td colspan="2"><strong>COST OF GOODS SOLD</strong></td>
-                </tr>
-                <tr>
-                    <td style="padding-left: 30px;">Direct Product Costs</td>
-                    <td class="amount">₱{{ number_format($totalCOGS, 2) }}</td>
-                </tr>
-                <tr class="subtotal-row">
-                    <td><strong>Total COGS</strong></td>
-                    <td class="amount"><strong>(₱{{ number_format($totalCOGS, 2) }})</strong></td>
-                </tr>
-
-                <tr class="subtotal-row" style="background-color: #f9f9f9;">
-                    <td><strong>GROSS PROFIT</strong></td>
-                    <td class="amount"><strong>₱{{ number_format($grossProfit, 2) }}</strong></td>
-                </tr>
-
-                <tr class="spacer"><td colspan="2"></td></tr>
-
-                <tr class="section-header">
-                    <td colspan="2"><strong>OPERATING EXPENSES</strong></td>
-                </tr>
-                
-                @if($expensesByCategory->count() > 0)
-                    @foreach($expensesByCategory as $category => $amount)
-                    <tr>
-                        <td style="padding-left: 30px;">{{ ucfirst(str_replace('_', ' ', $category)) }}</td>
-                        <td class="amount">₱{{ number_format($amount, 2) }}</td>
-                    </tr>
-                    @endforeach
-                @endif
-                
-                <tr class="subtotal-row">
-                    <td><strong>Total Operating Expenses</strong></td>
-                    <td class="amount"><strong>(₱{{ number_format($totalExpenses, 2) }})</strong></td>
-                </tr>
-
-                <tr class="spacer"><td colspan="2"></td></tr>
-
-                <tr class="total-row">
-                    <td><strong>NET INCOME {{ $netProfit >= 0 ? '(PROFIT)' : '(LOSS)' }}</strong></td>
-                    <td class="amount"><strong style="color: {{ $netProfit >= 0 ? '#10b981' : '#dc3545' }}">₱{{ number_format($netProfit, 2) }}</strong></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div style="page-break-before: always;"></div>
-
-    @if($salesByCustomer->count() > 0)
-    <div class="financial-section">
-        <h3 class="section-title">SALES BY CUSTOMER</h3>
-        
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Customer</th>
-                    <th>Area</th>
-                    <th class="text-center">Trans.</th>
-                    <th class="text-right">Total Sales</th>
-                    <th class="text-right">Paid</th>
-                    <th class="text-right">Balance</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($salesByCustomer as $customer)
-                <tr>
-                    <td>{{ $customer->customer_name }}</td>
-                    <td>{{ $customer->branch->name ?? 'N/A' }}</td>
-                    <td class="text-center">{{ $customer->transaction_count }}</td>
-                    <td class="text-right">₱{{ number_format($customer->total_sales, 2) }}</td>
-                    <td class="text-right">₱{{ number_format($customer->total_paid, 2) }}</td>
-                    <td class="text-right">₱{{ number_format($customer->balance, 2) }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="2"><strong>TOTAL</strong></td>
-                    <td class="text-center"><strong>{{ $salesByCustomer->sum('transaction_count') }}</strong></td>
-                    <td class="text-right"><strong>₱{{ number_format($salesByCustomer->sum('total_sales'), 2) }}</strong></td>
-                    <td class="text-right"><strong>₱{{ number_format($salesByCustomer->sum('total_paid'), 2) }}</strong></td>
-                    <td class="text-right"><strong>₱{{ number_format($salesByCustomer->sum('balance'), 2) }}</strong></td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-    @endif
-
-    @if($accountsReceivable->count() > 0)
-    <div class="financial-section">
-        <h3 class="section-title">ACCOUNTS RECEIVABLE (AGING ANALYSIS)</h3>
-        
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Customer</th>
-                    <th>Area</th>
-                    <th class="text-center">Unpaid</th>
-                    <th class="text-right">Amount Due</th>
-                    <th class="text-center">Days</th>
-                    <th class="text-center">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($accountsReceivable as $ar)
-                <tr>
-                    <td>{{ $ar->customer_name }}</td>
-                    <td>{{ $ar->branch->name ?? 'N/A' }}</td>
-                    <td class="text-center">{{ $ar->unpaid_count }}</td>
-                    <td class="text-right">₱{{ number_format($ar->total_receivable, 2) }}</td>
-                    <td class="text-center">{{ $ar->days_outstanding }}d</td>
-                    <td class="text-center">{{ $ar->days_outstanding > 30 ? 'OVERDUE' : ($ar->days_outstanding > 7 ? 'DUE SOON' : 'CURRENT') }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="2"><strong>TOTAL</strong></td>
-                    <td class="text-center"><strong>{{ $accountsReceivable->sum('unpaid_count') }}</strong></td>
-                    <td class="text-right"><strong>₱{{ number_format($totalReceivables, 2) }}</strong></td>
-                    <td colspan="2"></td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-    @endif
-
-    <div style="page-break-before: always;"></div>
-
-    @if($productionSummary->count() > 0)
-    <div class="financial-section">
-        <h3 class="section-title">PRODUCTION PERFORMANCE ANALYSIS</h3>
-        
-        <table class="data-table">
+{{-- ── Sales by Product ── --}}
+<div class="rpt-full sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head"><i class="bi bi-bar-chart"></i> Sales by Product</div>
+    <div class="sec-scroll">
+        @if($salesByProduct->count())
+        <table class="dt">
             <thead>
                 <tr>
                     <th>Product</th>
-                    <th class="text-center">Batches</th>
-                    <th class="text-center">Expected</th>
-                    <th class="text-center">Actual</th>
-                    <th class="text-center">Rejected</th>
-                    <th class="text-center">Var %</th>
-                    <th class="text-center">Rej %</th>
-                    <th class="text-center">Yield %</th>
+                    <th class="tc">Qty Sold</th>
+                    <th class="tr">Revenue</th>
+                    <th class="tr">COGS</th>
+                    <th class="tr">Gross Profit</th>
+                    <th class="tc">Margin</th>
+                    <th class="tc">% of Sales</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($salesByProduct as $p)
+                @php $pct = $totalSales > 0 ? ($p['revenue'] / $totalSales) * 100 : 0; @endphp
+                <tr>
+                    <td style="font-weight:600">{{ $p['product_name'] }}</td>
+                    <td class="tc">{{ number_format($p['quantity'], 0) }}</td>
+                    <td class="tr">&#8369;{{ number_format($p['revenue'], 2) }}</td>
+                    <td class="tr" style="color:var(--text-muted)">&#8369;{{ number_format($p['cost'], 2) }}</td>
+                    <td class="tr" style="font-weight:700;color:{{ $p['profit'] >= 0 ? 'var(--s-success-text)' : 'var(--s-danger-text)' }}">
+                        &#8369;{{ number_format($p['profit'], 2) }}
+                    </td>
+                    <td class="tc">
+                        <span class="pill {{ $p['margin'] >= 30 ? 'pill-green' : ($p['margin'] >= 15 ? 'pill-amber' : 'pill-red') }}">
+                            {{ number_format($p['margin'], 1) }}%
+                        </span>
+                    </td>
+                    <td class="tc" style="min-width:80px">
+                        <span style="font-size:.70rem;color:var(--text-muted)">{{ number_format($pct, 1) }}%</span>
+                        <div class="prog-bar"><div class="prog-fill" style="width:{{ $pct }}%"></div></div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td>TOTAL</td>
+                    <td class="tc">{{ number_format($salesByProduct->sum('quantity'), 0) }}</td>
+                    <td class="tr">&#8369;{{ number_format($salesByProduct->sum('revenue'), 2) }}</td>
+                    <td class="tr">&#8369;{{ number_format($totalCOGS, 2) }}</td>
+                    <td class="tr" style="color:{{ $grossProfit >= 0 ? 'var(--s-success-text)':'var(--s-danger-text)' }}">
+                        &#8369;{{ number_format($grossProfit, 2) }}
+                    </td>
+                    <td class="tc"><span class="pill pill-{{ $grossProfitMargin >= 30 ? 'green' : ($grossProfitMargin >= 15 ? 'amber' : 'red') }}">{{ number_format($grossProfitMargin, 1) }}%</span></td>
+                    <td class="tc">100%</td>
+                </tr>
+            </tfoot>
+        </table>
+        @else
+        <div class="empty-state"><i class="bi bi-inbox"></i>No sales data for this period.</div>
+        @endif
+    </div>
+</div>
+
+{{-- ── Sales by Customer + AR ── --}}
+<div class="rpt-grid-2">
+
+    {{-- Sales by Customer --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-people"></i> Sales by Customer</div>
+        <div class="sec-scroll">
+            @if($salesByCustomer->count())
+            <table class="dt">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Area</th>
+                        <th class="tc">DRs</th>
+                        <th class="tr">Total</th>
+                        <th class="tr">Paid</th>
+                        <th class="tc">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($salesByCustomer as $c)
+                    <tr>
+                        <td style="font-weight:600;font-size:.73rem">{{ $c->customer_name }}</td>
+                        <td style="font-size:.70rem;color:var(--text-muted)">{{ $c->branch->name ?? '—' }}</td>
+                        <td class="tc">{{ $c->transaction_count }}</td>
+                        <td class="tr" style="font-weight:600">&#8369;{{ number_format($c->total_sales, 0) }}</td>
+                        <td class="tr" style="color:var(--s-success-text)">&#8369;{{ number_format($c->total_paid, 0) }}</td>
+                        <td class="tc">
+                            @if($c->balance <= 0)
+                                <span class="pill pill-green">PAID</span>
+                            @elseif($c->total_paid > 0)
+                                <span class="pill pill-amber">PARTIAL</span>
+                            @else
+                                <span class="pill pill-red">UNPAID</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2">TOTAL</td>
+                        <td class="tc">{{ $salesByCustomer->sum('transaction_count') }}</td>
+                        <td class="tr">&#8369;{{ number_format($salesByCustomer->sum('total_sales'), 0) }}</td>
+                        <td class="tr" style="color:var(--s-success-text)">&#8369;{{ number_format($salesByCustomer->sum('total_paid'), 0) }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+            @else
+            <div class="empty-state"><i class="bi bi-people"></i>No customer data.</div>
+            @endif
+        </div>
+    </div>
+
+    {{-- Accounts Receivable --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-clock-history"></i> Accounts Receivable</div>
+        <div class="sec-scroll">
+            @if($accountsReceivable->count())
+            <table class="dt">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Area</th>
+                        <th class="tc">Unpaid</th>
+                        <th class="tr">Amount Due</th>
+                        <th class="tc">Aging</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($accountsReceivable as $ar)
+                    <tr>
+                        <td style="font-weight:600;font-size:.73rem">{{ $ar->customer_name }}</td>
+                        <td style="font-size:.70rem;color:var(--text-muted)">{{ $ar->branch->name ?? '—' }}</td>
+                        <td class="tc">{{ $ar->unpaid_count }}</td>
+                        <td class="tr" style="font-weight:700;color:var(--s-danger-text)">&#8369;{{ number_format($ar->total_receivable, 2) }}</td>
+                        <td class="tc">
+                            <span class="pill {{ $ar->days_outstanding > 30 ? 'pill-red' : ($ar->days_outstanding > 7 ? 'pill-amber' : 'pill-blue') }}">
+                                {{ $ar->days_outstanding }}d
+                            </span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2">TOTAL</td>
+                        <td class="tc">{{ $accountsReceivable->sum('unpaid_count') }}</td>
+                        <td class="tr" style="color:var(--s-danger-text)">&#8369;{{ number_format($totalReceivables, 2) }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+            @else
+            <div class="empty-state"><i class="bi bi-check-circle"></i>All collections done!</div>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- ── Production Performance ── --}}
+<div class="rpt-full sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head"><i class="bi bi-gear-wide-connected"></i> Production Performance</div>
+    <div class="sec-scroll">
+        @if($productionSummary->count())
+        <table class="dt">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="tc">Batches</th>
+                    <th class="tc">Expected</th>
+                    <th class="tc">Actual</th>
+                    <th class="tc">Rejected</th>
+                    <th class="tc">Good Output</th>
+                    <th class="tc">Variance</th>
+                    <th class="tc">Reject %</th>
+                    <th class="tc">Yield %</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($productionSummary as $prod)
                 <tr>
-                    <td>{{ $prod['product_name'] }}</td>
-                    <td class="text-center">{{ $prod['batches_count'] }}</td>
-                    <td class="text-center">{{ number_format($prod['expected_output']) }}</td>
-                    <td class="text-center">{{ number_format($prod['actual_output']) }}</td>
-                    <td class="text-center">{{ number_format($prod['rejected_quantity']) }}</td>
-                    <td class="text-center">{{ $prod['variance_percent'] > 0 ? '+' : '' }}{{ number_format($prod['variance_percent'], 1) }}%</td>
-                    <td class="text-center">{{ number_format($prod['rejection_rate'], 1) }}%</td>
-                    <td class="text-center">{{ number_format($prod['yield_rate'], 1) }}%</td>
+                    <td style="font-weight:600">{{ $prod['product_name'] }}</td>
+                    <td class="tc">{{ $prod['batches_count'] }}</td>
+                    <td class="tc" style="color:var(--text-muted)">{{ number_format($prod['expected_output']) }}</td>
+                    <td class="tc" style="font-weight:600">{{ number_format($prod['actual_output']) }}</td>
+                    <td class="tc" style="color:var(--s-danger-text)">{{ number_format($prod['rejected_quantity']) }}</td>
+                    <td class="tc" style="font-weight:700;color:var(--s-success-text)">{{ number_format($prod['good_output']) }}</td>
+                    <td class="tc">
+                        <span class="pill {{ $prod['variance_percent'] >= 0 ? 'pill-green' : 'pill-red' }}">
+                            {{ $prod['variance_percent'] > 0 ? '+' : '' }}{{ number_format($prod['variance_percent'], 1) }}%
+                        </span>
+                    </td>
+                    <td class="tc">
+                        <span class="pill {{ $prod['rejection_rate'] < 5 ? 'pill-green' : ($prod['rejection_rate'] < 10 ? 'pill-amber' : 'pill-red') }}">
+                            {{ number_format($prod['rejection_rate'], 1) }}%
+                        </span>
+                    </td>
+                    <td class="tc">
+                        <span class="pill {{ $prod['yield_rate'] >= 90 ? 'pill-green' : ($prod['yield_rate'] >= 80 ? 'pill-amber' : 'pill-red') }}">
+                            {{ number_format($prod['yield_rate'], 1) }}%
+                        </span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td>TOTAL</td>
+                    <td class="tc">{{ $productionSummary->sum('batches_count') }}</td>
+                    <td class="tc">{{ number_format($productionSummary->sum('expected_output')) }}</td>
+                    <td class="tc">{{ number_format($productionSummary->sum('actual_output')) }}</td>
+                    <td class="tc" style="color:var(--s-danger-text)">{{ number_format($productionSummary->sum('rejected_quantity')) }}</td>
+                    <td class="tc" style="color:var(--s-success-text)">{{ number_format($productionSummary->sum('good_output')) }}</td>
+                    <td colspan="3"></td>
+                </tr>
+            </tfoot>
+        </table>
+        @else
+        <div class="empty-state"><i class="bi bi-inbox"></i>No production data for this period.</div>
+        @endif
+    </div>
+</div>
+
+{{-- ── Production by Period + Expenses ── --}}
+<div class="rpt-grid-2">
+
+    {{-- Expenses by Category --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-wallet2"></i> Expenses by Category</div>
+        <div class="sec-scroll">
+            @if($expensesByCategory->count())
+            <table class="dt">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="tr">Amount</th>
+                        <th class="tc">% of Total</th>
+                        <th class="tc">% of Revenue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($expensesByCategory as $cat => $amt)
+                    @php
+                        $pctOfExp = $totalExpenses > 0 ? ($amt / $totalExpenses) * 100 : 0;
+                        $pctOfRev = $totalSales > 0 ? ($amt / $totalSales) * 100 : 0;
+                    @endphp
+                    <tr>
+                        <td style="font-weight:600">{{ ucfirst(str_replace('_',' ',$cat)) }}</td>
+                        <td class="tr" style="color:var(--s-danger-text)">&#8369;{{ number_format($amt, 2) }}</td>
+                        <td class="tc">
+                            <span style="font-size:.70rem">{{ number_format($pctOfExp, 1) }}%</span>
+                            <div class="prog-bar"><div class="prog-fill" style="width:{{ $pctOfExp }};background:#dc2626"></div></div>
+                        </td>
+                        <td class="tc" style="font-size:.70rem;color:var(--text-muted)">{{ number_format($pctOfRev, 1) }}%</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td>TOTAL</td>
+                        <td class="tr" style="color:var(--s-danger-text)">&#8369;{{ number_format($totalExpenses, 2) }}</td>
+                        <td class="tc">100%</td>
+                        <td class="tc" style="color:var(--text-muted)">{{ number_format($operatingExpenseRatio, 1) }}%</td>
+                    </tr>
+                </tfoot>
+            </table>
+            @else
+            <div class="empty-state"><i class="bi bi-inbox"></i>No expenses recorded.</div>
+            @endif
+        </div>
+    </div>
+
+    {{-- Production by Period --}}
+    <div class="sec-card">
+        <div class="sec-head"><i class="bi bi-calendar3"></i> Production by {{ ucfirst($reportType) }}</div>
+        <div class="sec-scroll">
+            @if($productionByPeriod->count())
+            <table class="dt">
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th class="tc">Batches</th>
+                        <th class="tc">Output</th>
+                        <th class="tc">Rejected</th>
+                        <th>Top Products</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($productionByPeriod as $period)
+                    <tr>
+                        <td style="font-weight:600;white-space:nowrap">{{ $period['period'] }}</td>
+                        <td class="tc">{{ $period['batches'] }}</td>
+                        <td class="tc" style="font-weight:600">{{ number_format($period['total_output']) }}</td>
+                        <td class="tc" style="color:var(--s-danger-text)">{{ number_format($period['total_rejected']) }}</td>
+                        <td>
+                            @foreach($period['products']->take(2) as $pp)
+                                <span class="pill pill-blue" style="margin:.1rem .1rem 0 0">{{ $pp['name'] }}: {{ $pp['quantity'] }}</span>
+                            @endforeach
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            @else
+            <div class="empty-state"><i class="bi bi-inbox"></i>No production data.</div>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- ── Deliveries by Customer ── --}}
+@if($deliveriesByCustomer->count())
+<div class="rpt-full sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head"><i class="bi bi-truck"></i> Deliveries by Customer</div>
+    <div class="sec-scroll">
+        <table class="dt">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th class="tc">DRs</th>
+                    <th class="tc">Product Lines</th>
+                    <th class="tc">Total Qty Delivered</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($deliveriesByCustomer as $del)
+                <tr>
+                    <td style="font-weight:600">{{ $del['customer_name'] }}</td>
+                    <td class="tc">{{ $del['deliveries_count'] }}</td>
+                    <td class="tc">{{ $del['products_count'] }}</td>
+                    <td class="tc" style="font-weight:700;color:var(--accent)">{{ number_format($del['total_delivered']) }}</td>
                 </tr>
                 @endforeach
             </tbody>
         </table>
     </div>
-    @endif
-
-    <!-- CASH FLOW -->
-    <div class="financial-section">
-        <h3 class="section-title">CASH FLOW STATEMENT</h3>
-        
-        <table class="financial-table">
-            <tbody>
-                <tr class="section-header">
-                    <td colspan="2"><strong>OPERATING ACTIVITIES</strong></td>
-                </tr>
-                <tr>
-                    <td style="padding-left: 30px;">Cash from Sales</td>
-                    <td class="amount">₱{{ number_format($cashSales, 2) }}</td>
-                </tr>
-                <tr>
-                    <td style="padding-left: 30px;">Cash for Expenses</td>
-                    <td class="amount">(₱{{ number_format($cashExpenses, 2) }})</td>
-                </tr>
-                <tr>
-                    <td style="padding-left: 30px;">Bank Deposits</td>
-                    <td class="amount">(₱{{ number_format($bankDeposits, 2) }})</td>
-                </tr>
-                <tr class="total-row">
-                    <td><strong>Cash in Hand</strong></td>
-                    <td class="amount"><strong>₱{{ number_format($cashInHand, 2) }}</strong></td>
-                </tr>
-                <tr>
-                    <td><strong>Cash in Bank</strong></td>
-                    <td class="amount"><strong>₱{{ number_format($cashInBank, 2) }}</strong></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Report Footer -->
-    <div class="report-footer">
-        <div class="signature-section">
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <p class="signature-label">Prepared By</p>
-                <p class="signature-name">{{ Auth::user()->name }}</p>
-                <p class="signature-date">{{ now()->format('F d, Y') }}</p>
-            </div>
-            
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <p class="signature-label">Reviewed By</p>
-                <p class="signature-name">_________________</p>
-                <p class="signature-date">Date: ___________</p>
-            </div>
-            
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <p class="signature-label">Approved By</p>
-                <p class="signature-name">_________________</p>
-                <p class="signature-date">Date: ___________</p>
-            </div>
-        </div>
-        
-        <div class="footer-note">
-            <p><em>This is a system-generated report from ChipsInventory Management System.</em></p>
-            <p><em>All amounts are in Philippine Pesos (PHP/₱)</em></p>
-        </div>
-    </div>
 </div>
+@endif
 
 <script>
-function submitWithLoading() {
-    document.getElementById('loadingIndicator').style.display = 'block';
-    document.getElementById('startDate').disabled = true;
-    document.getElementById('endDate').disabled = true;
-    document.getElementById('filterForm').submit();
-}
-
 function resetDates() {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    
-    document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
-    document.getElementById('endDate').value = lastDay.toISOString().split('T')[0];
-    
-    submitWithLoading();
+    var now = new Date();
+    var first = new Date(now.getFullYear(), now.getMonth(), 1);
+    var last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    function fmt(d) { return d.toISOString().split('T')[0]; }
+    document.querySelector('input[name="start_date"]').value = fmt(first);
+    document.querySelector('input[name="end_date"]').value   = fmt(last);
+    document.getElementById('frForm').submit();
 }
 </script>
 
-<style>
-.stats-card {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.stats-card h3 {
-    font-size: 1.8rem;
-    font-weight: bold;
-    margin: 10px 0 0 0;
-}
-
-.stats-card p {
-    margin: 0;
-    opacity: 0.9;
-}
-
-.screen-only {
-    display: block;
-}
-
-.print-only {
-    display: none;
-}
-
-@media print {
-    .sidebar,
-    .topbar,
-    .no-print,
-    .screen-only {
-        display: none !important;
-    }
-
-    .print-only {
-        display: block !important;
-    }
-
-    .main-content {
-        margin-left: 0 !important;
-        width: 100% !important;
-    }
-
-    .content-area {
-        padding: 0 !important;
-    }
-
-    @page {
-        size: A4;
-        margin: 2cm;
-    }
-
-    body {
-        background: white !important;
-        color: black !important;
-        font-family: 'Times New Roman', serif;
-        font-size: 11pt;
-    }
-
-    .report-header {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-
-    .company-name {
-        font-size: 24pt;
-        font-weight: bold;
-        margin: 0;
-        letter-spacing: 2px;
-    }
-
-    .company-tagline {
-        font-size: 10pt;
-        margin: 5px 0;
-        color: #666;
-    }
-
-    .report-title {
-        font-size: 16pt;
-        font-weight: bold;
-        margin: 20px 0 10px 0;
-        text-decoration: underline;
-    }
-
-    .report-period {
-        font-size: 11pt;
-        margin: 5px 0;
-    }
-
-    .report-date {
-        font-size: 9pt;
-        color: #666;
-        margin: 5px 0;
-    }
-
-    .report-divider {
-        border: 0;
-        border-top: 2px solid #000;
-        margin: 20px 0;
-    }
-
-    .financial-section {
-        margin-bottom: 30px;
-        page-break-inside: avoid;
-    }
-
-    .section-title {
-        font-size: 14pt;
-        font-weight: bold;
-        margin-bottom: 15px;
-        padding-bottom: 5px;
-        border-bottom: 2px solid #000;
-    }
-
-    .financial-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-
-    .financial-table td {
-        padding: 8px 10px;
-        border: none;
-    }
-
-    .financial-table .section-header td {
-        padding-top: 15px;
-        font-weight: bold;
-        border-bottom: 1px solid #000;
-    }
-
-    .financial-table .amount {
-        text-align: right;
-        width: 30%;
-        font-family: 'Courier New', monospace;
-    }
-
-    .financial-table .subtotal-row {
-        border-top: 1px solid #000;
-        font-weight: bold;
-    }
-
-    .financial-table .subtotal-row td {
-        padding-top: 10px;
-    }
-
-    .financial-table .total-row {
-        border-top: 3px double #000;
-        border-bottom: 3px double #000;
-        font-size: 12pt;
-    }
-
-    .financial-table .total-row td {
-        padding: 12px 10px;
-    }
-
-    .financial-table .spacer td {
-        padding: 10px 0;
-    }
-
-    .summary-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-
-    .summary-table td {
-        padding: 8px;
-        border: 1px solid #000;
-    }
-
-    .summary-table .amount {
-        text-align: right;
-        font-family: 'Courier New', monospace;
-    }
-
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-        font-size: 10pt;
-    }
-
-    .data-table th,
-    .data-table td {
-        padding: 6px 8px;
-        border: 1px solid #000;
-    }
-
-    .data-table th {
-        background-color: #f0f0f0;
-        font-weight: bold;
-        text-align: left;
-    }
-
-    .data-table .text-center {
-        text-align: center !important;
-    }
-
-    .data-table .text-right {
-        text-align: right !important;
-    }
-
-    .data-table tfoot {
-        border-top: 2px solid #000;
-        font-weight: bold;
-    }
-
-    .report-footer {
-        margin-top: 50px;
-        page-break-inside: avoid;
-    }
-
-    .signature-section {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 30px;
-    }
-
-    .signature-box {
-        width: 30%;
-        text-align: center;
-    }
-
-    .signature-line {
-        border-bottom: 1px solid #000;
-        margin: 50px 10px 5px 10px;
-    }
-
-    .signature-label {
-        font-size: 9pt;
-        margin: 5px 0;
-        font-weight: bold;
-    }
-
-    .signature-name {
-        font-size: 10pt;
-        margin: 3px 0;
-    }
-
-    .signature-date {
-        font-size: 9pt;
-        margin: 3px 0;
-        color: #666;
-    }
-
-    .footer-note {
-        text-align: center;
-        font-size: 9pt;
-        color: #666;
-        border-top: 1px solid #ccc;
-        padding-top: 15px;
-    }
-
-    .footer-note p {
-        margin: 3px 0;
-    }
-
-    * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-}
-</style>
 @endsection

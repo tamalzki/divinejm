@@ -1,240 +1,139 @@
 @extends('layouts.sidebar')
-
 @section('page-title', 'Sales')
-
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-cart-check me-2"></i>Sales</h2>
-    <a href="{{ route('sales.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-2"></i>New Sale
-    </a>
-</div>
 
+<style>
+    .dj-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden; margin-bottom:1rem; }
+    .dj-card-header { display:flex; align-items:center; justify-content:space-between; padding:.55rem 1rem; border-bottom:1px solid var(--border); background:var(--bg-page); }
+    .dj-card-title { font-size:.78rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:.4rem; }
+
+    .area-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); padding:.45rem 1rem; background:var(--bg-page); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.4rem; }
+    .area-label i { color:var(--accent); }
+
+    .data-table { width:100%; border-collapse:collapse; font-size:.80rem; }
+    .data-table thead th { background:var(--brand-deep); color:rgba(255,255,255,.88); font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:.52rem .9rem; white-space:nowrap; border:none; }
+    .data-table tbody td { padding:.52rem .9rem; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text-primary); }
+    .data-table tbody tr:last-child td { border-bottom:none; }
+    .data-table tbody tr:hover td { background:var(--accent-faint); }
+
+    .pill { display:inline-block; padding:.1rem .45rem; border-radius:4px; font-size:.68rem; font-weight:600; }
+    .pill-danger   { background:var(--s-danger-bg);  color:var(--s-danger-text); }
+    .pill-warning  { background:var(--s-warning-bg); color:var(--s-warning-text); }
+    .pill-success  { background:var(--s-success-bg); color:var(--s-success-text); }
+    .pill-info     { background:var(--s-info-bg);    color:var(--s-info-text); }
+
+    .btn-view { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; padding:.22rem .6rem; border-radius:4px; border:1px solid var(--accent); color:var(--accent); background:transparent; text-decoration:none; white-space:nowrap; }
+    .btn-view:hover { background:var(--accent); color:#fff; }
+
+    .dj-search-wrap { position:relative; }
+    .dj-search-icon { position:absolute; left:.65rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:.8rem; pointer-events:none; }
+    .dj-search-input { padding:.32rem .7rem .32rem 2rem; font-size:.78rem; border:1px solid var(--border); border-radius:5px; background:var(--bg-card); color:var(--text-primary); width:220px; outline:none; }
+    .dj-search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
+
+    .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); font-size:.82rem; }
+    .stat-chip { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; color:var(--text-muted); }
+</style>
+
+{{-- Flash --}}
 @if(session('success'))
-<div class="alert alert-success alert-dismissible fade show">
-    <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
 @endif
-
 @if(session('error'))
-<div class="alert alert-danger alert-dismissible fade show">
-    <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
+<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
 @endif
 
-<!-- Filters -->
-<div class="card mb-4">
-    <div class="card-header bg-light">
-        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+{{-- Page header --}}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h5 class="fw-bold mb-0" style="font-size:.93rem">
+            <i class="bi bi-receipt me-1" style="color:var(--accent)"></i>Sales
+        </h5>
+        <span style="font-size:.68rem;color:var(--text-muted)">Deliveries grouped by area and customer</span>
     </div>
-    <div class="card-body">
-        <form action="{{ route('sales.index') }}" method="GET" class="row g-3">
-            <div class="col-md-3">
-                <label class="form-label">Area/Branch</label>
-                <select name="branch_id" class="form-select">
-                    <option value="">All Areas</option>
-                    @foreach($branches as $branch)
-                        <option value="{{ $branch->id }}" {{ request('branch_id') == $branch->id ? 'selected' : '' }}>
-                            {{ $branch->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            
-            <div class="col-md-2">
-                <label class="form-label">Payment Status</label>
-                <select name="payment_status" class="form-select">
-                    <option value="">All Status</option>
-                    <option value="paid" {{ request('payment_status') == 'paid' ? 'selected' : '' }}>Paid</option>
-                    <option value="partial" {{ request('payment_status') == 'partial' ? 'selected' : '' }}>Partial</option>
-                    <option value="to_be_collected" {{ request('payment_status') == 'to_be_collected' ? 'selected' : '' }}>To Be Collected</option>
-                </select>
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label">DR Number</label>
-                <input type="text" name="dr_number" class="form-control" placeholder="DR#" value="{{ request('dr_number') }}">
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label">Customer</label>
-                <input type="text" name="customer_name" class="form-control" placeholder="Customer" value="{{ request('customer_name') }}">
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">Date Range</label>
-                <div class="input-group">
-                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
-                    <span class="input-group-text">to</span>
-                    <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
-                </div>
-            </div>
-
-            <div class="col-12">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-search me-2"></i>Filter
-                </button>
-                <a href="{{ route('sales.index') }}" class="btn btn-secondary">
-                    <i class="bi bi-x-circle me-2"></i>Clear
-                </a>
-            </div>
-        </form>
+    <div class="dj-search-wrap">
+        <i class="bi bi-search dj-search-icon"></i>
+        <input type="text" id="searchInput" class="dj-search-input" placeholder="Search customer, DR#..." autocomplete="off" value="{{ $search ?? '' }}">
     </div>
 </div>
 
-<!-- Sales Summary Cards -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h6 class="card-title">Total Sales</h6>
-                <h3 class="mb-0">₱{{ number_format($sales->sum('total_amount'), 2) }}</h3>
-            </div>
-        </div>
+@forelse($areaData as $area)
+<div class="dj-card">
+    {{-- Area header --}}
+    <div class="area-label">
+        <i class="bi bi-geo-alt-fill"></i>
+        {{ $area['branch']->name }}
+        <span class="ms-1 stat-chip">({{ $area['customers']->count() }} {{ Str::plural('customer', $area['customers']->count()) }})</span>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <h6 class="card-title">Amount Collected</h6>
-                <h3 class="mb-0">₱{{ number_format($sales->sum('amount_paid'), 2) }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h6 class="card-title">To Be Collected</h6>
-                <h3 class="mb-0">₱{{ number_format($sales->sum('balance'), 2) }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <h6 class="card-title">Total Transactions</h6>
-                <h3 class="mb-0">{{ $sales->total() }}</h3>
-            </div>
-        </div>
+
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th class="text-center">DRs</th>
+                    <th class="text-end">Deployed</th>
+                    <th class="text-end">Sold</th>
+                    <th class="text-end">Unsold</th>
+                    <th class="text-end">Balance</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach($area['customers'] as $customer)
+            @php
+                $unsold = $customer['total_deployed'] - $customer['total_sold'];
+            @endphp
+            <tr>
+                <td>
+                    <span style="font-weight:600;font-size:.82rem">{{ $customer['customer_name'] }}</span>
+                </td>
+                <td class="text-center">
+                    <span class="pill pill-info">{{ $customer['dr_count'] }}</span>
+                </td>
+                <td class="text-end" style="font-size:.80rem">{{ number_format($customer['total_deployed'], 2) }}</td>
+                <td class="text-end" style="font-size:.80rem;color:var(--s-success-text);font-weight:600">
+                    {{ number_format($customer['total_sold'], 2) }}
+                </td>
+                <td class="text-end" style="font-size:.80rem;color:{{ $unsold > 0 ? 'var(--s-warning-text)' : 'var(--text-muted)' }}">
+                    {{ number_format($unsold, 2) }}
+                </td>
+                <td class="text-end" style="font-size:.80rem;font-weight:600;color:{{ $customer['total_balance'] > 0 ? 'var(--s-danger-text)' : 'var(--s-success-text)' }}">
+                    &#8369;{{ number_format($customer['total_balance'], 2) }}
+                </td>
+
+                <td class="text-center">
+                    <a href="{{ route('sales.show', [$area['branch']->id, rawurlencode($customer['customer_name'])]) }}"
+                       class="btn-view">
+                        <i class="bi bi-eye"></i> View DRs
+                    </a>
+                </td>
+            </tr>
+            @endforeach
+            </tbody>
+        </table>
     </div>
 </div>
-
-<!-- Sales Table -->
-<div class="card">
-    <div class="card-body">
-        @if($sales->count() > 0)
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>DR#</th>
-                        <th>Sale Dates</th>
-                        <th>Area</th>
-                        <th>Customer</th>
-                        <th class="text-center">Sales Count</th>
-                        <th class="text-end">Total</th>
-                        <th class="text-end">Paid</th>
-                        <th class="text-end">Balance</th>
-                        <th>Payment Status</th>
-                        <th class="text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php
-                        // Group sales by DR
-                        $groupedSales = $sales->groupBy(function($sale) {
-                            return $sale->branch_id . '_' . $sale->customer_name . '_' . $sale->dr_number;
-                        });
-                    @endphp
-
-                    @foreach($groupedSales as $group)
-                        @php
-                            $firstSale = $group->first();
-                            $salesCount = $group->count();
-                            $totalAmount = $group->sum('total_amount');
-                            $totalPaid = $group->sum('amount_paid');
-                            $totalBalance = $totalAmount - $totalPaid;
-                            
-                            // Determine overall payment status for DR
-                            if ($totalPaid >= $totalAmount) {
-                                $drStatus = 'paid';
-                                $drBadge = 'success';
-                                $drLabel = 'Paid';
-                            } elseif ($totalPaid > 0) {
-                                $drStatus = 'partial';
-                                $drBadge = 'warning';
-                                $drLabel = 'Partial';
-                            } else {
-                                $drStatus = 'to_be_collected';
-                                $drBadge = 'danger';
-                                $drLabel = 'To Be Collected';
-                            }
-                        @endphp
-                        <tr>
-                            <td>
-                                <strong class="text-primary">{{ $firstSale->dr_number }}</strong>
-                            </td>
-                            <td>
-                                @if($salesCount > 1)
-                                    <small>
-                                        {{ $group->first()->sale_date->format('M d, Y') }}
-                                        <br>
-                                        <span class="text-muted">
-                                            to {{ $group->last()->sale_date->format('M d, Y') }}
-                                        </span>
-                                    </small>
-                                @else
-                                    <small>{{ $firstSale->sale_date->format('M d, Y') }}</small>
-                                @endif
-                            </td>
-                            <td>{{ $firstSale->branch->name }}</td>
-                            <td>{{ $firstSale->customer_name }}</td>
-                            <td class="text-center">
-                                @if($salesCount > 1)
-                                    <span class="badge bg-info">{{ $salesCount }} sales</span>
-                                @else
-                                    <span class="text-muted">1</span>
-                                @endif
-                            </td>
-                            <td class="text-end">
-                                <strong>₱{{ number_format($totalAmount, 2) }}</strong>
-                            </td>
-                            <td class="text-end text-success">
-                                ₱{{ number_format($totalPaid, 2) }}
-                            </td>
-                            <td class="text-end {{ $totalBalance > 0 ? 'text-danger' : 'text-muted' }}">
-                                ₱{{ number_format($totalBalance, 2) }}
-                            </td>
-                            <td>
-                                <span class="badge bg-{{ $drBadge }}">
-                                    {{ $drLabel }}
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <a href="{{ route('sales.show', $firstSale) }}" class="btn btn-sm btn-info" title="View Sales History">
-                                    <i class="bi bi-eye me-1"></i>View
-                                </a>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        <div class="mt-3">
-            {{ $sales->links() }}
-        </div>
-        @else
-        <div class="text-center text-muted py-5">
-            <i class="bi bi-inbox display-1 opacity-25 d-block mb-3"></i>
-            <h5>No Sales Found</h5>
-            <p class="mb-3">Start recording sales by clicking the "New Sale" button above</p>
-            <a href="{{ route('sales.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle me-2"></i>Create First Sale
-            </a>
-        </div>
-        @endif
-    </div>
+@empty
+<div class="empty-state">
+    <i class="bi bi-receipt" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
+    No sales yet. Deliveries will appear here automatically.
 </div>
+@endforelse
+
+<script>
+document.getElementById('searchInput').addEventListener('input', function() {
+    var q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.dj-card').forEach(function(card) {
+        var hasMatch = false;
+        card.querySelectorAll('.data-table tbody tr').forEach(function(row) {
+            var match = !q || row.textContent.toLowerCase().includes(q);
+            row.style.display = match ? '' : 'none';
+            if (match) hasMatch = true;
+        });
+        // Hide the entire card (area) if no rows matched
+        card.style.display = (q && !hasMatch) ? 'none' : '';
+    });
+});
+</script>
+
 @endsection

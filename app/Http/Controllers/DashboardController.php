@@ -2,216 +2,188 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\RawMaterial;
-use App\Models\FinishedProduct;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Expense;
-use App\Models\ProductAlert;
-use App\Models\Branch;
+use App\Models\FinishedProduct;
 use App\Models\StockMovement;
 use App\Models\ProductionMix;
+use App\Models\Branch;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        // Update alerts
-        $this->updateAlerts();
+        $today      = Carbon::today();
+        $yesterday  = Carbon::yesterday();
+        $monthStart = Carbon::now()->startOfMonth();
+        $monthEnd   = Carbon::now()->endOfMonth();
+        $week7Ago   = Carbon::now()->subDays(7);
 
-        // Get active alerts
-        $alerts = ProductAlert::where('is_resolved', false)->get();
+        // ══════════════════════════════════════════════════════
+        // SALES KPIs
+        // ══════════════════════════════════════════════════════
 
-        // ===========================
-        // CRITICAL ALERTS & PRIORITIES
-        // ===========================
-        
-        // CRITICAL: Accounts Receivable Overdue (>30 days)
+        $todaySales     = Sale::whereDate('sale_date', $today)->sum('total_amount');
+        $todayCollected = Sale::whereDate('sale_date', $today)->sum('amount_paid');
+        $yesterdaySales = Sale::whereDate('sale_date', $yesterday)->sum('total_amount');
+        $salesGrowth    = $yesterdaySales > 0
+            ? (($todaySales - $yesterdaySales) / $yesterdaySales) * 100
+            : 0;
+
+        $monthlySales        = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('total_amount');
+        $monthlyCollected    = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount_paid');
+        $monthlyTransactions = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->count();
+        $collectionRate      = $monthlySales > 0 ? ($monthlyCollected / $monthlySales) * 100 : 0;
+
+        // ══════════════════════════════════════════════════════
+        // P&L THIS MONTH
+        // ══════════════════════════════════════════════════════
+
+        // COGS: sum of (qty_sold × cost_price) for items in the month
+        $monthlyCOGS = SaleItem::whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
+            })
+            ->with('finishedProduct')
+            ->get()
+            ->sum(function ($item) {
+                return $item->quantity_sold * ($item->finishedProduct->cost_price ?? 0);
+            });
+
+        $monthlyGrossProfit = $monthlySales - $monthlyCOGS;
+
+        $monthlyExpenses = Expense::whereBetween('expense_date', [$monthStart, $monthEnd])
+            ->sum('amount');
+
+        $monthlyProfit = $monthlyGrossProfit - $monthlyExpenses;
+
+        // ══════════════════════════════════════════════════════
+        // RECEIVABLES
+        // ══════════════════════════════════════════════════════
+
+        $totalReceivables = Sale::where('payment_status', '!=', 'paid')
+            ->selectRaw('SUM(total_amount - amount_paid) as total')
+            ->value('total') ?? 0;
+
         $overdueReceivables = Sale::where('payment_status', '!=', 'paid')
-            ->whereDate('sale_date', '<', Carbon::now()->subDays(30))
-            ->select(
-                'customer_name',
-                'branch_id',
-                DB::raw('COUNT(*) as overdue_count'),
-                DB::raw('SUM(total_amount - amount_paid) as overdue_amount'),
-                DB::raw('MIN(sale_date) as oldest_date')
-            )
+            ->where('sale_date', '<', $today->copy()->subDays(7))
+            ->selectRaw('customer_name, branch_id,
+                COUNT(*) as overdue_count,
+                SUM(total_amount - amount_paid) as overdue_amount,
+                DATEDIFF(NOW(), MIN(sale_date)) as days_overdue')
             ->groupBy('customer_name', 'branch_id')
             ->having('overdue_amount', '>', 0)
             ->orderByDesc('overdue_amount')
-            ->limit(5)
             ->get()
-            ->map(function($item) {
-                $item->branch = Branch::find($item->branch_id);
-                $item->days_overdue = Carbon::parse($item->oldest_date)->diffInDays(now());
-                return $item;
+            ->map(function ($r) {
+                $r->branch = Branch::find($r->branch_id);
+                return $r;
             });
 
-        // CRITICAL: Out of Stock Products (warehouse = 0)
-        $outOfStockProducts = FinishedProduct::where('stock_on_hand', '=', 0)
-            ->where('stock_out', '>', 0) // Still deployed in branches
+        // ══════════════════════════════════════════════════════
+        // INVENTORY
+        // ══════════════════════════════════════════════════════
+
+        $allProducts         = FinishedProduct::all();
+        $totalStockOnHand    = $allProducts->sum('stock_on_hand');
+        $totalStockOut       = $allProducts->sum('stock_out');
+        $totalInventory      = $totalStockOnHand + $totalStockOut;
+        $warehouseValue      = $allProducts->sum(fn($p) => $p->stock_on_hand * $p->cost_price);
+        $branchValue         = $allProducts->sum(fn($p) => $p->stock_out * $p->cost_price);
+        $totalInventoryValue = $warehouseValue + $branchValue;
+        $zeroStockProducts   = $allProducts->where('stock_on_hand', 0)->count();
+
+        $lowStockFinished = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')
+            ->orderBy('stock_on_hand')
+            ->limit(10)
             ->get();
 
-        // CRITICAL: Products expiring soon (within 7 days)
+        $outOfStockProducts = FinishedProduct::where('stock_on_hand', 0)
+            ->orderByDesc('stock_out')
+            ->get();
+
         $expiringProducts = FinishedProduct::whereNotNull('expiry_date')
-            ->whereBetween('expiry_date', [Carbon::now(), Carbon::now()->addDays(7)])
-            ->where(function($q) {
-                $q->where('stock_on_hand', '>', 0)
-                  ->orWhere('stock_out', '>', 0);
-            })
+            ->where('expiry_date', '<=', $today->copy()->addDays(30))
+            ->where('expiry_date', '>=', $today)
             ->get()
-            ->map(function($product) {
-                $product->days_until_expiry = Carbon::parse($product->expiry_date)->diffInDays(now());
-                return $product;
-            });
-
-        // CRITICAL: Bad Order Returns (last 7 days)
-        $recentBadOrders = StockMovement::where('movement_type', 'return_bo')
-            ->whereBetween('movement_date', [Carbon::now()->subDays(7), Carbon::now()])
-            ->with(['finishedProduct', 'branch'])
-            ->get()
-            ->groupBy('finished_product_id')
-            ->map(function($movements) {
-                return [
-                    'product' => $movements->first()->finishedProduct,
-                    'total_bo' => $movements->sum('quantity'),
-                    'count' => $movements->count(),
-                    'dr_numbers' => $movements->pluck('reference_number')->filter()->unique(),
-                    'batch_numbers' => $movements->pluck('batch_number')->filter()->unique(),
-                ];
+            ->map(function ($p) use ($today) {
+                $p->days_until_expiry = $today->diffInDays($p->expiry_date);
+                return $p;
             })
-            ->sortByDesc('total_bo')
-            ->take(5);
+            ->sortBy('days_until_expiry');
 
-        // ===========================
-        // SALES & FINANCIAL METRICS
-        // ===========================
-        
-        // Today's sales
-        $todaySales = Sale::whereDate('sale_date', Carbon::today())->sum('total_amount');
-        $todayCollected = Sale::whereDate('sale_date', Carbon::today())->sum('amount_paid');
-        
-        // Yesterday's sales
-        $yesterdaySales = Sale::whereDate('sale_date', Carbon::yesterday())->sum('total_amount');
-        
-        // Sales growth
-        $salesGrowth = $yesterdaySales > 0 
-            ? (($todaySales - $yesterdaySales) / $yesterdaySales) * 100 
-            : 0;
+        $needsProduction = FinishedProduct::whereColumn('stock_on_hand', '<', 'minimum_stock')
+            ->orderBy('stock_on_hand')
+            ->limit(5)
+            ->get();
 
-        // Monthly sales & profit
-        $monthlySales = Sale::whereMonth('sale_date', Carbon::now()->month)
-            ->whereYear('sale_date', Carbon::now()->year)
-            ->sum('total_amount');
+        // ══════════════════════════════════════════════════════
+        // PRODUCTION (last 7 days)
+        // ══════════════════════════════════════════════════════
 
-        $monthlyExpenses = Expense::whereMonth('expense_date', Carbon::now()->month)
-            ->whereYear('expense_date', Carbon::now()->year)
-            ->sum('amount');
-
-        $monthlyProfit = $monthlySales - $monthlyExpenses;
-
-        // Collections efficiency
-        $totalSalesThisMonth = Sale::whereMonth('sale_date', Carbon::now()->month)
-            ->whereYear('sale_date', Carbon::now()->year)
-            ->sum('total_amount');
-        
-        $totalCollectedThisMonth = Sale::whereMonth('sale_date', Carbon::now()->month)
-            ->whereYear('sale_date', Carbon::now()->year)
-            ->sum('amount_paid');
-
-        $collectionRate = $totalSalesThisMonth > 0 
-            ? ($totalCollectedThisMonth / $totalSalesThisMonth) * 100 
-            : 0;
-
-        // Total receivables
-        $totalReceivables = Sale::where('payment_status', '!=', 'paid')
-            ->sum(DB::raw('total_amount - amount_paid'));
-
-        // ===========================
-        // INVENTORY HEALTH
-        // ===========================
-        
-        // Stock distribution
-        $totalStockOnHand = FinishedProduct::sum('stock_on_hand');
-        $totalStockOut = FinishedProduct::sum('stock_out');
-        $totalInventory = $totalStockOnHand + $totalStockOut;
-
-        // Inventory value
-        $warehouseValue = FinishedProduct::all()->sum(function($product) {
-            return $product->stock_on_hand * ($product->cost_price ?? 0);
-        });
-
-        $branchValue = FinishedProduct::all()->sum(function($product) {
-            return $product->stock_out * ($product->cost_price ?? 0);
-        });
-
-        $totalInventoryValue = $warehouseValue + $branchValue;
-
-        // Low stock counts
-        $lowStockFinishedProducts = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->count();
-        $zeroStockProducts = FinishedProduct::where('stock_on_hand', 0)->count();
-
-        // ===========================
-        // PRODUCTION INSIGHTS
-        // ===========================
-        
-        // Recent production (last 7 days)
-        $recentProduction = ProductionMix::with('finishedProduct')
-            ->whereBetween('mix_date', [Carbon::now()->subDays(7), Carbon::now()])
+        $recentMixes = ProductionMix::with('finishedProduct')
+            ->where('mix_date', '>=', $week7Ago)
             ->where('status', 'completed')
             ->get();
 
         $productionStats = [
-            'batches_completed' => $recentProduction->count(),
-            'total_output' => $recentProduction->sum('actual_output'),
-            'total_rejected' => $recentProduction->sum('rejected_quantity'),
-            'rejection_rate' => $recentProduction->sum('actual_output') > 0 
-                ? ($recentProduction->sum('rejected_quantity') / $recentProduction->sum('actual_output')) * 100 
+            'batches_completed' => $recentMixes->count(),
+            'total_output'      => $recentMixes->sum('actual_output'),
+            'total_rejected'    => $recentMixes->sum('rejected_quantity'),
+            'rejection_rate'    => $recentMixes->sum('actual_output') > 0
+                ? ($recentMixes->sum('rejected_quantity') / $recentMixes->sum('actual_output')) * 100
                 : 0,
         ];
 
-        // Products needing production (low warehouse stock)
-        $needsProduction = FinishedProduct::where('stock_on_hand', '<=', DB::raw('minimum_stock * 0.5'))
-            ->orderBy('stock_on_hand', 'asc')
-            ->limit(5)
-            ->get();
+        $recentBadOrders = StockMovement::where('movement_type', 'return_bo')
+            ->where('movement_date', '>=', $week7Ago)
+            ->with('finishedProduct')
+            ->get()
+            ->groupBy('finished_product_id')
+            ->map(function ($movements) {
+                return [
+                    'product'      => $movements->first()->finishedProduct,
+                    'total_bo'     => $movements->sum('quantity'),
+                    'dr_numbers'   => $movements->pluck('reference_number')->filter()->unique()->values(),
+                    'batch_numbers'=> $movements->pluck('batch_number')->filter()->unique()->values(),
+                ];
+            })
+            ->values();
 
-        // ===========================
-        // TOP PERFORMERS & TRENDS
-        // ===========================
-        
-        // Best selling products (this month) - FIXED: Check if discount column exists
-        $hasDiscountColumn = Schema::hasColumn('sale_items', 'discount');
-        
-        $topSellingQuery = SaleItem::with('finishedProduct')
-            ->whereHas('sale', function($q) {
-                $q->whereMonth('sale_date', Carbon::now()->month)
-                  ->whereYear('sale_date', Carbon::now()->year);
+        // ══════════════════════════════════════════════════════
+        // MOVEMENTS TODAY
+        // ══════════════════════════════════════════════════════
+
+        $todayDeployments = StockMovement::whereDate('movement_date', $today)
+            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+            ->sum('quantity');
+
+        $todayReturns = StockMovement::whereDate('movement_date', $today)
+            ->whereIn('movement_type', ['return_bo', 'return_unsold'])
+            ->sum('quantity');
+
+        // ══════════════════════════════════════════════════════
+        // TOP SELLERS & CUSTOMERS (this month)
+        // ══════════════════════════════════════════════════════
+
+        $topSellingProducts = SaleItem::with('finishedProduct')
+            ->whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
+                $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
             })
             ->select(
                 'finished_product_id',
-                DB::raw('SUM(quantity_sold) as total_sold')
-            );
-        
-        if ($hasDiscountColumn) {
-            $topSellingQuery->selectRaw('SUM((quantity_sold * unit_price) - COALESCE(discount, 0)) as total_revenue');
-        } else {
-            $topSellingQuery->selectRaw('SUM(quantity_sold * unit_price) as total_revenue');
-        }
-        
-        $topSellingProducts = $topSellingQuery
+                DB::raw('SUM(quantity_sold) as total_sold'),
+                DB::raw('SUM(quantity_sold * unit_price) as total_revenue')
+            )
             ->groupBy('finished_product_id')
-            ->orderByDesc('total_sold')
+            ->orderByDesc('total_revenue')
             ->limit(5)
             ->get();
 
-        // Top customers (this month)
-        $topCustomers = Sale::whereMonth('sale_date', Carbon::now()->month)
-            ->whereYear('sale_date', Carbon::now()->year)
+        $topCustomers = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
             ->select(
                 'customer_name',
                 DB::raw('COUNT(*) as purchase_count'),
@@ -222,57 +194,11 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        // ===========================
-        // DAILY OPERATIONS
-        // ===========================
-        
-        // Today's movements
-        $todayDeployments = StockMovement::whereDate('movement_date', Carbon::today())
-            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
-            ->sum('quantity');
+        // ══════════════════════════════════════════════════════
+        // BRANCH PERFORMANCE (this month)
+        // ══════════════════════════════════════════════════════
 
-        $todayReturns = StockMovement::whereDate('movement_date', Carbon::today())
-            ->where('movement_type', 'return_bo')
-            ->sum('quantity');
-
-        // Recent sales (last 10)
-        $recentSales = Sale::with(['branch', 'items.finishedProduct'])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // Recent stock movements
-        $recentStockMovements = StockMovement::with(['finishedProduct', 'branch'])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // ===========================
-        // LOW STOCK ALERTS
-        // ===========================
-        
-        $lowStockFinished = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')
-            ->orderBy('stock_on_hand', 'asc')
-            ->limit(10)
-            ->get();
-        
-        $lowStockRaw = RawMaterial::whereColumn('quantity', '<=', 'minimum_stock')
-            ->orderBy('quantity', 'asc')
-            ->limit(10)
-            ->get();
-
-        // ===========================
-        // BRANCH PERFORMANCE
-        // ===========================
-        
-        $branches = Branch::with(['inventory.finishedProduct'])
-            ->where('is_active', true)
-            ->get();
-
-        // Branch sales performance (this month)
-        $branchSales = Sale::with('branch')
-            ->whereMonth('sale_date', Carbon::now()->month)
-            ->whereYear('sale_date', Carbon::now()->year)
+        $branchSales = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
             ->select(
                 'branch_id',
                 DB::raw('COUNT(*) as sales_count'),
@@ -282,118 +208,42 @@ class DashboardController extends Controller
             ->groupBy('branch_id')
             ->orderByDesc('total_sales')
             ->get()
-            ->map(function($item) {
-                $item->branch = Branch::find($item->branch_id);
-                return $item;
+            ->map(function ($b) {
+                $b->branch = Branch::find($b->branch_id);
+                return $b;
             });
 
+        // ══════════════════════════════════════════════════════
+        // RECENT SALES
+        // ══════════════════════════════════════════════════════
+
+        $recentSales = Sale::with('branch')
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
         return view('dashboard', compact(
-            // Critical Alerts
-            'alerts',
-            'overdueReceivables',
-            'outOfStockProducts',
-            'expiringProducts',
-            'recentBadOrders',
-            
-            // Financial KPIs
-            'todaySales',
-            'todayCollected',
-            'yesterdaySales',
-            'salesGrowth',
-            'monthlySales',
-            'monthlyExpenses',
-            'monthlyProfit',
-            'collectionRate',
-            'totalReceivables',
-            
-            // Inventory Health
-            'totalStockOnHand',
-            'totalStockOut',
-            'totalInventory',
-            'warehouseValue',
-            'branchValue',
-            'totalInventoryValue',
-            'lowStockFinishedProducts',
-            'zeroStockProducts',
-            
+            // Sales KPIs
+            'todaySales', 'todayCollected', 'salesGrowth',
+            'monthlySales', 'monthlyCollected', 'monthlyTransactions', 'collectionRate',
+            // P&L
+            'monthlyCOGS', 'monthlyGrossProfit', 'monthlyExpenses', 'monthlyProfit',
+            // Receivables
+            'totalReceivables', 'overdueReceivables',
+            // Inventory
+            'totalStockOnHand', 'totalStockOut', 'totalInventory',
+            'warehouseValue', 'branchValue', 'totalInventoryValue',
+            'zeroStockProducts', 'lowStockFinished', 'outOfStockProducts',
+            'expiringProducts', 'needsProduction',
             // Production
-            'productionStats',
-            'needsProduction',
-            
-            // Top Performers
-            'topSellingProducts',
-            'topCustomers',
-            
-            // Daily Operations
-            'todayDeployments',
-            'todayReturns',
-            'recentSales',
-            'recentStockMovements',
-            
-            // Alerts
-            'lowStockFinished',
-            'lowStockRaw',
-            
-            // Branch Performance
-            'branches',
-            'branchSales'
+            'productionStats', 'recentBadOrders',
+            // Movements
+            'todayDeployments', 'todayReturns',
+            // Top lists
+            'topSellingProducts', 'topCustomers', 'branchSales',
+            // Feed
+            'recentSales'
         ));
-    }
-
-    private function updateAlerts()
-    {
-        // Clear old resolved alerts
-        ProductAlert::where('is_resolved', true)
-            ->where('created_at', '<', Carbon::now()->subDays(7))
-            ->delete();
-
-        // Check finished products
-        $lowStockFinished = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->get();
-        foreach ($lowStockFinished as $product) {
-            ProductAlert::updateOrCreate(
-                [
-                    'product_type' => 'finished_product',
-                    'product_id' => $product->id,
-                ],
-                [
-                    'product_name' => $product->name,
-                    'current_stock' => $product->stock_on_hand,
-                    'minimum_stock' => $product->minimum_stock,
-                    'is_resolved' => false,
-                ]
-            );
-        }
-
-        // Check raw materials
-        $lowStockRaw = RawMaterial::whereColumn('quantity', '<=', 'minimum_stock')->get();
-        foreach ($lowStockRaw as $material) {
-            ProductAlert::updateOrCreate(
-                [
-                    'product_type' => 'raw_material',
-                    'product_id' => $material->id,
-                ],
-                [
-                    'product_name' => $material->name,
-                    'current_stock' => $material->quantity,
-                    'minimum_stock' => $material->minimum_stock,
-                    'is_resolved' => false,
-                ]
-            );
-        }
-
-        // Resolve alerts for products back in stock
-        ProductAlert::where('is_resolved', false)->get()->each(function ($alert) {
-            if ($alert->product_type === 'finished_product') {
-                $product = FinishedProduct::find($alert->product_id);
-                if ($product && $product->stock_on_hand > $product->minimum_stock) {
-                    $alert->update(['is_resolved' => true]);
-                }
-            } else {
-                $material = RawMaterial::find($alert->product_id);
-                if ($material && $material->quantity > $material->minimum_stock) {
-                    $alert->update(['is_resolved' => true]);
-                }
-            }
-        });
     }
 }

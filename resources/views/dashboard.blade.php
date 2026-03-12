@@ -1,683 +1,665 @@
 @extends('layouts.sidebar')
-
 @section('page-title', 'Dashboard')
-
 @section('content')
 
-<!-- CRITICAL ALERTS BANNER -->
-@if($overdueReceivables->count() > 0 || $outOfStockProducts->count() > 0 || $expiringProducts->count() > 0 || $recentBadOrders->count() > 0)
-<div class="alert alert-danger border-0 shadow-sm mb-4 p-3">
-    <div class="d-flex align-items-center">
-        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
-        <div class="flex-grow-1">
-            <strong class="d-block mb-2">CRITICAL ALERTS - Immediate Action Required</strong>
-            <div class="d-flex gap-4 flex-wrap">
-                @if($overdueReceivables->count() > 0)
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-clock-history text-white me-2"></i>
-                    <span>
-                        <strong>{{ $overdueReceivables->count() }}</strong> Overdue Payments
-                        <small class="ms-1">(₱{{ number_format($overdueReceivables->sum('overdue_amount'), 0) }})</small>
-                    </span>
-                </div>
-                @endif
-
-                @if($outOfStockProducts->count() > 0)
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-inbox text-white me-2"></i>
-                    <span><strong>{{ $outOfStockProducts->count() }}</strong> Out of Stock</span>
-                </div>
-                @endif
-
-                @if($expiringProducts->count() > 0)
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-calendar-x text-white me-2"></i>
-                    <span>
-                        <strong>{{ $expiringProducts->count() }}</strong> Expiring Soon
-                        <small class="ms-1">({{ $expiringProducts->sum(function($p) { return $p->stock_on_hand + $p->stock_out; }) }} units)</small>
-                    </span>
-                </div>
-                @endif
-
-                @if($recentBadOrders->count() > 0)
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-x-circle text-white me-2"></i>
-                    <span>
-                        <strong>{{ $recentBadOrders->sum('total_bo') }}</strong> Bad Orders
-                        <small class="ms-1">({{ $recentBadOrders->count() }} products)</small>
-                    </span>
-                </div>
-                @endif
-            </div>
-        </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-toggle="collapse" data-bs-target="#alertDetails"></button>
-    </div>
-    
-    <!-- Collapsible Details -->
-    <div class="collapse mt-3" id="alertDetails">
-        <div class="row g-3">
-            @if($overdueReceivables->count() > 0)
-            <div class="col-md-6">
-                <div class="card bg-white">
-                    <div class="card-header bg-transparent border-0 py-2">
-                        <h6 class="mb-0 text-dark">
-                            <i class="bi bi-clock-history text-danger me-2"></i>
-                            Overdue Payments
-                        </h6>
-                    </div>
-                    <div class="card-body py-2">
-                        <div class="list-group list-group-flush">
-                            @foreach($overdueReceivables->take(3) as $receivable)
-                            <div class="list-group-item px-0 py-2 small">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <strong class="text-dark">{{ $receivable->customer_name }}</strong>
-                                        <small class="text-muted d-block">{{ $receivable->branch->name ?? 'N/A' }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <strong class="text-danger">₱{{ number_format($receivable->overdue_amount, 0) }}</strong>
-                                        <small class="text-muted d-block">{{ $receivable->days_overdue }}d overdue</small>
-                                    </div>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                        <a href="{{ route('sales.index') }}?payment_status=to_be_collected" class="btn btn-sm btn-danger w-100 mt-2">
-                            View All Receivables
-                        </a>
-                    </div>
-                </div>
-            </div>
-            @endif
-
-            @if($outOfStockProducts->count() > 0)
-            <div class="col-md-6">
-                <div class="card bg-white">
-                    <div class="card-header bg-transparent border-0 py-2">
-                        <h6 class="mb-0 text-dark">
-                            <i class="bi bi-inbox text-danger me-2"></i>
-                            Out of Stock
-                        </h6>
-                    </div>
-                    <div class="card-body py-2">
-                        <div class="list-group list-group-flush">
-                            @foreach($outOfStockProducts->take(3) as $product)
-                            <div class="list-group-item px-0 py-2 small">
-                                <strong class="text-dark">{{ $product->name }}</strong>
-                                <small class="text-muted d-block">{{ $product->stock_out }} units in branches</small>
-                            </div>
-                            @endforeach
-                        </div>
-                        <a href="{{ route('finished-products.index') }}" class="btn btn-sm btn-warning w-100 mt-2">
-                            Restock Now
-                        </a>
-                    </div>
-                </div>
-            </div>
-            @endif
-
-            @if($expiringProducts->count() > 0)
-            <div class="col-md-6">
-                <div class="card bg-white">
-                    <div class="card-header bg-transparent border-0 py-2">
-                        <h6 class="mb-0 text-dark">
-                            <i class="bi bi-calendar-x text-warning me-2"></i>
-                            Expiring Soon
-                        </h6>
-                    </div>
-                    <div class="card-body py-2">
-                        <div class="list-group list-group-flush">
-                            @foreach($expiringProducts->take(3) as $product)
-                            <div class="list-group-item px-0 py-2 small">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <strong class="text-dark">{{ $product->name }}</strong>
-                                        <small class="text-muted d-block">{{ $product->stock_on_hand + $product->stock_out }} units</small>
-                                    </div>
-                                    <span class="badge bg-warning">{{ $product->days_until_expiry }}d left</span>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endif
-
-            @if($recentBadOrders->count() > 0)
-            <div class="col-md-6">
-                <div class="card bg-white">
-                    <div class="card-header bg-transparent border-0 py-2">
-                        <h6 class="mb-0 text-dark">
-                            <i class="bi bi-x-circle text-danger me-2"></i>
-                            Recent Bad Orders
-                        </h6>
-                    </div>
-                    <div class="card-body py-2">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-2">
-                                <thead>
-                                    <tr class="small">
-                                        <th>Product</th>
-                                        <th>DR#</th>
-                                        <th>Batch</th>
-                                        <th class="text-center">BO Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($recentBadOrders->take(5) as $bo)
-                                    <tr class="small">
-                                        <td><strong>{{ $bo['product']->name }}</strong></td>
-                                        <td>
-                                            @if($bo['dr_numbers']->count() > 0)
-                                                @foreach($bo['dr_numbers']->take(2) as $dr)
-                                                    <span class="badge bg-secondary">{{ $dr }}</span>
-                                                @endforeach
-                                                @if($bo['dr_numbers']->count() > 2)
-                                                    <small class="text-muted">+{{ $bo['dr_numbers']->count() - 2 }}</small>
-                                                @endif
-                                            @else
-                                                <small class="text-muted">-</small>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($bo['batch_numbers']->count() > 0)
-                                                @foreach($bo['batch_numbers']->take(2) as $batch)
-                                                    <span class="badge bg-info">{{ $batch }}</span>
-                                                @endforeach
-                                                @if($bo['batch_numbers']->count() > 2)
-                                                    <small class="text-muted">+{{ $bo['batch_numbers']->count() - 2 }}</small>
-                                                @endif
-                                            @else
-                                                <small class="text-muted">-</small>
-                                            @endif
-                                        </td>
-                                        <td class="text-center"><span class="badge bg-danger">{{ $bo['total_bo'] }}</span></td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endif
-        </div>
-    </div>
-</div>
-@endif
-
-<!-- KEY PERFORMANCE INDICATORS -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="stats-card">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <p class="mb-2">Today's Sales</p>
-                    <h3>₱{{ number_format($todaySales, 2) }}</h3>
-                    <small class="text-white-50">Collected: ₱{{ number_format($todayCollected, 2) }}</small>
-                </div>
-                <i class="bi bi-cash-coin fs-1 opacity-25"></i>
-            </div>
-            @if($salesGrowth != 0)
-            <div class="mt-2">
-                <span class="badge bg-{{ $salesGrowth >= 0 ? 'success' : 'danger' }}">
-                    <i class="bi bi-{{ $salesGrowth >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
-                    {{ number_format(abs($salesGrowth), 1) }}% vs yesterday
-                </span>
-            </div>
-            @endif
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stats-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <p class="mb-2">Monthly Revenue</p>
-                    <h3>₱{{ number_format($monthlySales, 2) }}</h3>
-                    <small class="text-white-50">Profit: ₱{{ number_format($monthlyProfit, 2) }}</small>
-                </div>
-                <i class="bi bi-graph-up fs-1 opacity-25"></i>
-            </div>
-            <div class="mt-2">
-                <span class="badge bg-light text-primary">
-                    <i class="bi bi-percent"></i>
-                    {{ number_format($collectionRate, 1) }}% collected
-                </span>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stats-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <p class="mb-2">To Be Collected</p>
-                    <h3>₱{{ number_format($totalReceivables, 2) }}</h3>
-                    <small class="text-white-50">
-                        @if($overdueReceivables->count() > 0)
-                            {{ $overdueReceivables->count() }} overdue accounts
-                        @else
-                            All current
-                        @endif
-                    </small>
-                </div>
-                <i class="bi bi-clock-history fs-1 opacity-25"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="stats-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <p class="mb-2">Inventory Value</p>
-                    <h3>₱{{ number_format($totalInventoryValue/1000, 1) }}K</h3>
-                    <small class="text-white-50">{{ number_format($totalInventory) }} units</small>
-                </div>
-                <i class="bi bi-box-seam fs-1 opacity-25"></i>
-            </div>
-            @if($zeroStockProducts > 0)
-            <div class="mt-2">
-                <span class="badge bg-danger">{{ $zeroStockProducts }} products out of stock</span>
-            </div>
-            @endif
-        </div>
-    </div>
-</div>
-
-<!-- CRITICAL ACTIONS NEEDED -->
-<div class="row mb-4">
-    <!-- Overdue Receivables -->
-    @if($overdueReceivables->count() > 0)
-    <div class="col-md-6">
-        <div class="card border-danger shadow-sm">
-            <div class="card-header bg-danger text-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    OVERDUE PAYMENTS - Collect Immediately
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="list-group list-group-flush">
-                    @foreach($overdueReceivables as $receivable)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="mb-1">{{ $receivable->customer_name }}</h6>
-                                <small class="text-muted">
-                                    {{ $receivable->branch->name ?? 'N/A' }} | 
-                                    {{ $receivable->overdue_count }} invoice(s)
-                                </small>
-                            </div>
-                            <div class="text-end">
-                                <strong class="text-danger">₱{{ number_format($receivable->overdue_amount, 2) }}</strong>
-                                <br>
-                                <span class="badge bg-danger">{{ $receivable->days_overdue }} days overdue</span>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="{{ route('sales.index') }}?payment_status=to_be_collected" class="btn btn-sm btn-danger w-100">
-                    <i class="bi bi-cash-stack me-2"></i>View All Receivables
-                </a>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    <!-- Products Needing Production -->
-    @if($needsProduction->count() > 0)
-    <div class="col-md-6">
-        <div class="card border-warning shadow-sm">
-            <div class="card-header bg-warning">
-                <h6 class="mb-0">
-                    <i class="bi bi-gear me-2"></i>
-                    URGENT PRODUCTION NEEDED
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="list-group list-group-flush">
-                    @foreach($needsProduction as $product)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ $product->name }}</strong>
-                                <br>
-                                <small class="text-muted">
-                                    Warehouse: {{ $product->stock_on_hand }} / Min: {{ $product->minimum_stock }}
-                                </small>
-                            </div>
-                            <span class="badge bg-danger">CRITICAL</span>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-            
-        </div>
-    </div>
-    @endif
-</div>
-
-<!-- PRODUCTION & QUALITY METRICS -->
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>Production Performance (Last 7 Days)</h6>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3">
-                        <i class="bi bi-box-seam text-primary fs-2"></i>
-                        <h4 class="mt-2">{{ $productionStats['batches_completed'] }}</h4>
-                        <p class="text-muted mb-0 small">Batches Completed</p>
-                    </div>
-                    <div class="col-md-3">
-                        <i class="bi bi-check-circle text-success fs-2"></i>
-                        <h4 class="mt-2">{{ number_format($productionStats['total_output']) }}</h4>
-                        <p class="text-muted mb-0 small">Total Output</p>
-                    </div>
-                    <div class="col-md-3">
-                        <i class="bi bi-x-circle text-danger fs-2"></i>
-                        <h4 class="mt-2">{{ number_format($productionStats['total_rejected']) }}</h4>
-                        <p class="text-muted mb-0 small">Rejected Units</p>
-                    </div>
-                    <div class="col-md-3">
-                        <i class="bi bi-percent text-warning fs-2"></i>
-                        <h4 class="mt-2 {{ $productionStats['rejection_rate'] > 10 ? 'text-danger' : 'text-success' }}">
-                            {{ number_format($productionStats['rejection_rate'], 1) }}%
-                        </h4>
-                        <p class="text-muted mb-0 small">Rejection Rate</p>
-                    </div>
-                </div>
-
-                @if($recentBadOrders->count() > 0)
-                <hr>
-                <h6 class="text-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Products with High Bad Orders (Last 7 Days)
-                </h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>DR Numbers</th>
-                                <th>Batch Numbers</th>
-                                <th class="text-center">Total BO</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($recentBadOrders as $bo)
-                            <tr>
-                                <td><strong>{{ $bo['product']->name }}</strong></td>
-                                <td>
-                                    @if($bo['dr_numbers']->count() > 0)
-                                        @foreach($bo['dr_numbers']->take(3) as $dr)
-                                            <span class="badge bg-secondary">{{ $dr }}</span>
-                                        @endforeach
-                                        @if($bo['dr_numbers']->count() > 3)
-                                            <small class="text-muted">+{{ $bo['dr_numbers']->count() - 3 }} more</small>
-                                        @endif
-                                    @else
-                                        <small class="text-muted">No DR</small>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($bo['batch_numbers']->count() > 0)
-                                        @foreach($bo['batch_numbers']->take(3) as $batch)
-                                            <span class="badge bg-info">{{ $batch }}</span>
-                                        @endforeach
-                                        @if($bo['batch_numbers']->count() > 3)
-                                            <small class="text-muted">+{{ $bo['batch_numbers']->count() - 3 }} more</small>
-                                        @endif
-                                    @else
-                                        <small class="text-muted">No Batch</small>
-                                    @endif
-                                </td>
-                                <td class="text-center"><span class="badge bg-danger">{{ $bo['total_bo'] }} units</span></td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @endif
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- TOP PERFORMERS -->
-<div class="row mb-4">
-    <!-- Top Selling Products -->
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-trophy me-2 text-warning"></i>Best Selling Products (This Month)</h6>
-            </div>
-            <div class="card-body">
-                @if($topSellingProducts->count() > 0)
-                <div class="list-group list-group-flush">
-                    @foreach($topSellingProducts as $index => $item)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-{{ $index === 0 ? 'warning' : ($index === 1 ? 'secondary' : 'primary') }} me-2">
-                                    #{{ $index + 1 }}
-                                </span>
-                                <strong>{{ $item->finishedProduct->name }}</strong>
-                                <br>
-                                <small class="text-muted">{{ number_format($item->total_sold) }} units sold</small>
-                            </div>
-                            <strong class="text-success">₱{{ number_format($item->total_revenue, 2) }}</strong>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-                @else
-                <p class="text-center text-muted py-4 mb-0">No sales this month</p>
-                @endif
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Customers -->
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-people me-2 text-primary"></i>Top Customers (This Month)</h6>
-            </div>
-            <div class="card-body">
-                @if($topCustomers->count() > 0)
-                <div class="list-group list-group-flush">
-                    @foreach($topCustomers as $index => $customer)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="badge bg-{{ $index === 0 ? 'warning' : ($index === 1 ? 'secondary' : 'primary') }} me-2">
-                                    #{{ $index + 1 }}
-                                </span>
-                                <strong>{{ $customer->customer_name }}</strong>
-                                <br>
-                                <small class="text-muted">{{ $customer->purchase_count }} purchases</small>
-                            </div>
-                            <strong class="text-success">₱{{ number_format($customer->total_spent, 2) }}</strong>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-                @else
-                <p class="text-center text-muted py-4 mb-0">No customers this month</p>
-                @endif
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- BRANCH PERFORMANCE -->
-@if($branchSales->count() > 0)
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-shop me-2"></i>Branch Performance (This Month)</h6>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Branch</th>
-                                <th class="text-center">Sales Count</th>
-                                <th class="text-end">Total Sales</th>
-                                <th class="text-end">Collected</th>
-                                <th class="text-center">Collection Rate</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($branchSales as $branch)
-                            <tr>
-                                <td><strong>{{ $branch->branch->name ?? 'N/A' }}</strong></td>
-                                <td class="text-center">{{ $branch->sales_count }}</td>
-                                <td class="text-end">₱{{ number_format($branch->total_sales, 2) }}</td>
-                                <td class="text-end text-success">₱{{ number_format($branch->total_collected, 2) }}</td>
-                                <td class="text-center">
-                                    @php
-                                        $rate = $branch->total_sales > 0 ? ($branch->total_collected / $branch->total_sales) * 100 : 0;
-                                    @endphp
-                                    <span class="badge bg-{{ $rate >= 80 ? 'success' : ($rate >= 50 ? 'warning' : 'danger') }}">
-                                        {{ number_format($rate, 1) }}%
-                                    </span>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-@endif
-
-<!-- RECENT ACTIVITY -->
-<div class="row mb-4">
-    <!-- Recent Sales -->
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Sales</h6>
-            </div>
-            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                @if($recentSales->count() > 0)
-                <div class="list-group list-group-flush">
-                    @foreach($recentSales as $sale)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <strong>DR# {{ $sale->dr_number }}</strong>
-                                <br>
-                                <small class="text-muted">
-                                    {{ $sale->customer_name }} | {{ $sale->branch->name ?? 'N/A' }}
-                                    <br>
-                                    {{ $sale->sale_date->format('M d, h:i A') }}
-                                </small>
-                            </div>
-                            <div class="text-end">
-                                <strong class="text-success">₱{{ number_format($sale->total_amount, 2) }}</strong>
-                                <br>
-                                <span class="badge bg-{{ $sale->payment_status_badge }}">
-                                    {{ $sale->payment_status_label }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-                @else
-                <p class="text-center text-muted py-4 mb-0">No recent sales</p>
-                @endif
-            </div>
-            <div class="card-footer">
-                <a href="{{ route('sales.index') }}" class="btn btn-sm btn-outline-primary w-100">
-                    View All Sales
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Low Stock Alerts -->
-    <div class="col-md-6">
-        <div class="card shadow-sm border-warning">
-            <div class="card-header bg-warning">
-                <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Low Stock Alert</h6>
-            </div>
-            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                @if($lowStockFinished->count() > 0)
-                <div class="list-group list-group-flush">
-                    @foreach($lowStockFinished as $product)
-                    <div class="list-group-item px-0">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ $product->name }}</strong>
-                                <br>
-                                <small class="text-muted">
-                                    Warehouse: {{ $product->stock_on_hand }} 
-                                    @if($product->stock_out > 0)
-                                        | Branches: {{ $product->stock_out }}
-                                    @endif
-                                </small>
-                            </div>
-                            <span class="badge bg-{{ $product->stock_on_hand == 0 ? 'danger' : 'warning' }}">
-                                {{ $product->stock_on_hand }} / {{ $product->minimum_stock }}
-                            </span>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-                @else
-                <p class="text-center text-success py-4 mb-0">All products well stocked!</p>
-                @endif
-            </div>
-            <div class="card-footer">
-                <a href="{{ route('finished-products.index') }}" class="btn btn-sm btn-warning w-100">
-                    Manage Inventory
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
-.stats-card {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    height: 100%;
-}
+    /* ── KPI tiles ── */
+    .kpi-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:.65rem; margin-bottom:.9rem; }
+    .kpi-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:.75rem; }
+    .kpi-tile { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:.75rem 1rem; position:relative; overflow:hidden; }
+    .kpi-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:var(--radius) var(--radius) 0 0; }
+    .kpi-tile.t-accent::before { background:var(--accent); }
+    .kpi-tile.t-green::before  { background:#16a34a; }
+    .kpi-tile.t-amber::before  { background:#d97706; }
+    .kpi-tile.t-red::before    { background:#dc2626; }
+    .kpi-tile.t-blue::before   { background:#0369a1; }
+    .kpi-tile.t-purple::before { background:#7c3aed; }
+    .kpi-tile.t-brown::before  { background:#92400e; }
+    .kpi-label { font-size:.60rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); display:block; margin-bottom:.18rem; }
+    .kpi-value { font-size:1.05rem; font-weight:800; color:var(--text-primary); display:block; line-height:1.2; }
+    .kpi-value.c-accent { color:var(--accent); }
+    .kpi-value.c-green  { color:#16a34a; }
+    .kpi-value.c-amber  { color:#d97706; }
+    .kpi-value.c-red    { color:#dc2626; }
+    .kpi-value.c-blue   { color:#0369a1; }
+    .kpi-value.c-purple { color:#7c3aed; }
+    .kpi-sub { font-size:.67rem; color:var(--text-muted); margin-top:.2rem; display:block; }
+    .kpi-growth { font-size:.64rem; font-weight:700; margin-top:.28rem; display:inline-flex; align-items:center; gap:.18rem; padding:.04rem .28rem; border-radius:3px; }
+    .kpi-growth.up      { background:#dcfce7; color:#15622e; }
+    .kpi-growth.down    { background:#fee2e2; color:#9b1c1c; }
+    .kpi-growth.neutral { background:var(--bg-page); color:var(--text-muted); }
 
-.stats-card h3 {
-    font-size: 1.8rem;
-    font-weight: bold;
-    margin: 10px 0 5px 0;
-}
+    /* ── Alert banner ── */
+    .alert-banner { background:#fee2e2; border:1px solid #fca5a5; border-radius:var(--radius); padding:.65rem .9rem; margin-bottom:.9rem; }
+    .alert-banner-head { display:flex; align-items:center; justify-content:space-between; }
+    .alert-banner-title { display:flex; align-items:center; gap:.45rem; font-size:.76rem; font-weight:700; color:#9b1c1c; }
+    .alert-chips { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; }
+    .alert-chip { display:inline-flex; align-items:center; gap:.28rem; padding:.18rem .52rem; border-radius:4px; font-size:.70rem; font-weight:600; background:#fff; border:1px solid #fca5a5; color:#9b1c1c; cursor:pointer; user-select:none; transition:background .1s; }
+    .alert-chip:hover { background:#fee2e2; }
+    .alert-chip i { font-size:.72rem; }
+    .alert-detail { margin-top:.55rem; padding:.55rem .7rem; background:#fff; border:1px solid #fca5a5; border-radius:var(--radius); display:none; }
+    .alert-detail.open { display:block; }
+    .alert-dismiss { background:none; border:none; cursor:pointer; color:#9b1c1c; font-size:.8rem; padding:.1rem .2rem; opacity:.7; }
+    .alert-dismiss:hover { opacity:1; }
 
-.stats-card p {
-    margin: 0;
-    opacity: 0.9;
-    font-size: 0.9rem;
-}
+    /* ── Section card ── */
+    .sec-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .sec-head { background:var(--brand-deep); color:rgba(255,255,255,.9); padding:.46rem .85rem; display:flex; align-items:center; justify-content:space-between; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+    .sec-head i { opacity:.65; }
+    .sec-head a { font-size:.66rem; font-weight:600; color:rgba(255,255,255,.6); text-decoration:none; letter-spacing:0; text-transform:none; }
+    .sec-head a:hover { color:#fff; }
+    .sec-head.red-head   { background:#dc2626; }
+    .sec-head.amber-head { background:#b45309; }
+    .sec-head.brown-head { background:#92400e; }
 
-.list-group-item:hover {
-    background-color: #f8f9fa;
-}
+    /* ── Data table ── */
+    .dt { width:100%; border-collapse:collapse; font-size:.74rem; }
+    .dt thead th { background:var(--brand-deep); color:rgba(255,255,255,.88); padding:.36rem .65rem; font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; }
+    .dt tbody td { padding:.35rem .65rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .dt tbody tr:last-child td { border-bottom:none; }
+    .dt tbody tr:hover td { background:var(--accent-faint); }
+    .dt tfoot td { padding:.35rem .65rem; font-weight:700; font-size:.72rem; background:var(--bg-page); border-top:2px solid var(--border); }
+    .dt .tr { text-align:right; }
+    .dt .tc { text-align:center; }
+
+    /* ── Pills ── */
+    .pill { display:inline-flex; align-items:center; padding:.05rem .32rem; border-radius:3px; font-size:.62rem; font-weight:700; }
+    .pill-green  { background:var(--s-success-bg); color:var(--s-success-text); }
+    .pill-red    { background:var(--s-danger-bg);  color:var(--s-danger-text); }
+    .pill-amber  { background:var(--s-warning-bg); color:var(--s-warning-text); }
+    .pill-blue   { background:var(--s-info-bg);    color:var(--s-info-text); }
+    .pill-purple { background:#ede9fe; color:#6d28d9; }
+
+    /* ── Rank badge ── */
+    .rank { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; font-size:.60rem; font-weight:800; flex-shrink:0; }
+    .rank-1 { background:#fef3c7; color:#92400e; }
+    .rank-2 { background:#f3f4f6; color:#374151; }
+    .rank-3 { background:#fff7ed; color:#9a3412; }
+    .rank-n { background:var(--bg-page); color:var(--text-muted); border:1px solid var(--border); }
+
+    /* ── Progress bar ── */
+    .prog-bar { height:3px; background:var(--border); border-radius:2px; margin-top:.25rem; overflow:hidden; }
+    .prog-fill { height:100%; border-radius:2px; }
+    .prog-fill.green  { background:#16a34a; }
+    .prog-fill.accent { background:var(--accent); }
+    .prog-fill.red    { background:#dc2626; }
+    .prog-fill.amber  { background:#d97706; }
+
+    /* ── List row ── */
+    .dlist-item { display:flex; justify-content:space-between; align-items:center; padding:.38rem 0; border-bottom:1px solid var(--border); }
+    .dlist-item:last-child { border-bottom:none; }
+
+    /* ── Production strip ── */
+    .prod-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; margin-bottom:.6rem; }
+    .prod-metric { text-align:center; padding:.48rem .4rem; background:var(--bg-page); border-radius:var(--radius); border:1px solid var(--border); }
+    .prod-metric-val { font-size:.92rem; font-weight:800; display:block; }
+    .prod-metric-lbl { font-size:.59rem; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); display:block; margin-top:.1rem; }
+
+    /* ── Action card footer ── */
+    .crit-foot { padding:.4rem .85rem; background:var(--bg-page); border-top:1px solid var(--border); }
+    .btn-sm-red   { font-size:.70rem; font-weight:600; padding:.22rem .65rem; border-radius:4px; background:#dc2626; color:#fff; border:none; cursor:pointer; text-decoration:none; display:inline-block; }
+    .btn-sm-amber { font-size:.70rem; font-weight:600; padding:.22rem .65rem; border-radius:4px; background:#b45309; color:#fff; border:none; cursor:pointer; text-decoration:none; display:inline-block; }
+
+    /* ── Scrollable section body ── */
+    .sec-scroll-body { max-height:320px; overflow-y:auto; padding:.5rem .75rem; }
+    .sec-scroll { overflow-x:auto; }
+
+    /* ── Empty state ── */
+    .empty-sm { text-align:center; padding:1.5rem .5rem; color:var(--text-muted); font-size:.76rem; }
+    .empty-sm i { font-size:1.5rem; display:block; opacity:.22; margin-bottom:.3rem; }
+    .empty-sm.ok { color:#16a34a; }
+    .empty-sm.ok i { opacity:.35; }
 </style>
+
+{{-- ══ PAGE HEADER ══ --}}
+<div class="d-flex align-items-center justify-content-between mb-2">
+    <div>
+        <h5 class="fw-bold mb-0" style="font-size:.93rem">
+            <i class="bi bi-speedometer2 me-1" style="color:var(--accent)"></i>Dashboard
+        </h5>
+        <span style="font-size:.67rem;color:var(--text-muted)">{{ now()->format('l, F d, Y') }}</span>
+    </div>
+</div>
+
+{{-- ══ CRITICAL ALERTS BANNER ══ --}}
+@if($overdueReceivables->count() > 0 || $outOfStockProducts->count() > 0 || $expiringProducts->count() > 0 || $recentBadOrders->count() > 0)
+<div class="alert-banner" id="alertBanner">
+    <div class="alert-banner-head">
+        <div class="alert-banner-title">
+            <i class="bi bi-exclamation-triangle-fill"></i> Action Required
+        </div>
+        <button class="alert-dismiss" onclick="document.getElementById('alertBanner').style.display='none'">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="alert-chips">
+        @if($overdueReceivables->count() > 0)
+        <div class="alert-chip" onclick="toggleAlert('al-overdue')">
+            <i class="bi bi-clock-history"></i>
+            {{ $overdueReceivables->count() }} Overdue &middot; &#8369;{{ number_format($overdueReceivables->sum('overdue_amount'), 0) }}
+        </div>
+        @endif
+        @if($outOfStockProducts->count() > 0)
+        <div class="alert-chip" onclick="toggleAlert('al-oos')">
+            <i class="bi bi-inbox"></i> {{ $outOfStockProducts->count() }} Out of Stock
+        </div>
+        @endif
+        @if($expiringProducts->count() > 0)
+        <div class="alert-chip" onclick="toggleAlert('al-expiry')">
+            <i class="bi bi-calendar-x"></i> {{ $expiringProducts->count() }} Expiring Soon
+        </div>
+        @endif
+        @if($recentBadOrders->count() > 0)
+        <div class="alert-chip" onclick="toggleAlert('al-bo')">
+            <i class="bi bi-x-circle"></i> {{ $recentBadOrders->sum('total_bo') }} Bad Orders
+        </div>
+        @endif
+    </div>
+
+    @if($overdueReceivables->count() > 0)
+    <div class="alert-detail" id="al-overdue">
+        <table class="dt" style="font-size:.71rem">
+            <thead>
+                <tr><th>Customer</th><th>Area</th><th class="tc">Invoices</th><th class="tr">Amount Due</th><th class="tc">Days</th></tr>
+            </thead>
+            <tbody>
+                @foreach($overdueReceivables as $r)
+                <tr>
+                    <td style="font-weight:600">{{ $r->customer_name }}</td>
+                    <td style="color:var(--text-muted)">{{ $r->branch->name ?? '—' }}</td>
+                    <td class="tc">{{ $r->overdue_count }}</td>
+                    <td class="tr" style="font-weight:700;color:#dc2626">&#8369;{{ number_format($r->overdue_amount, 0) }}</td>
+                    <td class="tc"><span class="pill pill-red">{{ $r->days_overdue }}d</span></td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
+    @if($outOfStockProducts->count() > 0)
+    <div class="alert-detail" id="al-oos">
+        @foreach($outOfStockProducts as $p)
+        <div class="dlist-item" style="font-size:.73rem">
+            <span style="font-weight:600">{{ $p->name }}</span>
+            <span style="font-size:.68rem;color:var(--text-muted)">{{ $p->stock_out }} units still in branches</span>
+        </div>
+        @endforeach
+    </div>
+    @endif
+
+    @if($expiringProducts->count() > 0)
+    <div class="alert-detail" id="al-expiry">
+        @foreach($expiringProducts as $p)
+        <div class="dlist-item" style="font-size:.73rem">
+            <div>
+                <span style="font-weight:600">{{ $p->name }}</span>
+                <span style="font-size:.67rem;color:var(--text-muted);margin-left:.35rem">
+                    {{ $p->stock_on_hand + $p->stock_out }} units total
+                </span>
+            </div>
+            <span class="pill pill-amber">{{ $p->days_until_expiry }}d left</span>
+        </div>
+        @endforeach
+    </div>
+    @endif
+
+    @if($recentBadOrders->count() > 0)
+    <div class="alert-detail" id="al-bo">
+        <table class="dt" style="font-size:.71rem">
+            <thead>
+                <tr><th>Product</th><th>DR #s</th><th>Batch #s</th><th class="tc">BO Qty</th></tr>
+            </thead>
+            <tbody>
+                @foreach($recentBadOrders as $bo)
+                <tr>
+                    <td style="font-weight:600">{{ $bo['product']->name }}</td>
+                    <td>
+                        @foreach($bo['dr_numbers']->take(3) as $dr)
+                            <span class="pill pill-blue" style="margin:.05rem">{{ $dr }}</span>
+                        @endforeach
+                        @if($bo['dr_numbers']->count() > 3)
+                            <span style="font-size:.63rem;color:var(--text-muted)">+{{ $bo['dr_numbers']->count()-3 }}</span>
+                        @endif
+                    </td>
+                    <td>
+                        @foreach($bo['batch_numbers']->take(3) as $b)
+                            <span class="pill pill-purple" style="margin:.05rem">{{ $b }}</span>
+                        @endforeach
+                        @if($bo['batch_numbers']->count() > 3)
+                            <span style="font-size:.63rem;color:var(--text-muted)">+{{ $bo['batch_numbers']->count()-3 }}</span>
+                        @endif
+                    </td>
+                    <td class="tc"><span class="pill pill-red">{{ $bo['total_bo'] }}</span></td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+</div>
+@endif
+
+{{-- ══ KPI ROW 1 — Financial ══ --}}
+<div class="kpi-grid-4">
+    <div class="kpi-tile t-accent">
+        <span class="kpi-label">Today's Sales</span>
+        <span class="kpi-value c-accent">&#8369;{{ number_format($todaySales, 2) }}</span>
+        <span class="kpi-sub">Collected: &#8369;{{ number_format($todayCollected, 2) }}</span>
+        @if($salesGrowth != 0)
+        <span class="kpi-growth {{ $salesGrowth >= 0 ? 'up' : 'down' }}">
+            <i class="bi bi-arrow-{{ $salesGrowth >= 0 ? 'up' : 'down' }}"></i>
+            {{ number_format(abs($salesGrowth), 1) }}% vs yesterday
+        </span>
+        @else
+        <span class="kpi-growth neutral"><i class="bi bi-dash"></i> Same as yesterday</span>
+        @endif
+    </div>
+    <div class="kpi-tile t-green">
+        <span class="kpi-label">Monthly Revenue</span>
+        <span class="kpi-value c-green">&#8369;{{ number_format($monthlySales, 2) }}</span>
+        <span class="kpi-sub">Net profit: &#8369;{{ number_format($monthlyProfit, 2) }}</span>
+        <span class="kpi-growth {{ $collectionRate >= 80 ? 'up' : 'down' }}">
+            <i class="bi bi-percent"></i> {{ number_format($collectionRate, 1) }}% collected
+        </span>
+    </div>
+    <div class="kpi-tile t-amber">
+        <span class="kpi-label">To Be Collected</span>
+        <span class="kpi-value c-amber">&#8369;{{ number_format($totalReceivables, 2) }}</span>
+        <span class="kpi-sub">
+            @if($overdueReceivables->count() > 0)
+                <span style="color:#dc2626;font-weight:600">{{ $overdueReceivables->count() }} overdue accounts</span>
+            @else
+                All current
+            @endif
+        </span>
+    </div>
+    <div class="kpi-tile t-purple">
+        <span class="kpi-label">Inventory Value</span>
+        <span class="kpi-value c-purple">&#8369;{{ number_format($totalInventoryValue/1000, 1) }}K</span>
+        <span class="kpi-sub">{{ number_format($totalInventory) }} total units</span>
+        @if($zeroStockProducts > 0)
+        <span class="kpi-growth down"><i class="bi bi-inbox"></i> {{ $zeroStockProducts }} out of stock</span>
+        @endif
+    </div>
+</div>
+
+{{-- ══ KPI ROW 2 — Operations ══ --}}
+<div class="kpi-grid-4" style="margin-bottom:.9rem">
+    <div class="kpi-tile t-blue">
+        <span class="kpi-label">Warehouse Stock</span>
+        <span class="kpi-value c-blue">{{ number_format($totalStockOnHand) }}</span>
+        <span class="kpi-sub">units on hand &nbsp;·&nbsp; &#8369;{{ number_format($warehouseValue/1000, 1) }}K</span>
+    </div>
+    <div class="kpi-tile t-blue">
+        <span class="kpi-label">Branch Stock</span>
+        <span class="kpi-value c-blue">{{ number_format($totalStockOut) }}</span>
+        <span class="kpi-sub">units deployed &nbsp;·&nbsp; &#8369;{{ number_format($branchValue/1000, 1) }}K</span>
+    </div>
+    <div class="kpi-tile {{ $productionStats['rejection_rate'] > 10 ? 't-red' : 't-green' }}">
+        <span class="kpi-label">Production (7d)</span>
+        <span class="kpi-value {{ $productionStats['rejection_rate'] > 10 ? 'c-red' : 'c-green' }}">
+            {{ number_format($productionStats['total_output']) }}
+        </span>
+        <span class="kpi-sub">
+            {{ $productionStats['batches_completed'] }} batches
+            &nbsp;·&nbsp; {{ number_format($productionStats['rejection_rate'], 1) }}% reject
+        </span>
+    </div>
+    <div class="kpi-tile t-accent">
+        <span class="kpi-label">Today's Movements</span>
+        <span class="kpi-value c-accent">{{ number_format($todayDeployments) }}</span>
+        <span class="kpi-sub">deployed &nbsp;·&nbsp; {{ number_format($todayReturns) }} returned / BO</span>
+    </div>
+</div>
+
+{{-- ══ CRITICAL ACTIONS ══ --}}
+@if($overdueReceivables->count() > 0 || $needsProduction->count() > 0)
+<div class="kpi-grid-2">
+
+    @if($overdueReceivables->count() > 0)
+    <div class="sec-card">
+        <div class="sec-head red-head">
+            <span><i class="bi bi-exclamation-triangle-fill me-1"></i> Overdue Payments — Collect Immediately</span>
+        </div>
+        <div>
+            @foreach($overdueReceivables as $r)
+            <div class="dlist-item" style="padding:.42rem .85rem">
+                <div>
+                    <span style="font-size:.76rem;font-weight:600">{{ $r->customer_name }}</span>
+                    <span style="font-size:.67rem;color:var(--text-muted);margin-left:.35rem">
+                        {{ $r->branch->name ?? '—' }} &middot; {{ $r->overdue_count }} invoice(s)
+                    </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:.4rem">
+                    <span style="font-weight:700;color:#dc2626;font-size:.78rem">&#8369;{{ number_format($r->overdue_amount, 0) }}</span>
+                    <span class="pill pill-red">{{ $r->days_overdue }}d</span>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        <div class="crit-foot">
+            <a href="{{ route('ar.index') }}" class="btn-sm-red">
+                <i class="bi bi-cash-stack me-1"></i>View All Receivables
+            </a>
+        </div>
+    </div>
+    @endif
+
+    @if($needsProduction->count() > 0)
+    <div class="sec-card">
+        <div class="sec-head amber-head">
+            <span><i class="bi bi-gear-fill me-1"></i> Urgent Production Needed</span>
+        </div>
+        <div>
+            @foreach($needsProduction as $p)
+            @php $pct = $p->minimum_stock > 0 ? min(100, ($p->stock_on_hand / $p->minimum_stock) * 100) : 0; @endphp
+            <div class="dlist-item" style="padding:.42rem .85rem">
+                <div>
+                    <span style="font-size:.76rem;font-weight:600">{{ $p->name }}</span>
+                    <div style="font-size:.67rem;color:var(--text-muted)">
+                        Warehouse: {{ $p->stock_on_hand }} &nbsp;·&nbsp; Min: {{ $p->minimum_stock }}
+                    </div>
+                    <div class="prog-bar" style="width:80px">
+                        <div class="prog-fill red" style="width:{{ $pct }}%"></div>
+                    </div>
+                </div>
+                <span class="pill pill-red">CRITICAL</span>
+            </div>
+            @endforeach
+        </div>
+        <div class="crit-foot">
+            <a href="{{ route('production-mixes.create') }}" class="btn-sm-amber">
+                <i class="bi bi-plus-lg me-1"></i>New Production Batch
+            </a>
+        </div>
+    </div>
+    @endif
+
+</div>
+@endif
+
+{{-- ══ TOP SELLERS + TOP CUSTOMERS ══ --}}
+<div class="kpi-grid-2">
+
+    <div class="sec-card">
+        <div class="sec-head">
+            <span><i class="bi bi-trophy me-1"></i> Best Selling Products</span>
+            <span style="font-size:.62rem;opacity:.55;text-transform:none;letter-spacing:0">This Month</span>
+        </div>
+        <div class="sec-scroll-body">
+            @if($topSellingProducts->count())
+            @php $maxRev = $topSellingProducts->max('total_revenue'); @endphp
+            @foreach($topSellingProducts as $i => $item)
+            <div class="dlist-item">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+                    <span class="rank {{ $i===0?'rank-1':($i===1?'rank-2':($i===2?'rank-3':'rank-n')) }}">#{{ $i+1 }}</span>
+                    <div style="min-width:0">
+                        <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                            {{ $item->finishedProduct->name }}
+                        </div>
+                        <div style="font-size:.65rem;color:var(--text-muted)">{{ number_format($item->total_sold) }} units sold</div>
+                        <div class="prog-bar" style="width:90px">
+                            <div class="prog-fill accent" style="width:{{ $maxRev > 0 ? ($item->total_revenue/$maxRev)*100 : 0 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <span style="font-size:.78rem;font-weight:700;color:#16a34a;white-space:nowrap">
+                    &#8369;{{ number_format($item->total_revenue, 0) }}
+                </span>
+            </div>
+            @endforeach
+            @else
+            <div class="empty-sm"><i class="bi bi-trophy"></i>No sales this month.</div>
+            @endif
+        </div>
+    </div>
+
+    <div class="sec-card">
+        <div class="sec-head">
+            <span><i class="bi bi-people me-1"></i> Top Customers</span>
+            <span style="font-size:.62rem;opacity:.55;text-transform:none;letter-spacing:0">This Month</span>
+        </div>
+        <div class="sec-scroll-body">
+            @if($topCustomers->count())
+            @php $maxSpent = $topCustomers->max('total_spent'); @endphp
+            @foreach($topCustomers as $i => $c)
+            <div class="dlist-item">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+                    <span class="rank {{ $i===0?'rank-1':($i===1?'rank-2':($i===2?'rank-3':'rank-n')) }}">#{{ $i+1 }}</span>
+                    <div style="min-width:0">
+                        <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                            {{ $c->customer_name }}
+                        </div>
+                        <div style="font-size:.65rem;color:var(--text-muted)">{{ $c->purchase_count }} purchases</div>
+                        <div class="prog-bar" style="width:90px">
+                            <div class="prog-fill green" style="width:{{ $maxSpent > 0 ? ($c->total_spent/$maxSpent)*100 : 0 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <span style="font-size:.78rem;font-weight:700;color:#16a34a;white-space:nowrap">
+                    &#8369;{{ number_format($c->total_spent, 0) }}
+                </span>
+            </div>
+            @endforeach
+            @else
+            <div class="empty-sm"><i class="bi bi-people"></i>No customers this month.</div>
+            @endif
+        </div>
+    </div>
+
+</div>
+
+{{-- ══ PRODUCTION PERFORMANCE ══ --}}
+<div class="sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head">
+        <span><i class="bi bi-gear-wide-connected me-1"></i> Production Performance</span>
+        <span style="font-size:.62rem;opacity:.55;text-transform:none;letter-spacing:0">Last 7 Days</span>
+    </div>
+    <div style="padding:.65rem .85rem">
+        <div class="prod-strip">
+            <div class="prod-metric">
+                <span class="prod-metric-val" style="color:var(--accent)">{{ $productionStats['batches_completed'] }}</span>
+                <span class="prod-metric-lbl">Batches</span>
+            </div>
+            <div class="prod-metric">
+                <span class="prod-metric-val" style="color:#16a34a">{{ number_format($productionStats['total_output']) }}</span>
+                <span class="prod-metric-lbl">Total Output</span>
+            </div>
+            <div class="prod-metric">
+                <span class="prod-metric-val" style="color:#dc2626">{{ number_format($productionStats['total_rejected']) }}</span>
+                <span class="prod-metric-lbl">Rejected</span>
+            </div>
+            <div class="prod-metric">
+                <span class="prod-metric-val" style="color:{{ $productionStats['rejection_rate'] > 10 ? '#dc2626' : '#16a34a' }}">
+                    {{ number_format($productionStats['rejection_rate'], 1) }}%
+                </span>
+                <span class="prod-metric-lbl">Reject Rate</span>
+            </div>
+        </div>
+
+        @if($recentBadOrders->count() > 0)
+        <div style="font-size:.68rem;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Products with Bad Orders (Last 7 Days)
+        </div>
+        <div class="sec-scroll">
+            <table class="dt">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>DR Numbers</th>
+                        <th>Batch Numbers</th>
+                        <th class="tc">BO Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($recentBadOrders as $bo)
+                    <tr>
+                        <td style="font-weight:600">{{ $bo['product']->name }}</td>
+                        <td>
+                            @if($bo['dr_numbers']->count() > 0)
+                                @foreach($bo['dr_numbers']->take(3) as $dr)
+                                    <span class="pill pill-blue" style="margin:.05rem">{{ $dr }}</span>
+                                @endforeach
+                                @if($bo['dr_numbers']->count() > 3)
+                                    <span style="font-size:.63rem;color:var(--text-muted)">+{{ $bo['dr_numbers']->count()-3 }}</span>
+                                @endif
+                            @else
+                                <span style="color:var(--text-muted);font-size:.68rem">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($bo['batch_numbers']->count() > 0)
+                                @foreach($bo['batch_numbers']->take(3) as $b)
+                                    <span class="pill pill-purple" style="margin:.05rem">{{ $b }}</span>
+                                @endforeach
+                                @if($bo['batch_numbers']->count() > 3)
+                                    <span style="font-size:.63rem;color:var(--text-muted)">+{{ $bo['batch_numbers']->count()-3 }}</span>
+                                @endif
+                            @else
+                                <span style="color:var(--text-muted);font-size:.68rem">—</span>
+                            @endif
+                        </td>
+                        <td class="tc"><span class="pill pill-red">{{ $bo['total_bo'] }} units</span></td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+</div>
+
+{{-- ══ BRANCH PERFORMANCE ══ --}}
+@if($branchSales->count() > 0)
+<div class="sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head">
+        <span><i class="bi bi-shop me-1"></i> Branch Performance</span>
+        <a href="{{ route('reports.sales') }}">Sales Report →</a>
+    </div>
+    <div class="sec-scroll">
+        <table class="dt">
+            <thead>
+                <tr>
+                    <th>Branch / Area</th>
+                    <th class="tc">DRs</th>
+                    <th class="tr">Total Sales</th>
+                    <th class="tr">Collected</th>
+                    <th class="tr">Balance</th>
+                    <th class="tc">Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($branchSales as $b)
+                @php $rate = $b->total_sales > 0 ? ($b->total_collected / $b->total_sales) * 100 : 0; @endphp
+                <tr>
+                    <td style="font-weight:600">{{ $b->branch->name ?? '—' }}</td>
+                    <td class="tc">{{ $b->sales_count }}</td>
+                    <td class="tr" style="font-weight:600">&#8369;{{ number_format($b->total_sales, 0) }}</td>
+                    <td class="tr" style="color:#16a34a">&#8369;{{ number_format($b->total_collected, 0) }}</td>
+                    <td class="tr" style="color:{{ ($b->total_sales - $b->total_collected) > 0 ? '#dc2626' : 'var(--text-muted)' }}">
+                        &#8369;{{ number_format($b->total_sales - $b->total_collected, 0) }}
+                    </td>
+                    <td class="tc">
+                        <span class="pill {{ $rate >= 80 ? 'pill-green' : ($rate >= 50 ? 'pill-amber' : 'pill-red') }}">
+                            {{ number_format($rate, 1) }}%
+                        </span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td>TOTAL</td>
+                    <td class="tc">{{ $branchSales->sum('sales_count') }}</td>
+                    <td class="tr">&#8369;{{ number_format($branchSales->sum('total_sales'), 0) }}</td>
+                    <td class="tr" style="color:#16a34a">&#8369;{{ number_format($branchSales->sum('total_collected'), 0) }}</td>
+                    <td class="tr" style="color:#dc2626">
+                        &#8369;{{ number_format($branchSales->sum('total_sales') - $branchSales->sum('total_collected'), 0) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+@endif
+
+{{-- ══ RECENT SALES + LOW STOCK ══ --}}
+<div class="kpi-grid-2">
+
+    <div class="sec-card">
+        <div class="sec-head">
+            <span><i class="bi bi-receipt me-1"></i> Recent Sales</span>
+            <a href="{{ route('sales.index') }}">View All →</a>
+        </div>
+        <div class="sec-scroll-body">
+            @if($recentSales->count())
+            @foreach($recentSales as $sale)
+            <div class="dlist-item">
+                <div>
+                    <div style="font-size:.76rem;font-weight:700;color:var(--accent)">DR# {{ $sale->dr_number }}</div>
+                    <div style="font-size:.69rem;color:var(--text-secondary)">{{ $sale->customer_name }}</div>
+                    <div style="font-size:.64rem;color:var(--text-muted)">
+                        {{ $sale->branch->name ?? '—' }} &middot; {{ $sale->sale_date->format('M d') }}
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:.79rem;font-weight:700;color:#16a34a">&#8369;{{ number_format($sale->total_amount, 0) }}</div>
+                    @if($sale->payment_status === 'paid')
+                        <span class="pill pill-green">PAID</span>
+                    @elseif($sale->payment_status === 'partial')
+                        <span class="pill pill-amber">PARTIAL</span>
+                    @else
+                        <span class="pill pill-red">COLLECT</span>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+            @else
+            <div class="empty-sm"><i class="bi bi-receipt"></i>No recent sales.</div>
+            @endif
+        </div>
+    </div>
+
+    <div class="sec-card">
+        <div class="sec-head brown-head">
+            <span><i class="bi bi-exclamation-triangle me-1"></i> Low Stock Alert</span>
+            <a href="{{ route('finished-products.index') }}" style="color:rgba(255,255,255,.6)">Manage →</a>
+        </div>
+        <div class="sec-scroll-body">
+            @if($lowStockFinished->count())
+            @foreach($lowStockFinished as $p)
+            @php $pct = $p->minimum_stock > 0 ? min(100, ($p->stock_on_hand / $p->minimum_stock) * 100) : 0; @endphp
+            <div class="dlist-item">
+                <div>
+                    <div style="font-size:.75rem;font-weight:600">{{ $p->name }}</div>
+                    <div style="font-size:.65rem;color:var(--text-muted)">
+                        Warehouse: {{ $p->stock_on_hand }}
+                        @if($p->stock_out > 0) &nbsp;·&nbsp; Branches: {{ $p->stock_out }} @endif
+                    </div>
+                    <div class="prog-bar" style="width:80px">
+                        <div class="prog-fill {{ $p->stock_on_hand == 0 ? 'red' : 'amber' }}" style="width:{{ $pct }}%"></div>
+                    </div>
+                </div>
+                <span class="pill {{ $p->stock_on_hand == 0 ? 'pill-red' : 'pill-amber' }}">
+                    {{ $p->stock_on_hand }} / {{ $p->minimum_stock }}
+                </span>
+            </div>
+            @endforeach
+            @else
+            <div class="empty-sm ok"><i class="bi bi-check-circle"></i>All products well stocked!</div>
+            @endif
+        </div>
+    </div>
+
+</div>
+
+<script>
+function toggleAlert(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('open');
+}
+</script>
+
 @endsection

@@ -12,7 +12,23 @@
     .dr-table thead th { background:var(--brand-deep); color:rgba(255,255,255,.85); font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:.48rem .75rem; white-space:nowrap; border:none; }
     .dr-table tbody td { padding:.48rem .75rem; border-bottom:1px solid var(--border); vertical-align:middle; }
     .dr-table tbody tr:last-child td { border-bottom:none; }
-    .dr-table tfoot td { padding:.48rem .75rem; background:var(--brand-deep); color:rgba(255,255,255,.88); font-size:.78rem; font-weight:700; }
+    .dr-table tfoot td { padding:.48rem .75rem; font-size:.78rem; vertical-align:middle; }
+    .dr-table tfoot tr.dr-tfoot-sub td {
+        background:#f1f5f9; color:#334155; font-weight:600;
+        border-top:1px solid #e2e8f0;
+    }
+    .dr-table tfoot tr.dr-tfoot-sub td:first-child { color:#64748b; font-weight:500; font-size:.74rem; }
+    .dr-table tfoot tr.dr-tfoot-less td {
+        background:#fff; color:#334155; font-weight:500;
+        border-top:1px solid #e2e8f0;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+    }
+    .dr-table tfoot tr.dr-tfoot-less td.dr-tfoot-less-label { color:#64748b; font-size:.72rem; }
+    .dr-table tfoot tr.dr-tfoot-total td {
+        background:#e8edf3; color:#334155; font-weight:700;
+        border-top:1px solid #cbd5e1;
+    }
+    .dr-table tfoot tr.dr-tfoot-total td.dr-tfoot-total-amt { color:var(--accent); font-size:.9rem; }
     .qty-input { width:70px; padding:.22rem .4rem; font-size:.80rem; border:1px solid var(--border); border-radius:4px; text-align:center; background:var(--bg-card); color:var(--text-primary); }
     .qty-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,91,219,.1); }
     .btn-all-sold { font-size:.66rem; padding:.16rem .42rem; border-radius:4px; border:1px solid var(--s-success-text); color:var(--s-success-text); background:transparent; cursor:pointer; white-space:nowrap; }
@@ -69,22 +85,32 @@
         display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem;
     }
     .less-amt-inline { display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto; }
+    .less-currency { color: #64748b; font-size: .68rem; font-weight: 600; }
     .less-inline-input {
         width: 5.25rem; max-width: 100%; text-align: right; font-size: .76rem; font-weight: 700;
-        padding: .2rem .4rem; border-radius: 3px; border: 1px solid rgba(255,255,255,.4);
-        background: rgba(0,0,0,.25); color: #fff;
+        padding: .2rem .4rem; border-radius: 4px; border: 1px solid var(--border);
+        background: var(--bg-card); color: var(--s-danger-text);
     }
-    .less-inline-input:focus { outline: none; border-color: #fca5a5; box-shadow: 0 0 0 2px rgba(252,165,165,.25); }
-    .less-inline-input::placeholder { color: rgba(255,255,255,.45); }
+    .less-inline-input:focus { outline: none; border-color: var(--s-danger-text); box-shadow: 0 0 0 2px rgba(220,38,38,.12); }
+    .less-inline-input::placeholder { color: var(--text-muted); }
     .less-inline-textarea {
         flex: 1 1 10rem; min-width: 0; min-height: 28px; max-height: 64px; font-size: .68rem; resize: vertical;
-        line-height: 1.25; padding: .22rem .4rem; border-radius: 3px; border: 1px solid rgba(255,255,255,.35);
-        background: rgba(0,0,0,.2); color: #fff;
+        line-height: 1.25; padding: .22rem .4rem; border-radius: 4px; border: 1px solid var(--border);
+        background: var(--bg-card); color: var(--text-primary);
     }
-    .less-inline-textarea::placeholder { color: rgba(255,255,255,.38); }
-    .less-inline-textarea:focus { outline: none; border-color: rgba(255,255,255,.55); }
+    .less-inline-textarea::placeholder { color: var(--text-muted); }
+    .less-inline-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,91,219,.1); }
     .reason-chips-inline { display: flex; flex-wrap: wrap; gap: .2rem .28rem; align-items: center; }
     .reason-chips-inline .reason-chip { font-size: .58rem; padding: .06rem .32rem; border-width: 1px; }
+    /* Keep inputs readable on the light footer band even in dark UI themes */
+    .dr-table tfoot tr.dr-tfoot-less .less-inline-input {
+        background: #fafafa; border-color: #cbd5e1; color: #b91c1c;
+    }
+    .dr-table tfoot tr.dr-tfoot-less .less-inline-textarea {
+        background: #fafafa; border-color: #cbd5e1; color: #1e293b;
+    }
+    .dr-table tfoot tr.dr-tfoot-less .less-inline-textarea::placeholder { color: #94a3b8; }
+    .dr-table tfoot tr.dr-tfoot-less .less-inline-input::placeholder { color: #94a3b8; }
 
     .history-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1rem; overflow:hidden; }
     .history-card > summary { padding:.55rem 1rem; font-size:.74rem; font-weight:700; color:var(--text-primary); cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:.5rem; background:var(--bg-page); border-bottom:1px solid var(--border); }
@@ -248,19 +274,19 @@
             @endforeach
             </tbody>
             <tfoot>
-                <tr style="background:var(--brand-deep);opacity:.7">
-                    <td colspan="6" class="text-end" style="color:rgba(255,255,255,.7);font-size:.74rem;font-weight:500">Subtotal (Sold × Price)</td>
-                    <td class="text-end" id="subtotalRow" style="color:rgba(255,255,255,.85);font-size:.78rem;font-weight:600">&#8369;{{ number_format($sale->total_amount, 2) }}</td>
+                <tr class="dr-tfoot-sub">
+                    <td colspan="6" class="text-end">Subtotal (Sold × Price)</td>
+                    <td class="text-end" id="subtotalRow">&#8369;{{ number_format($sale->total_amount, 2) }}</td>
                     <td></td>
                 </tr>
-                <tr style="background:#1e293b">
-                    <td colspan="5" class="text-end less-compact-cell" style="color:rgba(255,255,255,.75);font-size:.72rem;font-weight:500;line-height:1.2">Less / Deduction</td>
+                <tr class="dr-tfoot-less">
+                    <td colspan="5" class="text-end less-compact-cell dr-tfoot-less-label">Less / Deduction</td>
                     <td colspan="3" class="less-compact-cell">
                         <div class="less-compact-inner">
                             <div class="less-compact-top">
                                 <div class="less-amt-inline">
                                     <label class="visually-hidden" for="lessAmount">Less amount pesos</label>
-                                    <span style="color:rgba(255,255,255,.5);font-size:.68rem">&#8369;</span>
+                                    <span class="less-currency" aria-hidden="true">&#8369;</span>
                                     <input type="number"
                                            name="less_amount"
                                            id="lessAmount"
@@ -290,9 +316,9 @@
                         </div>
                     </td>
                 </tr>
-                <tr style="background:var(--brand-deep)">
-                    <td colspan="6" class="text-end" style="color:rgba(255,255,255,.88)">Total Collectible</td>
-                    <td class="text-end" id="grandTotal" style="color:#fff;font-size:.9rem">&#8369;{{ number_format(max(0, $sale->total_amount - ($sale->less_amount ?? 0)), 2) }}</td>
+                <tr class="dr-tfoot-total">
+                    <td colspan="6" class="text-end">Total Collectible</td>
+                    <td class="text-end dr-tfoot-total-amt" id="grandTotal">&#8369;{{ number_format(max(0, $sale->total_amount - ($sale->less_amount ?? 0)), 2) }}</td>
                     <td></td>
                 </tr>
             </tfoot>

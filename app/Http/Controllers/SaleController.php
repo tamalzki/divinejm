@@ -29,7 +29,7 @@ class SaleController extends Controller
                 if ($search) {
                     $q->where(function ($sq) use ($search) {
                         $sq->where('customer_name', 'like', "%{$search}%")
-                           ->orWhere('dr_number', 'like', "%{$search}%");
+                            ->orWhere('dr_number', 'like', "%{$search}%");
                     });
                 }
             }])
@@ -48,7 +48,7 @@ class SaleController extends Controller
                     $totalBalance = $sales->sum('balance');
 
                     $uncollectedCount = $sales->whereIn('payment_status', ['to_be_collected', 'partial'])->count();
-                    $paidCount         = $sales->where('payment_status', 'paid')->count();
+                    $paidCount = $sales->where('payment_status', 'paid')->count();
 
                     if ($uncollectedCount > 0 && $paidCount === 0) {
                         $overallStatus = 'to_be_collected';
@@ -59,22 +59,22 @@ class SaleController extends Controller
                     }
 
                     return [
-                        'customer_name'   => $customerName,
-                        'branch_id'       => $branch->id,
-                        'dr_count'        => $sales->count(),
-                        'total_deployed'  => $totalDeployed,
-                        'total_sold'      => $totalSold,
-                        'total_balance'   => $totalBalance,
+                        'customer_name' => $customerName,
+                        'branch_id' => $branch->id,
+                        'dr_count' => $sales->count(),
+                        'total_deployed' => $totalDeployed,
+                        'total_sold' => $totalSold,
+                        'total_balance' => $totalBalance,
                         'has_uncollected' => $uncollectedCount > 0,
-                        'overall_status'  => $overallStatus,
+                        'overall_status' => $overallStatus,
                     ];
                 })->values();
 
             return [
-                'branch'    => $branch,
+                'branch' => $branch,
                 'customers' => $customers,
             ];
-        })->filter(fn($a) => $a['customers']->count() > 0)->values();
+        })->filter(fn ($a) => $a['customers']->count() > 0)->values();
 
         return view('sales.index', compact('areaData', 'search'));
     }
@@ -93,8 +93,6 @@ class SaleController extends Controller
             ->orderBy('dr_number', 'desc')
             ->get();
 
-        abort_if($sales->isEmpty(), 404);
-
         return view('sales.show', compact('sales', 'branch', 'customerName'));
     }
 
@@ -105,28 +103,28 @@ class SaleController extends Controller
     {
         $validated = $request->validate([
             'quantity_sold' => 'required|numeric|min:0',
-            'quantity_bo'   => 'nullable|numeric|min:0',
+            'quantity_bo' => 'nullable|numeric|min:0',
         ]);
 
         $deployed = $saleItem->quantity_deployed;
-        $sold     = min($validated['quantity_sold'], $deployed);
-        $bo       = min($validated['quantity_bo'] ?? $saleItem->quantity_bo, $deployed);
-        $unsold   = max(0, $deployed - $sold - $bo);
+        $sold = min($validated['quantity_sold'], $deployed);
+        $bo = min($validated['quantity_bo'] ?? $saleItem->quantity_bo, $deployed);
+        $unsold = max(0, $deployed - $sold - $bo);
 
-        $saleItem->quantity_sold   = $sold;
-        $saleItem->quantity_bo     = $bo;
+        $saleItem->quantity_sold = $sold;
+        $saleItem->quantity_bo = $bo;
         $saleItem->quantity_unsold = $unsold;
         $saleItem->save();
 
         $sale = $saleItem->sale->fresh();
 
         return response()->json([
-            'quantity_sold'   => $saleItem->quantity_sold,
+            'quantity_sold' => $saleItem->quantity_sold,
             'quantity_unsold' => $saleItem->quantity_unsold,
-            'quantity_bo'     => $saleItem->quantity_bo,
-            'subtotal'        => $saleItem->subtotal,
-            'sale_total'      => $sale->total_amount,
-            'sale_balance'    => $sale->balance,
+            'quantity_bo' => $saleItem->quantity_bo,
+            'subtotal' => $saleItem->subtotal,
+            'sale_total' => $sale->total_amount,
+            'sale_balance' => $sale->balance,
         ]);
     }
 
@@ -135,17 +133,17 @@ class SaleController extends Controller
     // ──────────────────────────────────────────────────────────────────
     public function soldOutItem(Request $request, SaleItem $saleItem)
     {
-        $saleItem->quantity_sold   = $saleItem->quantity_deployed;
+        $saleItem->quantity_sold = $saleItem->quantity_deployed;
         $saleItem->quantity_unsold = 0;
         $saleItem->save();
 
         if ($request->expectsJson()) {
             return response()->json([
-                'quantity_sold'   => $saleItem->quantity_sold,
+                'quantity_sold' => $saleItem->quantity_sold,
                 'quantity_unsold' => 0,
-                'subtotal'        => $saleItem->subtotal,
-                'sale_total'      => $saleItem->sale->total_amount,
-                'sale_balance'    => $saleItem->sale->balance,
+                'subtotal' => $saleItem->subtotal,
+                'sale_total' => $saleItem->sale->total_amount,
+                'sale_balance' => $saleItem->sale->balance,
             ]);
         }
 
@@ -161,16 +159,16 @@ class SaleController extends Controller
 
         DB::transaction(function () use ($sale, &$itemData) {
             foreach ($sale->items as $item) {
-                $item->quantity_sold   = $item->quantity_deployed;
-                $item->quantity_bo     = 0;
+                $item->quantity_sold = $item->quantity_deployed;
+                $item->quantity_bo = 0;
                 $item->quantity_unsold = 0;
                 $item->save();
                 $itemData[] = [
-                    'id'              => $item->id,
-                    'quantity_sold'   => $item->quantity_sold,
+                    'id' => $item->id,
+                    'quantity_sold' => $item->quantity_sold,
                     'quantity_unsold' => 0,
-                    'quantity_bo'     => 0,
-                    'subtotal'        => $item->subtotal,
+                    'quantity_bo' => 0,
+                    'subtotal' => $item->subtotal,
                 ];
             }
         });
@@ -178,9 +176,9 @@ class SaleController extends Controller
         $sale->refresh();
 
         return response()->json([
-            'sale_total'   => $sale->total_amount,
+            'sale_total' => $sale->total_amount,
             'sale_balance' => $sale->balance,
-            'items'        => $itemData,
+            'items' => $itemData,
         ]);
     }
 
@@ -190,6 +188,7 @@ class SaleController extends Controller
     public function paymentPage(Sale $sale)
     {
         $sale->load(['items.finishedProduct', 'branch', 'user']);
+
         return view('sales.payment', compact('sale'));
     }
 
@@ -199,24 +198,24 @@ class SaleController extends Controller
     public function updatePayment(Request $request, Sale $sale)
     {
         $validated = $request->validate([
-            'amount_paid'             => 'required|numeric|min:0',
-            'payment_mode'            => 'required|in:cash,gcash,cheque,bank_transfer,other',
-            'payment_reference'       => 'nullable|string|max:255',
-            'payment_date'            => 'required|date',
+            'amount_paid' => 'required|numeric|min:0',
+            'payment_mode' => 'required|in:cash,gcash,cheque,bank_transfer,other',
+            'payment_reference' => 'nullable|string|max:255',
+            'payment_date' => 'required|date',
             'payment_status_override' => 'nullable|in:paid,partial,to_be_collected',
-            'notes'                   => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
 
         $data = [
-            'amount_paid'       => $validated['amount_paid'],
-            'payment_mode'      => $validated['payment_mode'],
+            'amount_paid' => $validated['amount_paid'],
+            'payment_mode' => $validated['payment_mode'],
             'payment_reference' => $validated['payment_reference'] ?? null,
-            'payment_date'      => $validated['payment_date'],
-            'notes'             => $validated['notes'] ?? $sale->notes,
+            'payment_date' => $validated['payment_date'],
+            'notes' => $validated['notes'] ?? $sale->notes,
         ];
 
         // Allow manual override of payment status
-        if (!empty($validated['payment_status_override'])) {
+        if (! empty($validated['payment_status_override'])) {
             $data['payment_status'] = $validated['payment_status_override'];
             // Bypass the auto-calculation in booted() by setting amount_paid to match
             if ($validated['payment_status_override'] === 'paid') {
@@ -227,8 +226,9 @@ class SaleController extends Controller
         $sale->update($data);
 
         return redirect()->route('sales.paymentPage', $sale)
-            ->with('success', 'Payment saved for DR# ' . $sale->dr_number);
+            ->with('success', 'Payment saved for DR# '.$sale->dr_number);
     }
+
     // ──────────────────────────────────────────────────────────────────
     // DR DETAIL — single DR edit page (qty sold + payment)
     // ──────────────────────────────────────────────────────────────────
@@ -251,33 +251,33 @@ class SaleController extends Controller
         $isCollecting = in_array($status, ['paid', 'partial']);
 
         $validated = $request->validate([
-            'items'                        => 'required|array',
-            'items.*.id'                   => 'required|exists:sale_items,id',
-            'items.*.quantity_sold'        => 'required|numeric|min:0',
-            'items.*.quantity_bo'          => 'nullable|numeric|min:0',
-            'amount_paid'                  => ($isCollecting ? 'required' : 'nullable') . '|numeric|min:0',
-            'payment_mode'                 => $isCollecting ? 'required|in:cash,gcash,cheque,bank_transfer,other' : 'nullable|in:cash,gcash,cheque,bank_transfer,other',
-            'payment_reference'            => 'nullable|string|max:255',
-            'payment_date'                 => $isCollecting ? 'required|date' : 'nullable|date',
-            'payment_status_override'      => 'nullable|in:paid,partial,to_be_collected',
-            'less_amount'                  => 'nullable|numeric|min:0',
-            'less_notes'                   => 'nullable|string|max:500',
-            'notes'                        => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:sale_items,id',
+            'items.*.quantity_sold' => 'required|numeric|min:0',
+            'items.*.quantity_bo' => 'nullable|numeric|min:0',
+            'amount_paid' => ($isCollecting ? 'required' : 'nullable').'|numeric|min:0',
+            'payment_mode' => $isCollecting ? 'required|in:cash,gcash,cheque,bank_transfer,other' : 'nullable|in:cash,gcash,cheque,bank_transfer,other',
+            'payment_reference' => 'nullable|string|max:255',
+            'payment_date' => $isCollecting ? 'required|date' : 'nullable|date',
+            'payment_status_override' => 'nullable|in:paid,partial,to_be_collected',
+            'less_amount' => 'nullable|numeric|min:0',
+            'less_notes' => 'nullable|string|max:500',
+            'notes' => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated, $sale, $status, $isCollecting) {
+        DB::transaction(function () use ($validated, $sale, $status) {
             foreach ($validated['items'] as $itemData) {
                 // Scope to this sale to prevent cross-sale item manipulation (IDOR)
-                $item     = $sale->items()->findOrFail($itemData['id']);
+                $item = $sale->items()->findOrFail($itemData['id']);
                 $deployed = $item->quantity_deployed;
-                $sold     = min($itemData['quantity_sold'], $deployed);
-                $bo       = min($itemData['quantity_bo'] ?? 0, $deployed);
-                $unsold   = max(0, $deployed - $sold - $bo);
+                $sold = min($itemData['quantity_sold'], $deployed);
+                $bo = min($itemData['quantity_bo'] ?? 0, $deployed);
+                $unsold = max(0, $deployed - $sold - $bo);
 
-                $item->quantity_sold   = $sold;
-                $item->quantity_bo     = $bo;
+                $item->quantity_sold = $sold;
+                $item->quantity_bo = $bo;
                 $item->quantity_unsold = $unsold;
-                $item->subtotal        = $sold * $item->unit_price;
+                $item->subtotal = $sold * $item->unit_price;
                 $item->save();
             }
 
@@ -285,33 +285,33 @@ class SaleController extends Controller
 
             $lessAmount = max(0, (float) ($validated['less_amount'] ?? 0));
             $sale->less_amount = $lessAmount;
-            $sale->less_notes  = $validated['less_notes'] ?? null;
+            $sale->less_notes = $validated['less_notes'] ?? null;
 
             if ($status === 'to_be_collected') {
                 $sale->payment_status = 'to_be_collected';
-                $sale->amount_paid    = 0;
-                $sale->balance        = max(0, $sale->total_amount - $lessAmount);
+                $sale->amount_paid = 0;
+                $sale->balance = max(0, $sale->total_amount - $lessAmount);
                 $sale->saveQuietly();
             } elseif ($status === 'paid') {
-                $sale->payment_status    = 'paid';
-                $sale->amount_paid       = max(0, $sale->total_amount - $lessAmount);
-                $sale->balance           = 0;
-                $sale->payment_mode      = $validated['payment_mode'] ?? $sale->payment_mode;
+                $sale->payment_status = 'paid';
+                $sale->amount_paid = max(0, $sale->total_amount - $lessAmount);
+                $sale->balance = 0;
+                $sale->payment_mode = $validated['payment_mode'] ?? $sale->payment_mode;
                 $sale->payment_reference = $validated['payment_reference'] ?? $sale->payment_reference;
-                $sale->payment_date      = $validated['payment_date'] ?? $sale->payment_date;
-                $sale->notes             = $validated['notes'] ?? $sale->notes;
+                $sale->payment_date = $validated['payment_date'] ?? $sale->payment_date;
+                $sale->notes = $validated['notes'] ?? $sale->notes;
                 $sale->saveQuietly();
             } else {
                 // partial — but auto-upgrade to paid if amount_paid covers total
                 $amountPaid = $validated['amount_paid'] ?? 0;
-                $balance    = max(0, $sale->total_amount - $lessAmount) - $amountPaid;
-                $sale->amount_paid       = $amountPaid;
-                $sale->balance           = max(0, $balance);
-                $sale->payment_status    = $balance <= 0 ? 'paid' : 'partial';
-                $sale->payment_mode      = $validated['payment_mode'] ?? $sale->payment_mode;
+                $balance = max(0, $sale->total_amount - $lessAmount) - $amountPaid;
+                $sale->amount_paid = $amountPaid;
+                $sale->balance = max(0, $balance);
+                $sale->payment_status = $balance <= 0 ? 'paid' : 'partial';
+                $sale->payment_mode = $validated['payment_mode'] ?? $sale->payment_mode;
                 $sale->payment_reference = $validated['payment_reference'] ?? $sale->payment_reference;
-                $sale->payment_date      = $validated['payment_date'] ?? $sale->payment_date;
-                $sale->notes             = $validated['notes'] ?? $sale->notes;
+                $sale->payment_date = $validated['payment_date'] ?? $sale->payment_date;
+                $sale->notes = $validated['notes'] ?? $sale->notes;
                 $sale->saveQuietly();
             }
         });
@@ -320,25 +320,25 @@ class SaleController extends Controller
             $sale->refresh();
             $sale->load(['items.finishedProduct']);
             $lines = $sale->items->map(fn ($i) => [
-                'product'     => $i->finishedProduct->name ?? '—',
-                'deployed'    => (float) $i->quantity_deployed,
-                'sold'        => (float) $i->quantity_sold,
-                'unsold'      => (float) $i->quantity_unsold,
-                'bo'          => (float) $i->quantity_bo,
+                'product' => $i->finishedProduct->name ?? '—',
+                'deployed' => (float) $i->quantity_deployed,
+                'sold' => (float) $i->quantity_sold,
+                'unsold' => (float) $i->quantity_unsold,
+                'bo' => (float) $i->quantity_bo,
                 'collectible' => (float) $i->subtotal,
             ])->values()->all();
 
             SaleRecordHistory::create([
-                'sale_id'                 => $sale->id,
-                'user_id'                 => Auth::id(),
-                'lines'                   => $lines,
-                'total_amount'            => $sale->total_amount,
+                'sale_id' => $sale->id,
+                'user_id' => Auth::id(),
+                'lines' => $lines,
+                'total_amount' => $sale->total_amount,
                 'payment_status_snapshot' => $sale->payment_status,
             ]);
         }
 
         return redirect()->route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)])
-            ->with('success', 'DR# ' . $sale->dr_number . ' has been updated.');
+            ->with('success', 'DR# '.$sale->dr_number.' has been updated.');
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -353,24 +353,16 @@ class SaleController extends Controller
 
         $sale->load('items');
 
-        if ((float) $sale->amount_paid > 0.0001) {
-            return $redirect()->with('error', 'Cannot delete this DR because a payment has been recorded. Adjust or reverse payments first.');
-        }
-
-        if ((float) ($sale->less_amount ?? 0) > 0.0001) {
-            return $redirect()->with('error', 'Cannot delete this DR while a less/deduction is set. Clear it on Record Sales first.');
-        }
-
         foreach ($sale->items as $item) {
             if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
                 return $redirect()->with('error', 'Cannot delete this DR while products show sold or BO quantities. Those records must stay for inventory integrity.');
             }
         }
 
-        $branchId     = $sale->branch_id;
-        $customerEnc  = rawurlencode($sale->customer_name);
-        $saleId       = $sale->id;
-        $drNumber     = $sale->dr_number;
+        $branchId = $sale->branch_id;
+        $customerEnc = rawurlencode($sale->customer_name);
+        $saleId = $sale->id;
+        $drNumber = $sale->dr_number;
         $customerName = $sale->customer_name;
 
         try {
@@ -378,10 +370,6 @@ class SaleController extends Controller
 
             $sale = Sale::whereKey($saleId)->lockForUpdate()->firstOrFail();
             $sale->load('items');
-
-            if ((float) $sale->amount_paid > 0.0001 || (float) ($sale->less_amount ?? 0) > 0.0001) {
-                throw new \RuntimeException('DR changed while deleting. Refresh and try again.');
-            }
 
             foreach ($sale->items as $item) {
                 if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
@@ -394,7 +382,7 @@ class SaleController extends Controller
                 ->where('reference_number', $drNumber)
                 ->where('branch_id', $branchId)
                 ->whereIn('movement_type', ['transfer_out', 'extra_free'])
-                ->where('notes', 'like', '%Customer: ' . $escaped . '%')
+                ->where('notes', 'like', '%Customer: '.$escaped.'%')
                 ->lockForUpdate()
                 ->orderBy('id')
                 ->get();
@@ -423,19 +411,33 @@ class SaleController extends Controller
                 StockMovement::whereIn('id', $movements->pluck('id'))->delete();
             }
 
+            $clearedPayment = (float) $sale->amount_paid;
+
             $sale->delete();
 
             DB::commit();
 
             Log::info('Sale DR deleted', [
-                'sale_id'   => $saleId,
+                'sale_id' => $saleId,
                 'dr_number' => $drNumber,
                 'branch_id' => $branchId,
-                'user_id'   => Auth::id(),
+                'user_id' => Auth::id(),
+                'amount_paid_cleared' => $clearedPayment,
             ]);
 
-            return redirect()->route('sales.show', [$branchId, $customerEnc])
-                ->with('success', 'DR# ' . $drNumber . ' was removed. Warehouse and area stock were restored where delivery records matched.');
+            $msg = 'DR# '.$drNumber.' was removed. Warehouse and area stock were restored where delivery records matched.';
+            if ($clearedPayment > 0.0001) {
+                $msg .= ' Recorded payment of ₱'.number_format($clearedPayment, 2).' on this DR was cleared (the DR no longer exists in the system).';
+            }
+            $stillHas = Sale::where('branch_id', $branchId)
+                ->where('customer_name', $customerName)
+                ->exists();
+
+            if ($stillHas) {
+                return redirect()->route('sales.show', [$branchId, $customerEnc])->with('success', $msg);
+            }
+
+            return redirect()->route('sales.index')->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Sale destroy failed', ['sale_id' => $saleId, 'message' => $e->getMessage()]);
@@ -469,8 +471,8 @@ class SaleController extends Controller
             ->groupBy('sales.dr_number')
             ->orderBy('sales.dr_number', 'desc')
             ->get()
-            ->map(fn($row) => [
-                'dr_number'     => $row->dr_number,
+            ->map(fn ($row) => [
+                'dr_number' => $row->dr_number,
                 'product_count' => (int) $row->product_count,
             ]);
 
@@ -489,10 +491,10 @@ class SaleController extends Controller
             ->with(['items.finishedProduct'])
             ->first();
 
-        if (!$sale) {
+        if (! $sale) {
             return response()->json([
-                'products'             => [],
-                'has_previous_sales'   => false,
+                'products' => [],
+                'has_previous_sales' => false,
                 'previous_sales_count' => 0,
             ]);
         }
@@ -510,19 +512,19 @@ class SaleController extends Controller
 
             return [
                 'finished_product_id' => $item->finished_product_id,
-                'product_name'        => optional($item->finishedProduct)->name ?? 'Unknown',
-                'sku'                 => optional($item->finishedProduct)->sku,
-                'batch_number'        => $item->batch_number,
-                'deployed_qty'        => (float) $item->quantity_deployed,
-                'already_sold'        => (float) $item->quantity_sold,
-                'remaining_qty'       => $remainingQty,
-                'selling_price'       => (float) $item->unit_price,
+                'product_name' => optional($item->finishedProduct)->name ?? 'Unknown',
+                'sku' => optional($item->finishedProduct)->sku,
+                'batch_number' => $item->batch_number,
+                'deployed_qty' => (float) $item->quantity_deployed,
+                'already_sold' => (float) $item->quantity_sold,
+                'remaining_qty' => $remainingQty,
+                'selling_price' => (float) $item->unit_price,
             ];
         });
 
         return response()->json([
-            'products'             => $products,
-            'has_previous_sales'   => $previousSalesCount > 0,
+            'products' => $products,
+            'has_previous_sales' => $previousSalesCount > 0,
             'previous_sales_count' => $previousSalesCount,
         ]);
     }
@@ -538,11 +540,11 @@ class SaleController extends Controller
             ->where('customer_name', $customerName)
             ->with('items.finishedProduct')
             ->get()
-            ->flatMap(fn($sale) => $sale->items)
-            ->map(fn($item) => [
+            ->flatMap(fn ($sale) => $sale->items)
+            ->map(fn ($item) => [
                 'finished_product_id' => $item->finished_product_id,
-                'product_name'        => optional($item->finishedProduct)->name ?? 'Unknown',
-                'sku'                 => optional($item->finishedProduct)->sku,
+                'product_name' => optional($item->finishedProduct)->name ?? 'Unknown',
+                'sku' => optional($item->finishedProduct)->sku,
             ])
             ->unique('finished_product_id')
             ->values();
@@ -556,7 +558,7 @@ class SaleController extends Controller
     public function checkDrNumber(Branch $branch, string $customerName, string $drNumber)
     {
         $customerName = rawurldecode($customerName);
-        $drNumber     = rawurldecode($drNumber);
+        $drNumber = rawurldecode($drNumber);
 
         $salesCount = Sale::where('branch_id', $branch->id)
             ->where('customer_name', $customerName)
@@ -564,7 +566,7 @@ class SaleController extends Controller
             ->count();
 
         return response()->json([
-            'exists'      => $salesCount > 0,
+            'exists' => $salesCount > 0,
             'sales_count' => $salesCount,
         ]);
     }

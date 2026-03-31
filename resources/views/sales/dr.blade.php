@@ -63,22 +63,28 @@
     .reason-chip.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
     .col-subtext { font-size:.58rem; font-weight:400; opacity:.72; text-transform:none; letter-spacing:0; display:block; margin-top:.1rem; }
 
+    .less-compact-cell { padding: .32rem .75rem !important; vertical-align: middle; }
+    .less-compact-inner { display: flex; flex-direction: column; gap: .22rem; align-items: stretch; max-width: 100%; }
+    .less-compact-top {
+        display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem;
+    }
+    .less-amt-inline { display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto; }
     .less-inline-input {
-        width: 7.5rem; max-width: 100%; text-align: right; font-size: .82rem; font-weight: 700;
-        padding: .3rem .5rem; border-radius: 4px; border: 1px solid rgba(255,255,255,.4);
+        width: 5.25rem; max-width: 100%; text-align: right; font-size: .76rem; font-weight: 700;
+        padding: .2rem .4rem; border-radius: 3px; border: 1px solid rgba(255,255,255,.4);
         background: rgba(0,0,0,.25); color: #fff;
     }
     .less-inline-input:focus { outline: none; border-color: #fca5a5; box-shadow: 0 0 0 2px rgba(252,165,165,.25); }
     .less-inline-input::placeholder { color: rgba(255,255,255,.45); }
     .less-inline-textarea {
-        width: 100%; min-height: 44px; max-height: 88px; font-size: .74rem; resize: vertical;
-        padding: .35rem .5rem; border-radius: 4px; border: 1px solid rgba(255,255,255,.35);
+        flex: 1 1 10rem; min-width: 0; min-height: 28px; max-height: 64px; font-size: .68rem; resize: vertical;
+        line-height: 1.25; padding: .22rem .4rem; border-radius: 3px; border: 1px solid rgba(255,255,255,.35);
         background: rgba(0,0,0,.2); color: #fff;
     }
-    .less-inline-textarea::placeholder { color: rgba(255,255,255,.4); }
+    .less-inline-textarea::placeholder { color: rgba(255,255,255,.38); }
     .less-inline-textarea:focus { outline: none; border-color: rgba(255,255,255,.55); }
-    .reason-chips-inline { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
-    .reason-chips-inline .reason-chip { font-size: .62rem; padding: .12rem .4rem; }
+    .reason-chips-inline { display: flex; flex-wrap: wrap; gap: .2rem .28rem; align-items: center; }
+    .reason-chips-inline .reason-chip { font-size: .58rem; padding: .06rem .32rem; border-width: 1px; }
 
     .history-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1rem; overflow:hidden; }
     .history-card > summary { padding:.55rem 1rem; font-size:.74rem; font-weight:700; color:var(--text-primary); cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:.5rem; background:var(--bg-page); border-bottom:1px solid var(--border); }
@@ -131,7 +137,7 @@
         </div>
     </div>
     <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0"
-          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR from sales\n• Restores warehouse stock and area inventory (undoes the delivery), when records match\n• Blocked if anything was sold, BO, paid, or has a less/deduction\n\nContinue?');">
+          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR from sales\n• Clears payment / less-deduction stored on this DR\n• Restores warehouse stock and area inventory when records match\n• Blocked if any line has sold or BO quantities\n\nContinue?');">
         @csrf
         @method('DELETE')
         <button type="submit" class="btn-del-dr-h"><i class="bi bi-trash"></i> Delete DR</button>
@@ -248,38 +254,39 @@
                     <td></td>
                 </tr>
                 <tr style="background:#1e293b">
-                    <td colspan="5" class="text-end" style="color:rgba(255,255,255,.75);font-size:.74rem;font-weight:500;vertical-align:middle">Less / Deduction</td>
-                    <td colspan="3" class="text-end" style="padding:.45rem .75rem;vertical-align:middle">
-                        <label class="visually-hidden" for="lessAmount">Less amount pesos</label>
-                        <span style="color:rgba(255,255,255,.55);font-size:.72rem;margin-right:.25rem">&#8369;</span>
-                        <input type="number"
-                               name="less_amount"
-                               id="lessAmount"
-                               class="less-inline-input"
-                               step="0.01"
-                               min="0"
-                               placeholder="0.00"
-                               inputmode="decimal"
-                               value="{{ old('less_amount', ($sale->less_amount ?? 0) > 0 ? number_format((float) $sale->less_amount, 2, '.', '') : '') }}"
-                               oninput="recalcGrandTotal()">
-                    </td>
-                </tr>
-                <tr style="background:#1e293b">
-                    <td colspan="5" class="text-end" style="color:rgba(255,255,255,.75);font-size:.74rem;font-weight:500;vertical-align:top;padding-top:.55rem">Reason</td>
-                    <td colspan="3" style="padding:.35rem .75rem .5rem">
-                        <label class="visually-hidden" for="lessNotesInput">Less reason</label>
-                        <textarea name="less_notes"
-                                  id="lessNotesInput"
-                                  class="less-inline-textarea"
-                                  rows="2"
-                                  placeholder="Optional — e.g. bad order, promo deduction">{{ old('less_notes', $sale->less_notes ?? '') }}</textarea>
-                        <div class="reason-chips-inline">
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Bad Order')">Bad Order</span>
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Returned - Unsold')">Returned - Unsold</span>
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Damaged in Transit')">Damaged in Transit</span>
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Promo Deduction')">Promo Deduction</span>
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Shortage')">Shortage</span>
-                            <span class="reason-chip" onclick="appendLessReason(this, 'Expired')">Expired</span>
+                    <td colspan="5" class="text-end less-compact-cell" style="color:rgba(255,255,255,.75);font-size:.72rem;font-weight:500;line-height:1.2">Less / Deduction</td>
+                    <td colspan="3" class="less-compact-cell">
+                        <div class="less-compact-inner">
+                            <div class="less-compact-top">
+                                <div class="less-amt-inline">
+                                    <label class="visually-hidden" for="lessAmount">Less amount pesos</label>
+                                    <span style="color:rgba(255,255,255,.5);font-size:.68rem">&#8369;</span>
+                                    <input type="number"
+                                           name="less_amount"
+                                           id="lessAmount"
+                                           class="less-inline-input"
+                                           step="0.01"
+                                           min="0"
+                                           placeholder="0.00"
+                                           inputmode="decimal"
+                                           value="{{ old('less_amount', ($sale->less_amount ?? 0) > 0 ? number_format((float) $sale->less_amount, 2, '.', '') : '') }}"
+                                           oninput="recalcGrandTotal()">
+                                </div>
+                                <label class="visually-hidden" for="lessNotesInput">Less reason</label>
+                                <textarea name="less_notes"
+                                          id="lessNotesInput"
+                                          class="less-inline-textarea"
+                                          rows="1"
+                                          placeholder="Reason (optional)">{{ old('less_notes', $sale->less_notes ?? '') }}</textarea>
+                            </div>
+                            <div class="reason-chips-inline" aria-label="Quick reason">
+                                <span class="reason-chip" onclick="appendLessReason(this, 'Bad Order')">Bad Order</span>
+                                <span class="reason-chip" title="Returned - Unsold" onclick="appendLessReason(this, 'Returned - Unsold')">Returned</span>
+                                <span class="reason-chip" title="Damaged in Transit" onclick="appendLessReason(this, 'Damaged in Transit')">Damaged</span>
+                                <span class="reason-chip" title="Promo Deduction" onclick="appendLessReason(this, 'Promo Deduction')">Promo</span>
+                                <span class="reason-chip" onclick="appendLessReason(this, 'Shortage')">Shortage</span>
+                                <span class="reason-chip" onclick="appendLessReason(this, 'Expired')">Expired</span>
+                            </div>
                         </div>
                     </td>
                 </tr>

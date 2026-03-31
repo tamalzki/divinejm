@@ -56,6 +56,7 @@ Route::middleware(['auth'])->group(function () {
     // DR detail page (must be before {sale} and {branch} wildcards)
     Route::get   ('/sales/dr/{sale}',        [SaleController::class, 'drDetail'])->name('sales.dr');
     Route::patch ('/sales/dr/{sale}/update', [SaleController::class, 'drUpdate'])->name('sales.drUpdate');
+    Route::delete('/sales/dr/{sale}',       [SaleController::class, 'destroy'])->name('sales.destroy');
 
     // Sale-level routes
     Route::patch('/sales/{sale}/sold-out', [SaleController::class, 'soldOutSale'])->name('sales.soldOut');

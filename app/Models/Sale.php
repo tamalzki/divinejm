@@ -66,6 +66,11 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
+    public function recordHistories()
+    {
+        return $this->hasMany(SaleRecordHistory::class)->orderByDesc('id');
+    }
+
     public function recalculateTotal()
     {
         $this->total_amount = $this->items()->sum('subtotal');

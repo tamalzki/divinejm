@@ -5,9 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\SaleRecordHistory;
+use App\Models\StockMovement;
+use App\Services\DeliveryBatchReversalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SaleController extends Controller
 {
@@ -230,7 +235,11 @@ class SaleController extends Controller
     public function drDetail(Sale $sale)
     {
         $sale->load(['items.finishedProduct', 'branch', 'user']);
-        return view('sales.dr', compact('sale'));
+        $recordHistories = Schema::hasTable('sale_record_histories')
+            ? $sale->recordHistories()->with('user')->limit(25)->get()
+            : collect();
+
+        return view('sales.dr', compact('sale', 'recordHistories'));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -307,8 +316,133 @@ class SaleController extends Controller
             }
         });
 
+        if (Schema::hasTable('sale_record_histories')) {
+            $sale->refresh();
+            $sale->load(['items.finishedProduct']);
+            $lines = $sale->items->map(fn ($i) => [
+                'product'     => $i->finishedProduct->name ?? '—',
+                'deployed'    => (float) $i->quantity_deployed,
+                'sold'        => (float) $i->quantity_sold,
+                'unsold'      => (float) $i->quantity_unsold,
+                'bo'          => (float) $i->quantity_bo,
+                'collectible' => (float) $i->subtotal,
+            ])->values()->all();
+
+            SaleRecordHistory::create([
+                'sale_id'                 => $sale->id,
+                'user_id'                 => Auth::id(),
+                'lines'                   => $lines,
+                'total_amount'            => $sale->total_amount,
+                'payment_status_snapshot' => $sale->payment_status,
+            ]);
+        }
+
         return redirect()->route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)])
             ->with('success', 'DR# ' . $sale->dr_number . ' has been updated.');
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // DESTROY DR — remove sale + lines; reverse warehouse / area / batches
+    // ──────────────────────────────────────────────────────────────────
+    public function destroy(Sale $sale)
+    {
+        $redirect = fn () => redirect()->route('sales.show', [
+            $sale->branch_id,
+            rawurlencode($sale->customer_name),
+        ]);
+
+        $sale->load('items');
+
+        if ((float) $sale->amount_paid > 0.0001) {
+            return $redirect()->with('error', 'Cannot delete this DR because a payment has been recorded. Adjust or reverse payments first.');
+        }
+
+        if ((float) ($sale->less_amount ?? 0) > 0.0001) {
+            return $redirect()->with('error', 'Cannot delete this DR while a less/deduction is set. Clear it on Record Sales first.');
+        }
+
+        foreach ($sale->items as $item) {
+            if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
+                return $redirect()->with('error', 'Cannot delete this DR while products show sold or BO quantities. Those records must stay for inventory integrity.');
+            }
+        }
+
+        $branchId     = $sale->branch_id;
+        $customerEnc  = rawurlencode($sale->customer_name);
+        $saleId       = $sale->id;
+        $drNumber     = $sale->dr_number;
+        $customerName = $sale->customer_name;
+
+        try {
+            DB::beginTransaction();
+
+            $sale = Sale::whereKey($saleId)->lockForUpdate()->firstOrFail();
+            $sale->load('items');
+
+            if ((float) $sale->amount_paid > 0.0001 || (float) ($sale->less_amount ?? 0) > 0.0001) {
+                throw new \RuntimeException('DR changed while deleting. Refresh and try again.');
+            }
+
+            foreach ($sale->items as $item) {
+                if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
+                    throw new \RuntimeException('DR changed while deleting. Refresh and try again.');
+                }
+            }
+
+            $escaped = addcslashes($customerName, '%_\\');
+            $movements = StockMovement::query()
+                ->where('reference_number', $drNumber)
+                ->where('branch_id', $branchId)
+                ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+                ->where('notes', 'like', '%Customer: ' . $escaped . '%')
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+
+            $totalDeployed = (float) $sale->items->sum('quantity_deployed');
+            if ($movements->isEmpty() && $totalDeployed > 0.02) {
+                throw new \RuntimeException(
+                    'No warehouse delivery matched this DR and customer, so stock was not reverted. Deletion was cancelled to protect inventory. If this DR is orphaned, fix movement notes or use database support.'
+                );
+            }
+
+            if ($movements->isNotEmpty()) {
+                foreach ($sale->items as $item) {
+                    $mQty = (float) $movements
+                        ->where('finished_product_id', $item->finished_product_id)
+                        ->where('movement_type', 'transfer_out')
+                        ->sum('quantity');
+                    if (abs($mQty - (float) $item->quantity_deployed) > 0.02) {
+                        throw new \RuntimeException(
+                            'Warehouse delivery totals do not match this DR in the system. Do not delete automatically — contact support.'
+                        );
+                    }
+                }
+
+                app(DeliveryBatchReversalService::class)->revertStockBranchAndBatches($movements, (int) $branchId);
+                StockMovement::whereIn('id', $movements->pluck('id'))->delete();
+            }
+
+            $sale->delete();
+
+            DB::commit();
+
+            Log::info('Sale DR deleted', [
+                'sale_id'   => $saleId,
+                'dr_number' => $drNumber,
+                'branch_id' => $branchId,
+                'user_id'   => Auth::id(),
+            ]);
+
+            return redirect()->route('sales.show', [$branchId, $customerEnc])
+                ->with('success', 'DR# ' . $drNumber . ' was removed. Warehouse and area stock were restored where delivery records matched.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Sale destroy failed', ['sale_id' => $saleId, 'message' => $e->getMessage()]);
+
+            return redirect()->route('sales.show', [$branchId, $customerEnc])
+                ->with('error', $e->getMessage());
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -15,12 +15,6 @@
     .dr-table tfoot td { padding:.48rem .75rem; background:var(--brand-deep); color:rgba(255,255,255,.88); font-size:.78rem; font-weight:700; }
     .qty-input { width:70px; padding:.22rem .4rem; font-size:.80rem; border:1px solid var(--border); border-radius:4px; text-align:center; background:var(--bg-card); color:var(--text-primary); }
     .qty-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,91,219,.1); }
-    .less-input { width:84px; padding:.22rem .4rem; font-size:.80rem; border:1.5px solid var(--border); border-radius:4px; text-align:right; background:var(--bg-card); color:var(--s-danger-text); font-weight:600; }
-    .less-input:focus { outline:none; border-color:var(--s-danger-text); box-shadow:0 0 0 2px rgba(220,38,38,.1); }
-    .less-input.has-value { border-color:var(--s-danger-text); background:var(--s-danger-bg); }
-    .remarks-badge { display:inline-flex; align-items:center; gap:.2rem; font-size:.63rem; padding:.1rem .38rem; border-radius:3px; background:var(--bg-page); color:var(--text-muted); font-weight:600; cursor:pointer; border:1px solid var(--border); white-space:nowrap; }
-    .remarks-badge:hover { background:var(--accent-light); color:var(--accent); border-color:#c7d2fe; }
-    .remarks-badge.has-notes { background:var(--accent-light); color:var(--accent); border-color:#c7d2fe; }
     .btn-all-sold { font-size:.66rem; padding:.16rem .42rem; border-radius:4px; border:1px solid var(--s-success-text); color:var(--s-success-text); background:transparent; cursor:pointer; white-space:nowrap; }
     .btn-all-sold:hover { background:var(--s-success-bg); }
     .btn-all-sold.done { border-color:var(--border); color:var(--text-muted); pointer-events:none; }
@@ -64,54 +58,84 @@
     .meta-strip strong { color:var(--text-primary); }
     .validation-banner { display:none; background:var(--s-danger-bg); border:1px solid var(--s-danger-text); color:var(--s-danger-text); border-radius:var(--radius); padding:.55rem .9rem; font-size:.78rem; font-weight:600; margin-bottom:.75rem; align-items:center; gap:.4rem; }
     .validation-banner.show { display:flex; }
-    /* Remarks Modal */
-    .dj-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9999; align-items:center; justify-content:center; }
-    .dj-modal-overlay.show { display:flex; }
-    .dj-modal { background:var(--bg-card); border-radius:10px; padding:1.4rem 1.5rem; width:100%; max-width:420px; box-shadow:0 8px 32px rgba(0,0,0,.18); animation:modalIn .15s ease; }
-    @keyframes modalIn { from { transform:scale(.96); opacity:0; } to { transform:scale(1); opacity:1; } }
-    .dj-modal-title { font-size:.88rem; font-weight:700; color:var(--text-primary); margin-bottom:.2rem; }
-    .dj-modal-sub { font-size:.72rem; color:var(--text-muted); margin-bottom:.75rem; }
-    .dj-modal-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:.9rem; }
-    .btn-modal-cancel { padding:.32rem .8rem; background:var(--bg-page); border:1px solid var(--border); border-radius:5px; font-size:.78rem; font-weight:600; cursor:pointer; color:var(--text-secondary); }
-    .btn-modal-cancel:hover { background:var(--border); }
-    .btn-modal-ok { padding:.32rem .9rem; background:var(--accent); color:#fff; border:none; border-radius:5px; font-size:.78rem; font-weight:700; cursor:pointer; }
-    .btn-modal-ok:hover { background:var(--accent-hover); }
-    .reason-chips { display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.65rem; }
     .reason-chip { padding:.18rem .52rem; border-radius:999px; font-size:.70rem; font-weight:600; border:1.5px solid var(--border); color:var(--text-secondary); background:var(--bg-card); cursor:pointer; transition:all .1s; }
     .reason-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
     .reason-chip.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
     .col-subtext { font-size:.58rem; font-weight:400; opacity:.72; text-transform:none; letter-spacing:0; display:block; margin-top:.1rem; }
+
+    .less-inline-input {
+        width: 7.5rem; max-width: 100%; text-align: right; font-size: .82rem; font-weight: 700;
+        padding: .3rem .5rem; border-radius: 4px; border: 1px solid rgba(255,255,255,.4);
+        background: rgba(0,0,0,.25); color: #fff;
+    }
+    .less-inline-input:focus { outline: none; border-color: #fca5a5; box-shadow: 0 0 0 2px rgba(252,165,165,.25); }
+    .less-inline-input::placeholder { color: rgba(255,255,255,.45); }
+    .less-inline-textarea {
+        width: 100%; min-height: 44px; max-height: 88px; font-size: .74rem; resize: vertical;
+        padding: .35rem .5rem; border-radius: 4px; border: 1px solid rgba(255,255,255,.35);
+        background: rgba(0,0,0,.2); color: #fff;
+    }
+    .less-inline-textarea::placeholder { color: rgba(255,255,255,.4); }
+    .less-inline-textarea:focus { outline: none; border-color: rgba(255,255,255,.55); }
+    .reason-chips-inline { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
+    .reason-chips-inline .reason-chip { font-size: .62rem; padding: .12rem .4rem; }
+
+    .history-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1rem; overflow:hidden; }
+    .history-card > summary { padding:.55rem 1rem; font-size:.74rem; font-weight:700; color:var(--text-primary); cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:.5rem; background:var(--bg-page); border-bottom:1px solid var(--border); }
+    .history-card > summary::-webkit-details-marker { display:none; }
+    .history-card > summary::after { content:'\25BC'; font-size:.55rem; color:var(--text-muted); transition:transform .15s; }
+    .history-card[open] > summary::after { transform:rotate(-180deg); }
+    .history-body { padding:.65rem 1rem; max-height:280px; overflow-y:auto; font-size:.72rem; }
+    .history-block { border-bottom:1px solid var(--border); padding:.5rem 0; }
+    .history-block:last-child { border-bottom:none; }
+    .history-meta { font-size:.65rem; color:var(--text-muted); margin-bottom:.35rem; }
+    .history-mini { width:100%; border-collapse:collapse; font-size:.68rem; }
+    .history-mini th { text-align:left; font-weight:600; color:var(--text-secondary); padding:.2rem .35rem .2rem 0; border:none; }
+    .history-mini td { padding:.2rem .35rem .2rem 0; border:none; vertical-align:top; }
+    .btn-del-dr-h { font-size:.68rem; padding:.22rem .55rem; border-radius:4px; border:1px solid #dc2626; color:#dc2626; background:transparent; cursor:pointer; white-space:nowrap; }
+    .btn-del-dr-h:hover { background:#fef2f2; }
 </style>
 
 @if(session('success'))
 <div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
 @endif
+@if(session('error'))
+<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
+@endif
 @if($errors->any())
 <div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ $errors->first() }}</div>
 @endif
 
-<div class="d-flex align-items-center gap-2 mb-3">
-    <a href="{{ route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)]) }}" class="dj-back">
-        <i class="bi bi-arrow-left"></i> {{ $sale->customer_name }}
-    </a>
-    <div>
-        <h5 class="fw-bold mb-0" style="font-size:.93rem">
-            <i class="bi bi-pencil-square me-1" style="color:var(--accent)"></i>
-            Record Sales &mdash; DR# <span style="color:var(--accent)">{{ $sale->dr_number }}</span>
-        </h5>
-        <div class="meta-strip mt-1">
-            <span>{{ $sale->branch->name }}</span>
-            <span>&rarr; <strong>{{ $sale->customer_name }}</strong></span>
-            <span><i class="bi bi-calendar3"></i> {{ $sale->sale_date->format('M d, Y') }}</span>
-            @if($sale->payment_status === 'paid')
-                <span class="pill pill-success">Paid</span>
-            @elseif($sale->payment_status === 'partial')
-                <span class="pill pill-warning">Partial</span>
-            @else
-                <span class="pill pill-danger">To Collect</span>
-            @endif
+<div class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)]) }}" class="dj-back">
+            <i class="bi bi-arrow-left"></i> {{ $sale->customer_name }}
+        </a>
+        <div>
+            <h5 class="fw-bold mb-0" style="font-size:.93rem">
+                <i class="bi bi-pencil-square me-1" style="color:var(--accent)"></i>
+                Record Sales &mdash; DR# <span style="color:var(--accent)">{{ $sale->dr_number }}</span>
+            </h5>
+            <div class="meta-strip mt-1">
+                <span>{{ $sale->branch->name }}</span>
+                <span>&rarr; <strong>{{ $sale->customer_name }}</strong></span>
+                <span><i class="bi bi-calendar3"></i> {{ $sale->sale_date->format('M d, Y') }}</span>
+                @if($sale->payment_status === 'paid')
+                    <span class="pill pill-success">Paid</span>
+                @elseif($sale->payment_status === 'partial')
+                    <span class="pill pill-warning">Partial</span>
+                @else
+                    <span class="pill pill-danger">To Collect</span>
+                @endif
+            </div>
         </div>
     </div>
+    <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0"
+          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR from sales\n• Restores warehouse stock and area inventory (undoes the delivery), when records match\n• Blocked if anything was sold, BO, paid, or has a less/deduction\n\nContinue?');">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="btn-del-dr-h"><i class="bi bi-trash"></i> Delete DR</button>
+    </form>
 </div>
 
 <div class="validation-banner" id="validationBanner">
@@ -224,23 +248,40 @@
                     <td></td>
                 </tr>
                 <tr style="background:#1e293b">
-                    <td colspan="5" class="text-end" style="color:rgba(255,255,255,.75);font-size:.74rem;font-weight:500">Less / Deduction</td>
-                    <td colspan="2" class="text-end" style="padding:.4rem .75rem">
-                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:.4rem">
-                            <span style="color:rgba(255,255,255,.5);font-size:.72rem">&#8369;</span>
-                            <input type="hidden" name="less_amount" id="lessAmount"
-                                   value="{{ old('less_amount', $sale->less_amount ?? 0) ?: '' }}">
-                            <input type="hidden" name="less_notes" id="lessNotesInput"
-                                   value="{{ old('less_notes', $sale->less_notes ?? '') }}">
-                            <button type="button" id="lessDisplayBtn"
-                                onclick="openRemarksModal()"
-                                style="min-width:110px;padding:.25rem .55rem;font-size:.82rem;font-weight:700;text-align:right;border:1.5px solid rgba(255,255,255,.25);border-radius:4px;background:rgba(255,255,255,.08);color:#fca5a5;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
-                                <span id="lessDisplayVal">{{ old('less_amount', $sale->less_amount ?? 0) > 0 ? '&#8369;'.number_format(old('less_amount', $sale->less_amount), 2) : 'Click to enter' }}</span>
-                                <i class="bi bi-pencil-square" style="font-size:.65rem;opacity:.6"></i>
-                            </button>
+                    <td colspan="5" class="text-end" style="color:rgba(255,255,255,.75);font-size:.74rem;font-weight:500;vertical-align:middle">Less / Deduction</td>
+                    <td colspan="3" class="text-end" style="padding:.45rem .75rem;vertical-align:middle">
+                        <label class="visually-hidden" for="lessAmount">Less amount pesos</label>
+                        <span style="color:rgba(255,255,255,.55);font-size:.72rem;margin-right:.25rem">&#8369;</span>
+                        <input type="number"
+                               name="less_amount"
+                               id="lessAmount"
+                               class="less-inline-input"
+                               step="0.01"
+                               min="0"
+                               placeholder="0.00"
+                               inputmode="decimal"
+                               value="{{ old('less_amount', ($sale->less_amount ?? 0) > 0 ? number_format((float) $sale->less_amount, 2, '.', '') : '') }}"
+                               oninput="recalcGrandTotal()">
+                    </td>
+                </tr>
+                <tr style="background:#1e293b">
+                    <td colspan="5" class="text-end" style="color:rgba(255,255,255,.75);font-size:.74rem;font-weight:500;vertical-align:top;padding-top:.55rem">Reason</td>
+                    <td colspan="3" style="padding:.35rem .75rem .5rem">
+                        <label class="visually-hidden" for="lessNotesInput">Less reason</label>
+                        <textarea name="less_notes"
+                                  id="lessNotesInput"
+                                  class="less-inline-textarea"
+                                  rows="2"
+                                  placeholder="Optional — e.g. bad order, promo deduction">{{ old('less_notes', $sale->less_notes ?? '') }}</textarea>
+                        <div class="reason-chips-inline">
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Bad Order')">Bad Order</span>
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Returned - Unsold')">Returned - Unsold</span>
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Damaged in Transit')">Damaged in Transit</span>
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Promo Deduction')">Promo Deduction</span>
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Shortage')">Shortage</span>
+                            <span class="reason-chip" onclick="appendLessReason(this, 'Expired')">Expired</span>
                         </div>
                     </td>
-                    <td></td>
                 </tr>
                 <tr style="background:var(--brand-deep)">
                     <td colspan="6" class="text-end" style="color:rgba(255,255,255,.88)">Total Collectible</td>
@@ -337,40 +378,56 @@
 
 </form>
 
-{{-- Remarks Modal --}}
-<div class="dj-modal-overlay" id="remarksModal">
-    <div class="dj-modal">
-        <div class="dj-modal-title"><i class="bi bi-dash-circle me-1" style="color:var(--s-danger-text)"></i> Less / Deduction</div>
-        <div class="dj-modal-sub">Enter the deduction amount and reason for this DR.</div>
-        <div style="margin-bottom:.75rem">
-            <label style="font-size:.70rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:.2rem">
-                Less Amount (&#8369;) <span style="color:var(--s-danger-text)">*</span>
-            </label>
-            <input type="number" id="modalLessAmount" min="0" step="0.01" placeholder="0.00"
-                style="width:100%;font-size:.88rem;font-weight:700;border:1.5px solid var(--border);border-radius:5px;padding:.35rem .6rem;color:var(--s-danger-text);background:var(--bg-card)">
+@if(isset($recordHistories) && $recordHistories->isNotEmpty())
+<details class="history-card">
+    <summary>
+        <span><i class="bi bi-clock-history me-1" style="color:var(--accent)"></i>Save history <span style="font-weight:500;color:var(--text-muted)">({{ $recordHistories->count() }})</span></span>
+        <span style="font-size:.62rem;font-weight:500;color:var(--text-muted)">Each row is a snapshot after you saved</span>
+    </summary>
+    <div class="history-body">
+        @foreach($recordHistories as $h)
+        <div class="history-block">
+            <div class="history-meta">
+                {{ $h->created_at->timezone(config('app.timezone'))->format('M j, Y g:i A') }}
+                @if($h->user)
+                    &middot; {{ $h->user->name }}
+                @endif
+                @if($h->payment_status_snapshot)
+                    &middot; <span class="text-capitalize">{{ str_replace('_', ' ', $h->payment_status_snapshot) }}</span>
+                @endif
+                @if($h->total_amount !== null)
+                    &middot; Total &#8369;{{ number_format($h->total_amount, 2) }}
+                @endif
+            </div>
+            <table class="history-mini">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th class="text-end">Deployed</th>
+                        <th class="text-end">Sold</th>
+                        <th class="text-end">Unsold</th>
+                        <th class="text-end">BO</th>
+                        <th class="text-end">Collectible</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($h->lines as $line)
+                    <tr>
+                        <td>{{ $line['product'] ?? '—' }}</td>
+                        <td class="text-end">{{ number_format($line['deployed'] ?? 0, 0) }}</td>
+                        <td class="text-end">{{ number_format($line['sold'] ?? 0, 0) }}</td>
+                        <td class="text-end">{{ number_format($line['unsold'] ?? 0, 0) }}</td>
+                        <td class="text-end">{{ number_format($line['bo'] ?? 0, 0) }}</td>
+                        <td class="text-end">&#8369;{{ number_format($line['collectible'] ?? 0, 2) }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
-        <div style="margin-bottom:.5rem">
-            <label style="font-size:.70rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:.35rem">Reason</label>
-        </div>
-        <div class="reason-chips">
-            <span class="reason-chip" onclick="pickChip(this, 'Bad Order')">Bad Order</span>
-            <span class="reason-chip" onclick="pickChip(this, 'Returned - Unsold')">Returned - Unsold</span>
-            <span class="reason-chip" onclick="pickChip(this, 'Damaged in Transit')">Damaged in Transit</span>
-            <span class="reason-chip" onclick="pickChip(this, 'Promo Deduction')">Promo Deduction</span>
-            <span class="reason-chip" onclick="pickChip(this, 'Shortage')">Shortage</span>
-            <span class="reason-chip" onclick="pickChip(this, 'Expired')">Expired</span>
-        </div>
-        <textarea id="remarksTextarea"
-            style="width:100%;font-size:.80rem;border:1px solid var(--border);border-radius:5px;padding:.45rem .65rem;resize:vertical;min-height:80px;background:var(--bg-card);color:var(--text-primary);outline:none"
-            placeholder="Type reason here, or pick one above..."></textarea>
-        <div class="dj-modal-actions">
-            <button type="button" class="btn-modal-cancel" onclick="closeRemarksModal()">Cancel</button>
-            <button type="button" class="btn-modal-ok" onclick="saveRemarks()">
-                <i class="bi bi-check-lg"></i> Apply Deduction
-            </button>
-        </div>
+        @endforeach
     </div>
-</div>
+</details>
+@endif
 
 <script>
 function recalcRow(itemId, unitPrice) {
@@ -403,10 +460,14 @@ function recalcGrandTotal() {
 
 function onTrackingChange(itemId, unitPrice) {
     recalcRow(itemId, unitPrice);
-    var unsold = parseFloat(document.getElementById('unsold-' + itemId).value) || 0;
-    var bo     = parseFloat(document.getElementById('bo-' + itemId).value) || 0;
-    var notes  = document.getElementById('lessNotesInput').value.trim();
-    if ((unsold > 0 || bo > 0) && !notes) openRemarksModal();
+}
+
+function appendLessReason(el, text) {
+    document.querySelectorAll('.reason-chips-inline .reason-chip').forEach(function(c) { c.classList.remove('active'); });
+    el.classList.add('active');
+    var ta = document.getElementById('lessNotesInput');
+    ta.value = text;
+    ta.focus();
 }
 
 function soldOutRow(itemId, deployed, unitPrice) {
@@ -422,57 +483,6 @@ function soldOutAll() {
         recalcRow(itemId, price);
     });
 }
-
-function openRemarksModal() {
-    // Pre-fill modal with existing values
-    var existingAmount = document.getElementById('lessAmount').value;
-    var existingNotes  = document.getElementById('lessNotesInput').value;
-    document.getElementById('modalLessAmount').value    = existingAmount || '';
-    document.getElementById('remarksTextarea').value    = existingNotes;
-    document.querySelectorAll('.reason-chip').forEach(function(c) { c.classList.remove('active'); });
-    document.getElementById('remarksModal').classList.add('show');
-    setTimeout(function() { document.getElementById('modalLessAmount').focus(); }, 80);
-}
-
-function closeRemarksModal() {
-    document.getElementById('remarksModal').classList.remove('show');
-}
-
-function saveRemarks() {
-    var amount = parseFloat(document.getElementById('modalLessAmount').value) || 0;
-    var notes  = document.getElementById('remarksTextarea').value.trim();
-
-    // Save to hidden inputs
-    document.getElementById('lessAmount').value    = amount > 0 ? amount : '';
-    document.getElementById('lessNotesInput').value = notes;
-
-    // Update display button
-    var displayVal = document.getElementById('lessDisplayVal');
-    if (displayVal) {
-        displayVal.innerHTML = amount > 0
-            ? '₱' + fmtNum(amount) + (notes ? ' <span style="font-size:.62rem;opacity:.65">(' + notes.substring(0,20) + (notes.length>20?'...':'') + ')</span>' : '')
-            : 'Click to enter';
-    }
-
-    recalcGrandTotal();
-    closeRemarksModal();
-}
-
-function pickChip(el, text) {
-    document.querySelectorAll('.reason-chip').forEach(function(c) { c.classList.remove('active'); });
-    el.classList.add('active');
-    document.getElementById('remarksTextarea').value = text;
-    document.getElementById('remarksTextarea').focus();
-}
-
-document.getElementById('remarksModal').addEventListener('click', function(e) {
-    if (e.target === this) closeRemarksModal();
-});
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeRemarksModal();
-});
-
-
 
 function togglePaymentFields() {
     var selected = document.querySelector('input[name="payment_status_override"]:checked');
@@ -539,13 +549,7 @@ document.addEventListener('DOMContentLoaded', function() {
         el.addEventListener('input', function() { this.classList.remove('is-error'); });
         el.addEventListener('change', function() { this.classList.remove('is-error'); });
     });
-    // Init display button if there's a pre-existing less amount (e.g. old() on validation fail)
-    var initAmount = parseFloat(document.getElementById('lessAmount').value) || 0;
-    var initNotes  = document.getElementById('lessNotesInput').value;
-    var displayVal = document.getElementById('lessDisplayVal');
-    if (displayVal && initAmount > 0) {
-        displayVal.innerHTML = '₱' + fmtNum(initAmount) + (initNotes ? ' <span style="font-size:.62rem;opacity:.65">(' + initNotes.substring(0,20) + (initNotes.length>20?'...':'') + ')</span>' : '');
-    }
+    recalcGrandTotal();
 });
 
 function fmtNum(n) {

@@ -24,6 +24,8 @@
 
     .btn-view { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; padding:.22rem .6rem; border-radius:4px; border:1px solid var(--accent); color:var(--accent); background:transparent; text-decoration:none; white-space:nowrap; }
     .btn-view:hover { background:var(--accent); color:#fff; }
+    .btn-del-dr { display:inline-flex; align-items:center; gap:.2rem; font-size:.7rem; padding:.2rem .5rem; border-radius:4px; border:1px solid #dc2626; color:#dc2626; background:transparent; cursor:pointer; white-space:nowrap; }
+    .btn-del-dr:hover { background:#fef2f2; color:#991b1b; }
 
     .dj-search-wrap { position:relative; }
     .dj-search-icon { position:absolute; left:.65rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:.8rem; pointer-events:none; }
@@ -38,6 +40,9 @@
 
 @if(session('success'))
 <div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
+@endif
+@if(session('error'))
+<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
 @endif
 
 {{-- Page header --}}
@@ -107,9 +112,17 @@
                     @endif
                 </td>
                 <td class="text-center" onclick="event.stopPropagation()">
-                    <a href="{{ route('sales.dr', $sale->id) }}" class="btn-view">
-                        <i class="bi bi-pencil-square"></i> Record Sales
-                    </a>
+                    <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                        <a href="{{ route('sales.dr', $sale->id) }}" class="btn-view">
+                            <i class="bi bi-pencil-square"></i> Record Sales
+                        </a>
+                        <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="d-inline"
+                              onsubmit="return confirm('Delete DR# {{ $sale->dr_number }}?\n\nThis will REMOVE the DR from sales and RESTORE warehouse stock and area inventory (same as undoing the delivery), as long as nothing was sold or paid on this DR.\n\nThis cannot be undone.');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn-del-dr"><i class="bi bi-trash"></i> Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             @empty

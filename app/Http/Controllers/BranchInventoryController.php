@@ -10,6 +10,7 @@ use App\Models\StockMovement;
 use App\Models\ProductionMix;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\DeliveryBatchReversalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -623,66 +624,7 @@ class BranchInventoryController extends Controller
 
             $branchId = (int) $validated['branch_id'];
 
-            foreach ($movements->groupBy('finished_product_id') as $productId => $productMovements) {
-                $productId = (int) $productId;
-                $totalQty  = (float) $productMovements->sum('quantity');
-                $regularQty = (float) $productMovements->where('movement_type', 'transfer_out')->sum('quantity');
-
-                $product = FinishedProduct::lockForUpdate()->findOrFail($productId);
-                $product->increment('stock_on_hand', $totalQty);
-                $product->decrement('stock_out', $totalQty);
-
-                if ($regularQty > 0) {
-                    $inventory = BranchInventory::where('branch_id', $branchId)
-                        ->where('finished_product_id', $productId)
-                        ->lockForUpdate()
-                        ->first();
-
-                    if (!$inventory || (float) $inventory->quantity < $regularQty - 0.0001) {
-                        throw new \RuntimeException(
-                            "Cannot remove delivery: area stock for {$product->name} is lower than this delivery recorded. Another change may have altered inventory."
-                        );
-                    }
-
-                    $newBranchQty = round((float) $inventory->quantity - $regularQty, 2);
-                    if ($newBranchQty <= 0.0001) {
-                        $inventory->delete();
-                    } else {
-                        $inventory->update(['quantity' => $newBranchQty]);
-                    }
-                }
-
-                $nullBatchQty = 0.0;
-                foreach ($productMovements as $m) {
-                    $qty = (float) $m->quantity;
-                    $bn  = $m->batch_number;
-                    if ($bn !== null && $bn !== '') {
-                        $mix = ProductionMix::where('batch_number', $bn)
-                            ->where('finished_product_id', $productId)
-                            ->lockForUpdate()
-                            ->first();
-                        if ($mix) {
-                            $mix->increment('actual_output', $qty);
-                        } else {
-                            $nullBatchQty += $qty;
-                        }
-                    } else {
-                        $nullBatchQty += $qty;
-                    }
-                }
-
-                if ($nullBatchQty > 0.0001) {
-                    $fallbackMix = ProductionMix::where('finished_product_id', $productId)
-                        ->where('status', 'completed')
-                        ->orderBy('mix_date', 'asc')
-                        ->orderBy('id', 'asc')
-                        ->lockForUpdate()
-                        ->first();
-                    if ($fallbackMix) {
-                        $fallbackMix->increment('actual_output', $nullBatchQty);
-                    }
-                }
-            }
+            app(DeliveryBatchReversalService::class)->revertStockBranchAndBatches($movements, $branchId);
 
             if ($sale) {
                 foreach ($movements->where('movement_type', 'transfer_out')->groupBy('finished_product_id') as $productId => $rows) {

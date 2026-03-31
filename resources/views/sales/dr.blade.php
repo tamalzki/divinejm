@@ -74,13 +74,10 @@
     .meta-strip strong { color:var(--text-primary); }
     .validation-banner { display:none; background:var(--s-danger-bg); border:1px solid var(--s-danger-text); color:var(--s-danger-text); border-radius:var(--radius); padding:.55rem .9rem; font-size:.78rem; font-weight:600; margin-bottom:.75rem; align-items:center; gap:.4rem; }
     .validation-banner.show { display:flex; }
-    .reason-chip { padding:.18rem .52rem; border-radius:999px; font-size:.70rem; font-weight:600; border:1.5px solid var(--border); color:var(--text-secondary); background:var(--bg-card); cursor:pointer; transition:all .1s; }
-    .reason-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
-    .reason-chip.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
     .col-subtext { font-size:.58rem; font-weight:400; opacity:.72; text-transform:none; letter-spacing:0; display:block; margin-top:.1rem; }
 
     .less-compact-cell { padding: .32rem .75rem !important; vertical-align: middle; }
-    .less-compact-inner { display: flex; flex-direction: column; gap: .22rem; align-items: stretch; max-width: 100%; }
+    .less-compact-inner { display: flex; flex-direction: column; gap: .35rem; align-items: stretch; max-width: 100%; }
     .less-compact-top {
         display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem;
     }
@@ -94,14 +91,12 @@
     .less-inline-input:focus { outline: none; border-color: var(--s-danger-text); box-shadow: 0 0 0 2px rgba(220,38,38,.12); }
     .less-inline-input::placeholder { color: var(--text-muted); }
     .less-inline-textarea {
-        flex: 1 1 10rem; min-width: 0; min-height: 28px; max-height: 64px; font-size: .68rem; resize: vertical;
-        line-height: 1.25; padding: .22rem .4rem; border-radius: 4px; border: 1px solid var(--border);
+        flex: 1 1 12rem; min-width: 0; min-height: 36px; max-height: 120px; font-size: .74rem; resize: vertical;
+        line-height: 1.35; padding: .28rem .45rem; border-radius: 4px; border: 1px solid var(--border);
         background: var(--bg-card); color: var(--text-primary);
     }
     .less-inline-textarea::placeholder { color: var(--text-muted); }
     .less-inline-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,91,219,.1); }
-    .reason-chips-inline { display: flex; flex-wrap: wrap; gap: .2rem .28rem; align-items: center; }
-    .reason-chips-inline .reason-chip { font-size: .58rem; padding: .06rem .32rem; border-width: 1px; }
     /* Keep inputs readable on the light footer band even in dark UI themes */
     .dr-table tfoot tr.dr-tfoot-less .less-inline-input {
         background: #fafafa; border-color: #cbd5e1; color: #b91c1c;
@@ -302,16 +297,9 @@
                                 <textarea name="less_notes"
                                           id="lessNotesInput"
                                           class="less-inline-textarea"
-                                          rows="1"
-                                          placeholder="Reason (optional)">{{ old('less_notes', $sale->less_notes ?? '') }}</textarea>
-                            </div>
-                            <div class="reason-chips-inline" aria-label="Quick reason">
-                                <span class="reason-chip" onclick="appendLessReason(this, 'Bad Order')">Bad Order</span>
-                                <span class="reason-chip" title="Returned - Unsold" onclick="appendLessReason(this, 'Returned - Unsold')">Returned</span>
-                                <span class="reason-chip" title="Damaged in Transit" onclick="appendLessReason(this, 'Damaged in Transit')">Damaged</span>
-                                <span class="reason-chip" title="Promo Deduction" onclick="appendLessReason(this, 'Promo Deduction')">Promo</span>
-                                <span class="reason-chip" onclick="appendLessReason(this, 'Shortage')">Shortage</span>
-                                <span class="reason-chip" onclick="appendLessReason(this, 'Expired')">Expired</span>
+                                          rows="2"
+                                          title="Common reasons: Bad Order, Returned – Unsold, Damaged in Transit, Promo Deduction, Shortage, Expired"
+                                          placeholder="e.g. Bad Order, Returned – Unsold, Damaged in Transit, Promo Deduction, Shortage, Expired">{{ old('less_notes', $sale->less_notes ?? '') }}</textarea>
                             </div>
                         </div>
                     </td>
@@ -493,14 +481,6 @@ function recalcGrandTotal() {
 
 function onTrackingChange(itemId, unitPrice) {
     recalcRow(itemId, unitPrice);
-}
-
-function appendLessReason(el, text) {
-    document.querySelectorAll('.reason-chips-inline .reason-chip').forEach(function(c) { c.classList.remove('active'); });
-    el.classList.add('active');
-    var ta = document.getElementById('lessNotesInput');
-    ta.value = text;
-    ta.focus();
 }
 
 function soldOutRow(itemId, deployed, unitPrice) {

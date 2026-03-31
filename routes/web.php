@@ -100,6 +100,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('branch-inventory.store-delivery');
     Route::get('/branch-inventory/delivery/{drNumber}', [BranchInventoryController::class, 'showDelivery'])
         ->name('branch-inventory.show-delivery');
+    Route::delete('/branch-inventory/delivery-batch', [BranchInventoryController::class, 'destroyDeliveryBatch'])
+        ->name('branch-inventory.destroy-delivery-batch');
 
     // Branch Inventory — Areas (wildcard routes after named routes)
     Route::get('/branch-inventory/{branch}', [BranchInventoryController::class, 'show'])

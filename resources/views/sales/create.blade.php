@@ -425,7 +425,6 @@ function loadCustomers(branchId) {
             // Attach change event
             $select.on('change', function() {
                 const customerName = $(this).val();
-                console.log('Customer selected:', customerName);
                 if (customerName) {
                     selectedCustomer = customerName;
                     $('#drSection').show();
@@ -482,7 +481,6 @@ function loadDRNumbers() {
             // Attach change event
             $select.on('change', function() {
                 const drNumber = $(this).val();
-                console.log('DR selected:', drNumber);
                 if (drNumber) {
                     selectedDR = drNumber;
                     checkForPreviousSales(drNumber);

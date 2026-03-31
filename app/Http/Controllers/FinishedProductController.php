@@ -115,7 +115,7 @@ class FinishedProductController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error("Product creation error: " . $e->getMessage());
-            return back()->withInput()->with('error', 'Failed to create product: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Failed to create product. Please try again.');
         }
     }
 
@@ -208,7 +208,8 @@ class FinishedProductController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Failed to update product: ' . $e->getMessage());
+            \Log::error("Product update error [{$finishedProduct->id}]: " . $e->getMessage());
+            return back()->withInput()->with('error', 'Failed to update product. Please try again.');
         }
     }
 
@@ -252,9 +253,9 @@ class FinishedProductController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error("Product deletion error: " . $e->getMessage());
+            \Log::error("Product deletion error [{$productName}]: " . $e->getMessage());
             return redirect()->route('finished-products.index')
-                ->with('error', 'Failed to delete product: ' . $e->getMessage());
+                ->with('error', 'Failed to delete product. Please try again.');
         }
     }
 

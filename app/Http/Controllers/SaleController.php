@@ -258,7 +258,8 @@ class SaleController extends Controller
 
         DB::transaction(function () use ($validated, $sale, $status, $isCollecting) {
             foreach ($validated['items'] as $itemData) {
-                $item     = SaleItem::findOrFail($itemData['id']);
+                // Scope to this sale to prevent cross-sale item manipulation (IDOR)
+                $item     = $sale->items()->findOrFail($itemData['id']);
                 $deployed = $item->quantity_deployed;
                 $sold     = min($itemData['quantity_sold'], $deployed);
                 $bo       = min($itemData['quantity_bo'] ?? 0, $deployed);
@@ -308,5 +309,129 @@ class SaleController extends Controller
 
         return redirect()->route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)])
             ->with('success', 'DR# ' . $sale->dr_number . ' has been updated.');
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // API: Get distinct customers for a branch
+    // ──────────────────────────────────────────────────────────────────
+    public function getCustomers(Branch $branch)
+    {
+        $customers = Sale::where('branch_id', $branch->id)
+            ->distinct()
+            ->orderBy('customer_name')
+            ->pluck('customer_name');
+
+        return response()->json(['customers' => $customers]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // API: Get DR numbers for a branch (with product count per DR)
+    // ──────────────────────────────────────────────────────────────────
+    public function getDRNumbers(Branch $branch)
+    {
+        $drNumbers = Sale::where('branch_id', $branch->id)
+            ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+            ->select('sales.dr_number', DB::raw('COUNT(sale_items.id) as product_count'))
+            ->groupBy('sales.dr_number')
+            ->orderBy('sales.dr_number', 'desc')
+            ->get()
+            ->map(fn($row) => [
+                'dr_number'     => $row->dr_number,
+                'product_count' => (int) $row->product_count,
+            ]);
+
+        return response()->json(['dr_numbers' => $drNumbers]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // API: Get products from a DR delivery with remaining quantities
+    // ──────────────────────────────────────────────────────────────────
+    public function getDRProducts(Branch $branch, string $drNumber)
+    {
+        $drNumber = rawurldecode($drNumber);
+
+        $sale = Sale::where('branch_id', $branch->id)
+            ->where('dr_number', $drNumber)
+            ->with(['items.finishedProduct'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json([
+                'products'             => [],
+                'has_previous_sales'   => false,
+                'previous_sales_count' => 0,
+            ]);
+        }
+
+        $previousSalesCount = Sale::where('branch_id', $branch->id)
+            ->where('dr_number', $drNumber)
+            ->count();
+
+        $products = $sale->items->map(function ($item) {
+            $remainingQty = max(0,
+                (float) $item->quantity_deployed
+                - (float) $item->quantity_sold
+                - (float) $item->quantity_bo
+            );
+
+            return [
+                'finished_product_id' => $item->finished_product_id,
+                'product_name'        => optional($item->finishedProduct)->name ?? 'Unknown',
+                'sku'                 => optional($item->finishedProduct)->sku,
+                'batch_number'        => $item->batch_number,
+                'deployed_qty'        => (float) $item->quantity_deployed,
+                'already_sold'        => (float) $item->quantity_sold,
+                'remaining_qty'       => $remainingQty,
+                'selling_price'       => (float) $item->unit_price,
+            ];
+        });
+
+        return response()->json([
+            'products'             => $products,
+            'has_previous_sales'   => $previousSalesCount > 0,
+            'previous_sales_count' => $previousSalesCount,
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // API: Get products deployed to a branch for a specific customer
+    // ──────────────────────────────────────────────────────────────────
+    public function getProducts(Branch $branch, string $customerName)
+    {
+        $customerName = rawurldecode($customerName);
+
+        $products = Sale::where('branch_id', $branch->id)
+            ->where('customer_name', $customerName)
+            ->with('items.finishedProduct')
+            ->get()
+            ->flatMap(fn($sale) => $sale->items)
+            ->map(fn($item) => [
+                'finished_product_id' => $item->finished_product_id,
+                'product_name'        => optional($item->finishedProduct)->name ?? 'Unknown',
+                'sku'                 => optional($item->finishedProduct)->sku,
+            ])
+            ->unique('finished_product_id')
+            ->values();
+
+        return response()->json(['products' => $products]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // API: Check whether a DR number already has a sale record
+    // ──────────────────────────────────────────────────────────────────
+    public function checkDrNumber(Branch $branch, string $customerName, string $drNumber)
+    {
+        $customerName = rawurldecode($customerName);
+        $drNumber     = rawurldecode($drNumber);
+
+        $salesCount = Sale::where('branch_id', $branch->id)
+            ->where('customer_name', $customerName)
+            ->where('dr_number', $drNumber)
+            ->count();
+
+        return response()->json([
+            'exists'      => $salesCount > 0,
+            'sales_count' => $salesCount,
+        ]);
     }
 }

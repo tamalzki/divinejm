@@ -73,15 +73,20 @@ class DashboardController extends Controller
             ->selectRaw('customer_name, branch_id,
                 COUNT(*) as overdue_count,
                 SUM(total_amount - amount_paid) as overdue_amount,
-                DATEDIFF(NOW(), MIN(sale_date)) as days_overdue')
+                MIN(sale_date) as oldest_sale_date')
             ->groupBy('customer_name', 'branch_id')
             ->having('overdue_amount', '>', 0)
             ->orderByDesc('overdue_amount')
-            ->get()
-            ->map(function ($r) {
-                $r->branch = Branch::find($r->branch_id);
-                return $r;
-            });
+            ->get();
+
+        $overduebranchMap = Branch::whereIn('id', $overdueReceivables->pluck('branch_id')->unique())
+            ->get()->keyBy('id');
+
+        $overdueReceivables = $overdueReceivables->map(function ($r) use ($overduebranchMap) {
+            $r->branch       = $overduebranchMap->get($r->branch_id);
+            $r->days_overdue = Carbon::parse($r->oldest_sale_date)->diffInDays(Carbon::now());
+            return $r;
+        });
 
         // ══════════════════════════════════════════════════════
         // INVENTORY
@@ -198,7 +203,7 @@ class DashboardController extends Controller
         // BRANCH PERFORMANCE (this month)
         // ══════════════════════════════════════════════════════
 
-        $branchSales = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
+        $branchSalesRaw = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
             ->select(
                 'branch_id',
                 DB::raw('COUNT(*) as sales_count'),
@@ -207,11 +212,15 @@ class DashboardController extends Controller
             )
             ->groupBy('branch_id')
             ->orderByDesc('total_sales')
-            ->get()
-            ->map(function ($b) {
-                $b->branch = Branch::find($b->branch_id);
-                return $b;
-            });
+            ->get();
+
+        $branchMap = Branch::whereIn('id', $branchSalesRaw->pluck('branch_id')->unique())
+            ->get()->keyBy('id');
+
+        $branchSales = $branchSalesRaw->map(function ($b) use ($branchMap) {
+            $b->branch = $branchMap->get($b->branch_id);
+            return $b;
+        });
 
         // ══════════════════════════════════════════════════════
         // RECENT SALES

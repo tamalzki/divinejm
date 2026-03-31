@@ -19,6 +19,7 @@ class SaleItem extends Model
         'quantity_bo',
         'quantity_replaced',
         'unit_price',
+        'discount',
         'subtotal',
         'notes',
     ];
@@ -30,14 +31,14 @@ class SaleItem extends Model
         'quantity_bo' => 'decimal:2',
         'quantity_replaced' => 'decimal:2',
         'unit_price' => 'decimal:2',
+        'discount' => 'decimal:2',
         'subtotal' => 'decimal:2',
     ];
 
     protected static function booted()
     {
         static::saving(function ($item) {
-            // Calculate subtotal
-            $item->subtotal = $item->quantity_sold * $item->unit_price;
+            $item->subtotal = ($item->quantity_sold * $item->unit_price) - ($item->discount ?? 0);
         });
 
         static::saved(function ($item) {

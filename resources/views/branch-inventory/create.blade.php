@@ -85,6 +85,16 @@
     #dj-toast.danger { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
     #dj-toast.success { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
 
+    /* Review delivery modal */
+    .review-modal .modal-header { border-bottom: 1px solid var(--border); }
+    .review-modal .modal-title { font-size: 1rem; font-weight: 700; }
+    .review-modal .review-hint { font-size: .78rem; color: var(--text-secondary); line-height: 1.45; }
+    .review-modal .review-table { font-size: .78rem; width: 100%; }
+    .review-modal .review-table th { font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; background: var(--brand-deep); color: rgba(255,255,255,.9); padding: .45rem .65rem; border: none; }
+    .review-modal .review-table td { padding: .4rem .65rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .review-modal .review-table tfoot td { font-weight: 700; background: var(--bg-page); }
+    .review-modal .alert-zeros { font-size: .76rem; }
+
     /* TomSelect overrides */
     .ts-wrapper .ts-control { font-size:.76rem !important; border-color:var(--border) !important; border-radius:5px !important; min-height:29px !important; padding:2px 6px !important; }
     .ts-wrapper.focus .ts-control { border-color:var(--accent) !important; box-shadow:0 0 0 3px rgba(59,91,219,.12) !important; }
@@ -97,6 +107,20 @@
 <div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
 @endif
 
+@if($errors->any())
+<div class="alert-bar danger">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+        <strong>Please fix the following:</strong>
+        <ul class="mb-0 mt-1 ps-3" style="font-size:.76rem">
+            @foreach($errors->all() as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+    </div>
+</div>
+@endif
+
 {{-- Page Header --}}
 <div class="d-flex align-items-center gap-2 mb-2">
     <a href="{{ route('branch-inventory.index') }}" class="dj-back">
@@ -106,7 +130,7 @@
         <h5 class="fw-bold mb-0" style="font-size:.9rem">
             <i class="bi bi-truck me-1" style="color:var(--accent)"></i>Deliver to Customer
         </h5>
-        <span style="font-size:.65rem;color:var(--text-muted)">Enter qty for each product you're deploying. Leave blank to skip.</span>
+        <span style="font-size:.65rem;color:var(--text-muted)">Quantity defaults to 0. Only lines with quantity &gt; 0 are delivered after you confirm in the review step.</span>
     </div>
 </div>
 
@@ -124,7 +148,7 @@
                 @foreach($branches as $b)
                     <option value="{{ $b->id }}"
                         data-customers="{{ json_encode($b->customers_list ?? []) }}"
-                        {{ old('branch_id') == $b->id ? 'selected' : '' }}>
+                        {{ (string) old('branch_id', isset($branch) ? $branch->id : '') === (string) $b->id ? 'selected' : '' }}>
                         {{ $b->name }}
                     </option>
                 @endforeach
@@ -195,14 +219,71 @@
 
 {{-- Actions --}}
 <div class="action-strip">
-    <button type="submit" class="btn-submit" id="submitBtn">
-        <i class="bi bi-truck"></i> Confirm Delivery
+    <button type="button" class="btn-submit" id="btnOpenReview">
+        <i class="bi bi-clipboard-check"></i> Confirm Delivery
     </button>
     <a href="{{ route('branch-inventory.index') }}" class="btn-cancel">Cancel</a>
-    <span style="font-size:.68rem;color:var(--text-muted);margin-left:.5rem">Only rows with a quantity entered will be submitted.</span>
+    <span style="font-size:.68rem;color:var(--text-muted);margin-left:.5rem">You will review area, customer, and line items before saving.</span>
 </div>
 
 </form>
+
+{{-- Review delivery modal --}}
+<div class="modal fade review-modal" id="reviewDeliveryModal" tabindex="-1" aria-labelledby="reviewDeliveryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:var(--radius);border:1px solid var(--border)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewDeliveryModalLabel">
+                    <i class="bi bi-clipboard-check me-2" style="color:var(--accent)"></i>Review delivery
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="review-hint mb-2">
+                    Only products with a quantity <strong>greater than zero</strong> will be included on this delivery.
+                    Lines with <strong>0</strong> or blank quantity are <strong>not</strong> transferred.
+                </p>
+                <div class="alert alert-warning py-2 px-3 alert-zeros mb-3 d-none" id="reviewZeroLinesAlert" role="alert">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <span id="reviewZeroLinesText"></span>
+                </div>
+                <div class="mb-3 p-2 rounded" style="background:var(--bg-page);font-size:.76rem;border:1px solid var(--border)">
+                    <div><strong>Area:</strong> <span id="reviewAreaName">—</span></div>
+                    <div><strong>Customer:</strong> <span id="reviewCustomerName">—</span></div>
+                    <div><strong>DR #:</strong> <span id="reviewDr">—</span></div>
+                    <div><strong>Delivery date:</strong> <span id="reviewDate">—</span></div>
+                </div>
+                <div class="table-responsive" style="max-height:50vh">
+                    <table class="review-table table table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-center">Warehouse stock</th>
+                                <th class="text-center">Qty to deliver</th>
+                                <th class="text-end">Line value (cost)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviewTableBody"></tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-end">Total delivery value (cost)</td>
+                                <td class="text-end" id="reviewTotalCost">₱0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top" style="background:var(--bg-page)">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                    <i class="bi bi-pencil-square me-1"></i>Back to edit
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="btnSaveDelivery">
+                    <i class="bi bi-check-lg me-1"></i>Save delivery
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {{-- TomSelect --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
@@ -216,6 +297,7 @@
         'name'          => $p->name,
         'stock_on_hand' => $p->stock_on_hand,
         'selling_price' => $p->selling_price,
+        'cost_price'    => $p->cost_price,
         'minimum_stock' => $p->minimum_stock,
     ];
 })->values()) !!}
@@ -263,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    new TomSelect('#branchSelect', {
+    var branchTs = new TomSelect('#branchSelect', {
         dropdownParent: 'body',
         create: false,
         onChange: function(id) { loadCustomers(id, null); }
@@ -271,7 +353,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var oldBranch   = '{{ old("branch_id") }}';
     var oldCustomer = '{{ old("customer_name") }}';
-    if (oldBranch) loadCustomers(oldBranch, oldCustomer || null);
+    var prefBranch  = '{{ isset($branch) ? $branch->id : '' }}';
+    if (oldBranch) {
+        branchTs.setValue(oldBranch, true);
+        loadCustomers(oldBranch, oldCustomer || null);
+    } else if (prefBranch) {
+        branchTs.setValue(prefBranch, true);
+        loadCustomers(prefBranch, null);
+    }
+
+    var reviewModalEl = document.getElementById('reviewDeliveryModal');
+    var reviewModal   = reviewModalEl ? new bootstrap.Modal(reviewModalEl) : null;
 
     // ── Enter key: jump to next qty input ──────────────────────────
     document.getElementById('productsTableBody').addEventListener('keydown', function(e) {
@@ -280,7 +372,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!target.classList.contains('qty-input')) return;
         e.preventDefault();
 
-        // Collect all visible (non-disabled) qty inputs in DOM order
         var inputs = Array.from(document.querySelectorAll('.qty-input:not([disabled])'));
         var curIdx = inputs.indexOf(target);
         if (curIdx >= 0 && curIdx < inputs.length - 1) {
@@ -289,28 +380,44 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ── Before submit — validate at least one qty, skip empty rows ──
-    document.getElementById('deliverForm').addEventListener('submit', function(e) {
-        // Re-enable everything first (in case of back-after-error)
-        document.querySelectorAll('#productsTableBody input').forEach(function(el){ el.disabled = false; });
+    function readBranchName() {
+        var sel = document.getElementById('branchSelect');
+        var opt = sel && sel.options[sel.selectedIndex];
+        return opt ? opt.textContent.replace(/\s+/g, ' ').trim() : '';
+    }
+
+    function validateDeliveryFormForReview() {
+        var branchId = document.getElementById('branchSelect').value;
+        if (!branchId) {
+            showToast('Area is required — please select an area.', 'danger');
+            return false;
+        }
+        var cust = customerTs.getValue();
+        if (!cust || !String(cust).trim()) {
+            showToast('Customer is required — select an area, then choose or type a customer.', 'danger');
+            return false;
+        }
+        var dr = document.querySelector('input[name="dr_number"]');
+        if (!dr || !String(dr.value).trim()) {
+            showToast('DR number is required.', 'danger');
+            return false;
+        }
+        var md = document.querySelector('input[name="movement_date"]');
+        if (!md || !String(md.value).trim()) {
+            showToast('Delivery date is required.', 'danger');
+            return false;
+        }
 
         var hasAny  = false;
         var errRows = [];
-
         document.querySelectorAll('.qty-input').forEach(function(inp) {
             var idx   = inp.dataset.idx;
             var val   = parseFloat(inp.value || 0);
             var avail = parseFloat(document.getElementById('avail-' + idx).textContent || 0);
             var extra = parseFloat(document.getElementById('extra-' + idx).value || 0);
             var row   = document.getElementById('prod-row-' + idx);
-
-            if (!val || val <= 0) {
-                // No qty — disable this row's inputs so they don't POST
-                row.querySelectorAll('input').forEach(function(el){ el.disabled = true; });
-            } else {
+            if (val > 0) {
                 hasAny = true;
-
-                // Warn if qty exceeds available stock
                 if (avail > 0 && (val + extra) > avail) {
                     errRows.push(row.querySelector('.prod-name').textContent.trim());
                 }
@@ -318,18 +425,93 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (!hasAny) {
-            e.preventDefault();
-            // Re-enable so user can fix
-            document.querySelectorAll('#productsTableBody input').forEach(function(el){ el.disabled = false; });
-            showToast('Please enter a quantity for at least one product.', 'danger');
-            return;
+            showToast('Enter a quantity greater than zero for at least one product.', 'danger');
+            return false;
+        }
+        if (errRows.length > 0) {
+            showToast('Quantity exceeds warehouse stock for: ' + errRows.join(', '), 'danger');
+            return false;
+        }
+        return true;
+    }
+
+    function openReviewModal() {
+        if (!validateDeliveryFormForReview()) return;
+
+        document.getElementById('reviewAreaName').textContent     = readBranchName() || '—';
+        document.getElementById('reviewCustomerName').textContent = customerTs.getValue() || '—';
+        document.getElementById('reviewDr').textContent           = document.querySelector('input[name="dr_number"]').value.trim();
+        var d = document.querySelector('input[name="movement_date"]').value;
+        document.getElementById('reviewDate').textContent       = d ? new Date(d + 'T12:00:00').toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) : '—';
+
+        var tbody = document.getElementById('reviewTableBody');
+        tbody.innerHTML = '';
+        var totalCost = 0;
+        var linesWithQty = 0;
+
+        for (var i = 0; i < rowIndex; i++) {
+            var qEl = document.getElementById('qty-' + i);
+            if (!qEl) continue;
+            var qty = parseFloat(qEl.value || 0);
+            if (qty <= 0) continue;
+
+            linesWithQty++;
+            var p = allProducts[i];
+            var stock = parseFloat(p.stock_on_hand) || 0;
+            var cost  = parseFloat(p.cost_price) || 0;
+            var lineCost = qty * cost;
+            totalCost += lineCost;
+
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td><strong>' + escapeHtml(p.name) + '</strong></td>' +
+                '<td class="text-center">' + stock + '</td>' +
+                '<td class="text-center">' + qty + '</td>' +
+                '<td class="text-end">\u20B1' + lineCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>';
+            tbody.appendChild(tr);
         }
 
-        if (errRows.length > 0) {
-            e.preventDefault();
-            document.querySelectorAll('#productsTableBody input').forEach(function(el){ el.disabled = false; });
-            showToast('Qty exceeds available stock for: ' + errRows.join(', '), 'danger');
+        document.getElementById('reviewTotalCost').textContent =
+            '\u20B1' + totalCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        var zeroLines = rowIndex - linesWithQty;
+        var zAlert = document.getElementById('reviewZeroLinesAlert');
+        var zText  = document.getElementById('reviewZeroLinesText');
+        if (zeroLines > 0) {
+            zText.textContent = zeroLines + ' product line(s) have no quantity and will not be on this delivery.';
+            zAlert.classList.remove('d-none');
+        } else {
+            zAlert.classList.add('d-none');
         }
+
+        if (reviewModal) reviewModal.show();
+    }
+
+    function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function disableZeroQtyRowsBeforeSubmit() {
+        document.querySelectorAll('#productsTableBody input').forEach(function(el) { el.disabled = false; });
+        document.querySelectorAll('.qty-input').forEach(function(inp) {
+            var idx = inp.dataset.idx;
+            var val = parseFloat(inp.value || 0);
+            var row = document.getElementById('prod-row-' + idx);
+            if (!row) return;
+            if (!val || val <= 0) {
+                row.querySelectorAll('input').forEach(function(el) { el.disabled = true; });
+            }
+        });
+    }
+
+    document.getElementById('btnOpenReview').addEventListener('click', openReviewModal);
+
+    document.getElementById('btnSaveDelivery').addEventListener('click', function() {
+        disableZeroQtyRowsBeforeSubmit();
+        if (reviewModal) reviewModal.hide();
+        document.getElementById('deliverForm').submit();
     });
 });
 
@@ -354,7 +536,7 @@ function renderRow(product, idx) {
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input qty-input" id="qty-' + idx + '" data-idx="' + idx + '" ' +
-                'name="items[' + idx + '][quantity]" step="1" min="0" placeholder="—" oninput="onQtyInput(' + idx + ',' + avail + ')">' +
+                'name="items[' + idx + '][quantity]" step="1" min="0" value="0" oninput="onQtyInput(' + idx + ',' + avail + ')">' +
             '<input type="hidden" name="items[' + idx + '][product_id]" value="' + product.id + '">' +
         '</td>' +
         '<td>' +
@@ -418,7 +600,7 @@ function calcGrand() {
 }
 
 function clearRow(idx) {
-    document.getElementById('qty-' + idx).value   = '';
+    document.getElementById('qty-' + idx).value   = '0';
     document.getElementById('extra-' + idx).value  = '0';
     document.getElementById('prod-row-' + idx).style.background = '';
     delete activeRows[idx];

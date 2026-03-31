@@ -24,6 +24,9 @@
     .btn-view { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid var(--accent); color:var(--accent) !important; background:transparent; border-radius:5px; font-size:.72rem; font-weight:600; text-decoration:none !important; transition:all .13s; cursor:pointer; }
     .btn-view:hover { background:var(--accent); color:#fff !important; }
 
+    .btn-del { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid #dc2626; color:#dc2626 !important; background:transparent; border-radius:5px; font-size:.72rem; font-weight:600; text-decoration:none !important; transition:all .13s; cursor:pointer; }
+    .btn-del:hover { background:#fef2f2; color:#991b1b !important; border-color:#991b1b; }
+
     .dr-badge { display:inline-block; background:var(--accent-light); color:var(--accent); border-radius:4px; padding:.1rem .45rem; font-size:.72rem; font-weight:700; }
     .prod-badge { display:inline-block; background:#e2e8f0; color:var(--text-secondary); border-radius:20px; padding:.1rem .55rem; font-size:.71rem; font-weight:600; }
     .val-text { font-weight:700; color:var(--s-success-text); }
@@ -44,6 +47,19 @@
 @endif
 @if(session('error'))
 <div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
+@endif
+@if($errors->any())
+<div class="alert-bar danger">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+        <strong>Could not remove delivery</strong>
+        <ul class="mb-0 mt-1 ps-3" style="font-size:.76rem">
+            @foreach($errors->all() as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+    </div>
+</div>
 @endif
 
 {{-- Header --}}
@@ -107,9 +123,23 @@
                 <td class="text-end" style="font-size:.80rem">{{ number_format($delivery->total_qty, 2) }}</td>
                 <td style="font-size:.76rem;color:var(--text-secondary)">{{ $delivery->recorded_by }}</td>
                 <td class="text-center">
-                    <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}" class="btn-view">
-                        <i class="bi bi-eye"></i> View
-                    </a>
+                    <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                        <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}" class="btn-view">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+                        <form method="POST"
+                              action="{{ route('branch-inventory.destroy-delivery-batch') }}"
+                              class="d-inline"
+                              onsubmit="return confirm('Remove this delivery?\n\nDR# {{ $delivery->dr_number }}\n{{ $delivery->branch_name }} → {{ $delivery->customer_name }}\n{{ \Carbon\Carbon::parse($delivery->movement_date)->format('M d, Y') }}\n\nWarehouse stock will be restored and quantities removed from the area. Blocked if this DR has payments or sold/BO quantities.');">
+                            @csrf
+                            @method('DELETE')
+                            <input type="hidden" name="dr_number" value="{{ $delivery->dr_number }}">
+                            <input type="hidden" name="branch_id" value="{{ $delivery->branch_id }}">
+                            <input type="hidden" name="movement_date" value="{{ \Carbon\Carbon::parse($delivery->movement_date)->format('Y-m-d') }}">
+                            <input type="hidden" name="user_id" value="{{ $delivery->user_id }}">
+                            <button type="submit" class="btn-del"><i class="bi bi-trash"></i> Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             @empty

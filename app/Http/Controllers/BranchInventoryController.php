@@ -13,6 +13,8 @@ use App\Models\SaleItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class BranchInventoryController extends Controller
 {
@@ -124,7 +126,13 @@ class BranchInventoryController extends Controller
     // ──────────────────────────────────────────────────────────────────
     public function storeDelivery(Request $request)
     {
-        $request->validate(['branch_id' => 'required|exists:branches,id']);
+        $request->validate(
+            ['branch_id' => 'required|exists:branches,id'],
+            [
+                'branch_id.required' => 'Please select an area for this delivery.',
+                'branch_id.exists'   => 'The selected area is invalid or no longer available.',
+            ]
+        );
         $branch = Branch::findOrFail($request->branch_id);
         return $this->transfer($request, $branch);
     }
@@ -166,17 +174,49 @@ class BranchInventoryController extends Controller
     public function transfer(Request $request, Branch $branch)
     {
         $validated = $request->validate([
+            'branch_id'               => 'required|integer|exists:branches,id',
             'customer_name'           => 'required|string|max:255',
             'dr_number'               => 'required|string|max:255',
             'movement_date'           => 'required|date',
             'notes'                   => 'nullable|string',
             'delivered_by'            => 'nullable|string|max:100',
-            'items'                   => 'required|array|min:1',
+            'items'                   => 'required|array',
             'items.*.product_id'      => 'required|integer|exists:finished_products,id',
-            'items.*.quantity'        => 'required|numeric|min:0.01',
+            'items.*.quantity'        => 'nullable|numeric|min:0',
             'items.*.extra_quantity'  => 'nullable|numeric|min:0',
             'items.*.unit_price'      => 'nullable|numeric|min:0',
+        ], [
+            'branch_id.required'       => 'Please select an area for this delivery.',
+            'branch_id.exists'         => 'The selected area is invalid or no longer available.',
+            'customer_name.required'   => 'Customer is required — select an area, then choose or type a customer name.',
+            'customer_name.max'        => 'Customer name must not exceed 255 characters.',
+            'dr_number.required'       => 'DR number is required.',
+            'movement_date.required'   => 'Delivery date is required.',
+            'movement_date.date'       => 'Delivery date must be a valid date.',
+            'items.required'           => 'No product lines were submitted. Enter a quantity greater than zero for at least one product.',
+            'items.*.product_id.required' => 'Each delivery line must reference a valid product.',
+            'items.*.product_id.exists'   => 'One or more products are invalid.',
+            'items.*.quantity.numeric'    => 'Quantity must be a number.',
+            'items.*.quantity.min'        => 'Quantity cannot be negative.',
+            'items.*.extra_quantity.min'  => 'Extra / free quantity cannot be negative.',
+            'items.*.unit_price.min'      => 'Unit price cannot be negative.',
         ]);
+
+        if ((int) $validated['branch_id'] !== (int) $branch->id) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'The selected area does not match this delivery. Refresh the page and select the correct area again.',
+            ]);
+        }
+
+        $lineItems = collect($validated['items'])
+            ->filter(fn ($row) => (float) ($row['quantity'] ?? 0) > 0)
+            ->values();
+
+        if ($lineItems->isEmpty()) {
+            throw ValidationException::withMessages([
+                'items' => 'Add at least one product with a quantity greater than zero to include on this delivery.',
+            ]);
+        }
 
         // Encode customer into notes since no dedicated column exists
         $customerPrefix = 'Customer: ' . $validated['customer_name'];
@@ -191,7 +231,7 @@ class BranchInventoryController extends Controller
 
             $deployedItems = [];
 
-            foreach ($validated['items'] as $itemData) {
+            foreach ($lineItems as $itemData) {
                 $productId  = (int) $itemData['product_id'];
                 $product    = FinishedProduct::lockForUpdate()->findOrFail($productId);
                 $regularQty = (float) $itemData['quantity'];
@@ -308,7 +348,7 @@ class BranchInventoryController extends Controller
                 ]
             );
 
-            foreach ($validated['items'] as $itemData) {
+            foreach ($lineItems as $itemData) {
                 $productId  = (int) $itemData['product_id'];
                 $product    = FinishedProduct::findOrFail($productId);
                 $regularQty = (float) $itemData['quantity'];
@@ -472,5 +512,245 @@ class BranchInventoryController extends Controller
             DB::rollBack();
             return back()->with('error', 'Delete failed: ' . $e->getMessage());
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // DESTROY DELIVERY BATCH — reverse one grouped delivery from index
+    // (same key as index: DR #, area, date, recorded-by user)
+    // ──────────────────────────────────────────────────────────────────
+    public function destroyDeliveryBatch(Request $request)
+    {
+        $validated = $request->validate([
+            'dr_number'     => 'required|string|max:255',
+            'branch_id'     => 'required|integer|exists:branches,id',
+            'movement_date' => 'required|date',
+            'user_id'       => 'required|integer|exists:users,id',
+        ], [
+            'dr_number.required'      => 'DR number is required to remove a delivery.',
+            'branch_id.required'      => 'Area is required.',
+            'branch_id.exists'        => 'The selected area is invalid.',
+            'movement_date.required'  => 'Delivery date is required.',
+            'movement_date.date'      => 'Delivery date is invalid.',
+            'user_id.required'        => 'Recorded user is required.',
+            'user_id.exists'          => 'The recorded user is invalid.',
+        ]);
+
+        $movements = StockMovement::query()
+            ->where('reference_number', $validated['dr_number'])
+            ->where('branch_id', $validated['branch_id'])
+            ->whereDate('movement_date', $validated['movement_date'])
+            ->where('user_id', $validated['user_id'])
+            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+            ->orderBy('id')
+            ->get();
+
+        if ($movements->isEmpty()) {
+            return redirect()->route('branch-inventory.index')
+                ->with('error', 'That delivery was not found or was already removed.');
+        }
+
+        $firstNotes   = $movements->first()->notes ?? '';
+        $customerName = $this->parseCustomerNameFromMovementNotes($firstNotes);
+
+        try {
+            DB::beginTransaction();
+
+            $movements = StockMovement::query()
+                ->where('reference_number', $validated['dr_number'])
+                ->where('branch_id', $validated['branch_id'])
+                ->whereDate('movement_date', $validated['movement_date'])
+                ->where('user_id', $validated['user_id'])
+                ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+
+            if ($movements->isEmpty()) {
+                DB::rollBack();
+                return redirect()->route('branch-inventory.index')
+                    ->with('error', 'That delivery was not found or was already removed.');
+            }
+
+            $sale = null;
+            if ($customerName) {
+                $sale = Sale::where('branch_id', $validated['branch_id'])
+                    ->where('customer_name', $customerName)
+                    ->where('dr_number', $validated['dr_number'])
+                    ->lockForUpdate()
+                    ->first();
+            } else {
+                $saleCandidates = Sale::where('branch_id', $validated['branch_id'])
+                    ->where('dr_number', $validated['dr_number'])
+                    ->lockForUpdate()
+                    ->get();
+                if ($saleCandidates->count() === 1) {
+                    $sale = $saleCandidates->first();
+                } elseif ($saleCandidates->count() > 1) {
+                    throw ValidationException::withMessages([
+                        'delivery' => 'This DR has more than one customer on file for this area. Customer could not be read from delivery notes; remove this delivery from the database admin or fix movement notes before deleting.',
+                    ]);
+                }
+            }
+
+            if ($sale) {
+                if ((float) $sale->amount_paid > 0) {
+                    throw ValidationException::withMessages([
+                        'delivery' => 'This delivery cannot be removed because DR# ' . $validated['dr_number'] . ' already has recorded payments. Void or adjust payments first.',
+                    ]);
+                }
+
+                foreach ($movements->where('movement_type', 'transfer_out')->groupBy('finished_product_id') as $productId => $rows) {
+                    $regular = (float) $rows->sum('quantity');
+                    $item = SaleItem::where('sale_id', $sale->id)
+                        ->where('finished_product_id', $productId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($item) {
+                        if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
+                            throw ValidationException::withMessages([
+                                'delivery' => 'This delivery cannot be removed because some products on this DR already have recorded sales (sold or BO). Use sales screens to adjust first.',
+                            ]);
+                        }
+                        if ((float) $item->quantity_deployed < $regular - 0.0001) {
+                            throw new \RuntimeException(
+                                'Branch sale lines do not match this delivery (deployed quantity is lower than this delivery). Refusing to delete to protect data integrity.'
+                            );
+                        }
+                    }
+                }
+            }
+
+            $branchId = (int) $validated['branch_id'];
+
+            foreach ($movements->groupBy('finished_product_id') as $productId => $productMovements) {
+                $productId = (int) $productId;
+                $totalQty  = (float) $productMovements->sum('quantity');
+                $regularQty = (float) $productMovements->where('movement_type', 'transfer_out')->sum('quantity');
+
+                $product = FinishedProduct::lockForUpdate()->findOrFail($productId);
+                $product->increment('stock_on_hand', $totalQty);
+                $product->decrement('stock_out', $totalQty);
+
+                if ($regularQty > 0) {
+                    $inventory = BranchInventory::where('branch_id', $branchId)
+                        ->where('finished_product_id', $productId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$inventory || (float) $inventory->quantity < $regularQty - 0.0001) {
+                        throw new \RuntimeException(
+                            "Cannot remove delivery: area stock for {$product->name} is lower than this delivery recorded. Another change may have altered inventory."
+                        );
+                    }
+
+                    $newBranchQty = round((float) $inventory->quantity - $regularQty, 2);
+                    if ($newBranchQty <= 0.0001) {
+                        $inventory->delete();
+                    } else {
+                        $inventory->update(['quantity' => $newBranchQty]);
+                    }
+                }
+
+                $nullBatchQty = 0.0;
+                foreach ($productMovements as $m) {
+                    $qty = (float) $m->quantity;
+                    $bn  = $m->batch_number;
+                    if ($bn !== null && $bn !== '') {
+                        $mix = ProductionMix::where('batch_number', $bn)
+                            ->where('finished_product_id', $productId)
+                            ->lockForUpdate()
+                            ->first();
+                        if ($mix) {
+                            $mix->increment('actual_output', $qty);
+                        } else {
+                            $nullBatchQty += $qty;
+                        }
+                    } else {
+                        $nullBatchQty += $qty;
+                    }
+                }
+
+                if ($nullBatchQty > 0.0001) {
+                    $fallbackMix = ProductionMix::where('finished_product_id', $productId)
+                        ->where('status', 'completed')
+                        ->orderBy('mix_date', 'asc')
+                        ->orderBy('id', 'asc')
+                        ->lockForUpdate()
+                        ->first();
+                    if ($fallbackMix) {
+                        $fallbackMix->increment('actual_output', $nullBatchQty);
+                    }
+                }
+            }
+
+            if ($sale) {
+                foreach ($movements->where('movement_type', 'transfer_out')->groupBy('finished_product_id') as $productId => $rows) {
+                    $regular = (float) $rows->sum('quantity');
+                    $item = SaleItem::where('sale_id', $sale->id)
+                        ->where('finished_product_id', $productId)
+                        ->first();
+
+                    if (!$item) {
+                        continue;
+                    }
+
+                    $newDeployed = round((float) $item->quantity_deployed - $regular, 2);
+                    $newUnsold   = max(0, round((float) $item->quantity_unsold - $regular, 2));
+
+                    if ($newDeployed <= 0.0001) {
+                        $item->delete();
+                    } else {
+                        $item->quantity_deployed = $newDeployed;
+                        $item->quantity_unsold   = $newUnsold;
+                        $item->save();
+                    }
+                }
+
+                $sale->refresh();
+                if ($sale->items()->count() === 0) {
+                    $sale->delete();
+                } else {
+                    $sale->recalculateTotal();
+                }
+            }
+
+            StockMovement::whereIn('id', $movements->pluck('id'))->delete();
+
+            DB::commit();
+
+            Log::info('Delivery batch removed', [
+                'dr_number'     => $validated['dr_number'],
+                'branch_id'     => $validated['branch_id'],
+                'movement_date' => $validated['movement_date'],
+                'user_id'       => $validated['user_id'],
+                'removed_by'    => Auth::id(),
+            ]);
+
+            return redirect()->route('branch-inventory.index')
+                ->with('success', 'Delivery DR# ' . $validated['dr_number'] . ' was removed. Warehouse and area stock were restored.');
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('destroyDeliveryBatch failed', ['message' => $e->getMessage(), 'input' => $validated]);
+
+            return redirect()->route('branch-inventory.index')
+                ->with('error', $e->getMessage());
+        }
+    }
+
+    private function parseCustomerNameFromMovementNotes(?string $notes): ?string
+    {
+        if (!$notes || ! str_contains($notes, 'Customer:')) {
+            return null;
+        }
+        if (preg_match('/Customer:\s*([^|]+)/', $notes, $m)) {
+            $name = trim($m[1] ?? '');
+            return $name !== '' ? $name : null;
+        }
+
+        return null;
     }
 }

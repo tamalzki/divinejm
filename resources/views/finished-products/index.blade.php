@@ -201,21 +201,6 @@
     .act-adjust { background: #2d6a4f; color: #fff; }
 </style>
 
-@if(session('success'))
-<div class="alert alert-success d-flex align-items-center gap-2 mb-3" style="font-size:.82rem;padding:.6rem .9rem">
-    <i class="bi bi-check-circle-fill"></i>
-    <span>{{ session('success') }}</span>
-    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.7rem"></button>
-</div>
-@endif
-@if(session('error'))
-<div class="alert alert-danger d-flex align-items-center gap-2 mb-3" style="font-size:.82rem;padding:.6rem .9rem">
-    <i class="bi bi-exclamation-triangle-fill"></i>
-    <span>{{ session('error') }}</span>
-    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.7rem"></button>
-</div>
-@endif
-
 <div class="fp-header">
     <div>
         <h4><i class="bi bi-basket-fill me-2" style="color:var(--accent)"></i>Finished Products</h4>

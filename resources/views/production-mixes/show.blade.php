@@ -65,12 +65,6 @@
     </div>
 </div>
 
-@if(session('success'))
-<div class="note-bar" style="background:#f0fdf4;border-color:#86efac;color:#166534">
-    <i class="bi bi-check-circle-fill"></i>{{ session('success') }}
-</div>
-@endif
-
 @if($mix->notes)
 <div class="note-bar">
     <i class="bi bi-chat-left-text" style="color:var(--accent)"></i>

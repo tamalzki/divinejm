@@ -37,30 +37,7 @@
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
 
-    .alert-bar { padding:.55rem 1rem; border-radius:var(--radius); margin-bottom:.75rem; font-size:.8rem; display:flex; align-items:center; gap:.5rem; }
-    .alert-bar.success { background:var(--s-success-bg); color:var(--s-success-text); border:1px solid #bbf7d0; }
-    .alert-bar.danger  { background:var(--s-danger-bg);  color:var(--s-danger-text);  border:1px solid #fca5a5; }
 </style>
-
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
-@endif
-@if($errors->any())
-<div class="alert-bar danger">
-    <i class="bi bi-exclamation-triangle-fill"></i>
-    <div>
-        <strong>Could not remove delivery</strong>
-        <ul class="mb-0 mt-1 ps-3" style="font-size:.76rem">
-            @foreach($errors->all() as $err)
-                <li>{{ $err }}</li>
-            @endforeach
-        </ul>
-    </div>
-</div>
-@endif
 
 {{-- Header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">

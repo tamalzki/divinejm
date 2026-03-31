@@ -44,10 +44,6 @@
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); font-size:.82rem; }
 </style>
 
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>

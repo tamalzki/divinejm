@@ -59,10 +59,6 @@
     .total-chip.paid    { border-color:var(--s-success-bg); background:var(--s-success-bg); color:var(--s-success-text); font-weight:700; }
 </style>
 
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-
 {{-- Page header --}}
 <div class="d-flex align-items-center gap-2 mb-3">
     <a href="{{ route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)]) }}" class="dj-back">

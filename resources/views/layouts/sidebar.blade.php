@@ -426,6 +426,24 @@
         .is-invalid { border-color: #c08888 !important; }
         .is-invalid:focus { box-shadow: 0 0 0 3px rgba(192,136,136,.12) !important; }
         .invalid-feedback { color: var(--s-danger-text); }
+
+        /* Legacy per-page alerts: keep readable if any view still uses alert-bar */
+        .alert-bar.success {
+            background: #ecfdf5 !important;
+            color: #065f46 !important;
+            border: 1px solid #6ee7b7 !important;
+            border-left: 4px solid #059669 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+        }
+        .alert-bar.danger {
+            background: #fef2f2 !important;
+            color: #7f1d1d !important;
+            border: 1px solid #fca5a5 !important;
+            border-left: 4px solid #dc2626 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+        }
     </style>
 </head>
 <body>
@@ -539,10 +557,23 @@
 {{-- Content --}}
 <main class="main-wrap">
     <div class="main-inner">
+        @include('partials.flash')
         @yield('content')
     </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.dj-flash-dismiss').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var row = this.closest('.dj-flash');
+                if (row) {
+                    row.remove();
+                }
+            });
+        });
+    });
+</script>
 </body>
 </html>

@@ -29,15 +29,6 @@
     </a>
 </div>
 
-@if($errors->any())
-<div class="edit-wrap mb-3">
-    <div class="alert alert-danger py-2" style="font-size:.8rem">
-        <i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Please fix the following:</strong>
-        <ul class="mb-0 mt-1 ps-3">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
-    </div>
-</div>
-@endif
-
 <div class="edit-wrap">
 <div class="edit-card">
     <div class="edit-title"><i class="bi bi-pencil-square"></i> Edit — {{ $rawMaterial->name }}</div>

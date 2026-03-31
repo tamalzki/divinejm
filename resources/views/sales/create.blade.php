@@ -9,25 +9,6 @@
     </a>
 </div>
 
-@if($errors->any())
-<div class="alert alert-danger alert-dismissible fade show">
-    <h5><i class="bi bi-exclamation-triangle me-2"></i>Validation Errors:</h5>
-    <ul class="mb-0">
-        @foreach($errors->all() as $error)
-            <li>{{ $error }}</li>
-        @endforeach
-    </ul>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
-@if(session('error'))
-<div class="alert alert-danger alert-dismissible fade show">
-    <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
 <!-- Step 1: Sale Information Card - Top Section -->
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-primary text-white">

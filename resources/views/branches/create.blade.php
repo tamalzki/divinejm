@@ -9,22 +9,6 @@
     </a>
 </div>
 
-{{-- Error Summary Banner --}}
-@if($errors->any())
-<div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
-    <div class="d-flex align-items-center mb-1">
-        <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-        <strong>The area could not be saved. Please fix the following:</strong>
-    </div>
-    <ul class="mb-0 ps-3 mt-1">
-        @foreach($errors->all() as $error)
-            <li>{{ $error }}</li>
-        @endforeach
-    </ul>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
 <div class="card shadow-sm">
     <div class="card-header bg-primary text-white">
         <i class="bi bi-plus-circle me-2"></i>Add New Area

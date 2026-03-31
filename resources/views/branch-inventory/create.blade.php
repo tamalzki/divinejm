@@ -60,10 +60,6 @@
     /* Grand total row */
     .grand-row td { font-weight:700; }
 
-    /* Alert */
-    .alert-bar { padding:.55rem .9rem; border-radius:var(--radius); margin-bottom:.65rem; font-size:.78rem; display:flex; align-items:center; gap:.5rem; }
-    .alert-bar.danger { background:var(--s-danger-bg); color:var(--s-danger-text); border:1px solid #fca5a5; }
-
     /* Action strip */
     .action-strip { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); display:flex; align-items:center; gap:.5rem; padding:.65rem 1rem; }
     .btn-submit { display:inline-flex; align-items:center; gap:.3rem; padding:.38rem 1.1rem; background:var(--accent); color:#fff; border:none; border-radius:5px; font-size:.8rem; font-weight:600; cursor:pointer; transition:background .15s; }
@@ -102,24 +98,6 @@
     .ts-dropdown .option { padding:.3rem .55rem !important; }
     .ts-dropdown .option.active { background:var(--accent) !important; color:#fff !important; }
 </style>
-
-@if(session('error'))
-<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
-@endif
-
-@if($errors->any())
-<div class="alert-bar danger">
-    <i class="bi bi-exclamation-triangle-fill"></i>
-    <div>
-        <strong>Please fix the following:</strong>
-        <ul class="mb-0 mt-1 ps-3" style="font-size:.76rem">
-            @foreach($errors->all() as $err)
-                <li>{{ $err }}</li>
-            @endforeach
-        </ul>
-    </div>
-</div>
-@endif
 
 {{-- Page Header --}}
 <div class="d-flex align-items-center gap-2 mb-2">

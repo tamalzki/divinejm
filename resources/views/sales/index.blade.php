@@ -34,14 +34,6 @@
     .stat-chip { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; color:var(--text-muted); }
 </style>
 
-{{-- Flash --}}
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
-@endif
-
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>

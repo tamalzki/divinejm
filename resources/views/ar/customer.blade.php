@@ -37,10 +37,6 @@
     .sum-tile-value.green { color:var(--s-success-text); }
 </style>
 
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-
 {{-- Header --}}
 <div class="d-flex align-items-center gap-2 mb-3">
     <a href="{{ route('ar.index') }}" class="dj-back">

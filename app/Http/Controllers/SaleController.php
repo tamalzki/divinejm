@@ -9,6 +9,7 @@ use App\Models\SaleRecordHistory;
 use App\Models\StockMovement;
 use App\Services\DeliveryBatchReversalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -368,20 +369,13 @@ class SaleController extends Controller
             $qtySoldBeforeDelete = (float) $sale->items->sum('quantity_sold');
             $qtyBoBeforeDelete = (float) $sale->items->sum('quantity_bo');
 
-            $escaped = addcslashes($customerName, '%_\\');
-            $movements = StockMovement::query()
-                ->where('reference_number', $drNumber)
-                ->where('branch_id', $branchId)
-                ->whereIn('movement_type', ['transfer_out', 'extra_free'])
-                ->where('notes', 'like', '%Customer: '.$escaped.'%')
-                ->lockForUpdate()
-                ->orderBy('id')
-                ->get();
+            $movements = $this->lockDeliveryMovementsForSaleDestroy($sale);
 
             $totalDeployed = (float) $sale->items->sum('quantity_deployed');
             if ($movements->isEmpty() && $totalDeployed > 0.02) {
                 throw new \RuntimeException(
-                    'No warehouse delivery matched this DR and customer, so stock was not reverted. Deletion was cancelled to protect inventory. If this DR is orphaned, fix movement notes or use database support.'
+                    'Could not match a warehouse delivery to this DR to undo stock. The app looks for movements with this DR# and area, first with your customer name in the notes (Customer: …), then by matching transfer quantities to these product lines. None of that matched, so inventory was not changed and the delete was cancelled. '
+                    .'Check that delivery movements still use the same DR number and area, and that notes include the correct customer name. If the customer was renamed on the sale, re-deliver or adjust stock movements—or contact support.'
                 );
             }
 
@@ -565,5 +559,88 @@ class SaleController extends Controller
             'exists' => $salesCount > 0,
             'sales_count' => $salesCount,
         ]);
+    }
+
+    /**
+     * Lock transfer_out / extra_free movements for this DR and area.
+     * Prefers rows whose notes include "Customer: {name}"; if none, accepts rows whose
+     * transfer_out quantities match sale line deployments (same products and totals).
+     *
+     * @return Collection<int, StockMovement>
+     */
+    private function lockDeliveryMovementsForSaleDestroy(Sale $sale): Collection
+    {
+        $drNumber = trim((string) $sale->dr_number);
+        $branchId = (int) $sale->branch_id;
+        $customerName = trim((string) $sale->customer_name);
+        $escaped = addcslashes($customerName, '%_\\');
+
+        $strict = StockMovement::query()
+            ->where('reference_number', $drNumber)
+            ->where('branch_id', $branchId)
+            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+            ->where('notes', 'like', '%Customer: '.$escaped.'%')
+            ->lockForUpdate()
+            ->orderBy('id')
+            ->get();
+
+        if ($strict->isNotEmpty()) {
+            return $strict;
+        }
+
+        $candidates = StockMovement::query()
+            ->where('reference_number', $drNumber)
+            ->where('branch_id', $branchId)
+            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+            ->lockForUpdate()
+            ->orderBy('id')
+            ->get();
+
+        if ($candidates->isEmpty() || ! $this->deliveryTransferOutsMatchSaleItems($candidates, $sale->items)) {
+            return collect();
+        }
+
+        Log::info('Sale DR delete matched movements without customer-in-notes filter', [
+            'sale_id' => $sale->id,
+            'dr_number' => $drNumber,
+            'branch_id' => $branchId,
+        ]);
+
+        return $candidates;
+    }
+
+    /**
+     * True when transfer_out lines (grouped by product) match sale line quantity_deployed exactly.
+     */
+    private function deliveryTransferOutsMatchSaleItems(Collection $movements, Collection $saleItems): bool
+    {
+        $transferSums = [];
+        foreach ($movements->where('movement_type', 'transfer_out') as $m) {
+            $pid = (int) $m->finished_product_id;
+            $transferSums[$pid] = ($transferSums[$pid] ?? 0) + (float) $m->quantity;
+        }
+
+        $deploySums = [];
+        foreach ($saleItems as $item) {
+            $pid = (int) $item->finished_product_id;
+            $deploySums[$pid] = ($deploySums[$pid] ?? 0) + (float) $item->quantity_deployed;
+        }
+
+        $pidsTransfer = array_keys(array_filter($transferSums, fn ($q) => $q > 0.0001));
+        $pidsDeploy = array_keys(array_filter($deploySums, fn ($q) => $q > 0.0001));
+        sort($pidsTransfer);
+        sort($pidsDeploy);
+
+        if ($pidsTransfer !== $pidsDeploy) {
+            return false;
+        }
+
+        foreach ($pidsTransfer as $pid) {
+            if (abs($transferSums[$pid] - $deploySums[$pid]) > 0.02) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

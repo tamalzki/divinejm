@@ -38,19 +38,6 @@
     .btn-filter-sm { font-size:.73rem; font-weight:600; padding:.22rem .7rem; border-radius:4px; background:var(--accent); color:#fff; border:none; cursor:pointer; }
 </style>
 
-@if(session('success'))
-<div class="alert alert-success alert-dismissible fade show py-2 px-3 mb-3" style="font-size:.80rem" role="alert">
-    <i class="bi bi-check-circle me-1"></i>{{ session('success') }}
-    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
-</div>
-@endif
-@if(session('error'))
-<div class="alert alert-danger alert-dismissible fade show py-2 px-3 mb-3" style="font-size:.80rem" role="alert">
-    <i class="bi bi-x-circle me-1"></i>{{ session('error') }}
-    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
-</div>
-@endif
-
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>

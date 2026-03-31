@@ -123,16 +123,6 @@
     .btn-del-dr-h:hover { background:#fef2f2; }
 </style>
 
-@if(session('success'))
-<div class="alert-bar success"><i class="bi bi-check-circle-fill"></i>{{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ session('error') }}</div>
-@endif
-@if($errors->any())
-<div class="alert-bar danger"><i class="bi bi-exclamation-triangle-fill"></i>{{ $errors->first() }}</div>
-@endif
-
 <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-3">
     <div class="d-flex align-items-center gap-2">
         <a href="{{ route('sales.show', [$sale->branch_id, rawurlencode($sale->customer_name)]) }}" class="dj-back">

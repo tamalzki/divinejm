@@ -70,20 +70,6 @@
     .empty-state p { font-size:.8rem; margin:0; }
 </style>
 
-@if(session('success'))
-<div class="alert alert-success d-flex align-items-center gap-2 mb-3 py-2" style="font-size:.81rem">
-    <i class="bi bi-check-circle-fill"></i><span>{{ session('success') }}</span>
-    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.7rem"></button>
-</div>
-@endif
-
-@if(session('error'))
-<div class="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2" style="font-size:.81rem">
-    <i class="bi bi-exclamation-triangle-fill"></i><span>{{ session('error') }}</span>
-    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.7rem"></button>
-</div>
-@endif
-
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
         <h5 class="fw-bold mb-0" style="font-size:.95rem">

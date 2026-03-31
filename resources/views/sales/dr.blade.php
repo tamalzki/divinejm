@@ -147,10 +147,15 @@
             </div>
         </div>
     </div>
-    <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0"
-          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR and all sold / BO / payment / less data on it\n• Restores main warehouse, batches, and area stock from delivery movements\n\nContinue only if area still holds enough stock for this delivery, or deletion may error.\n\nContinue?');">
+    <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0 d-flex flex-column align-items-end gap-1"
+          data-dr="{{ $sale->dr_number }}"
+          onsubmit="return confirmDestroyDrForm(this);">
         @csrf
         @method('DELETE')
+        <label class="form-check m-0" style="font-size:.62rem;line-height:1.25;max-width:11rem;text-align:right;cursor:pointer">
+            <input type="checkbox" name="orphan_delete" value="1" class="form-check-input" style="float:none;margin:0 .25rem 0 0;vertical-align:middle">
+            <span class="form-check-label">Test/orphan DR — skip inventory undo</span>
+        </label>
         <button type="submit" class="btn-del-dr-h"><i class="bi bi-trash"></i> Delete DR</button>
     </form>
 </div>
@@ -441,6 +446,13 @@
 @endif
 
 <script>
+function confirmDestroyDrForm(form) {
+    var dr = form.getAttribute('data-dr') || '';
+    if (form.querySelector('input[name="orphan_delete"]:checked')) {
+        return confirm('ORPHAN / TEST DELETE — DR# ' + dr + '\n\nRemoves this DR from sales only. Warehouse and area stock will NOT be changed.\n\nOnly use if this DR never had a matching delivery in the system.\n\nContinue?');
+    }
+    return confirm('Delete this DR entirely?\n\n• Removes this DR and all sold / BO / payment / less data on it\n• Restores main warehouse, batches, and area stock from delivery movements\n\nContinue only if area still holds enough stock for this delivery, or deletion may error.\n\nContinue?');
+}
 function recalcRow(itemId, unitPrice) {
     var sold     = parseFloat(document.getElementById('sold-' + itemId).value) || 0;
     var deployed = parseFloat(document.querySelector('#sold-' + itemId).dataset.deployed) || 0;

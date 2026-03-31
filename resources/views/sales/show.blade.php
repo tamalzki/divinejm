@@ -109,10 +109,16 @@
                         <a href="{{ route('sales.dr', $sale->id) }}" class="btn-view">
                             <i class="bi bi-pencil-square"></i> Record Sales
                         </a>
-                        <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="d-inline"
-                              onsubmit="return confirm('Delete DR# {{ $sale->dr_number }}?\n\n• Removes this DR and all sold / BO / payment data stored on it\n• Restores main warehouse stock, production batches, and area inventory using the original delivery movements\n\nIf area stock is lower than this delivery (e.g. after returns), deletion may fail until inventory matches.\n\nThis cannot be undone. Continue?');">
+                        <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="d-inline-flex flex-column align-items-center gap-1"
+                              data-dr="{{ $sale->dr_number }}"
+                              onsubmit="return confirmDestroySaleForm(this);"
+                              onclick="event.stopPropagation();">
                             @csrf
                             @method('DELETE')
+                            <label class="form-check m-0" style="font-size:.60rem;line-height:1.2;max-width:9.5rem;text-align:center;cursor:pointer" onclick="event.stopPropagation();">
+                                <input type="checkbox" name="orphan_delete" value="1" class="form-check-input" style="float:none;margin:0 .2rem 0 0;vertical-align:middle">
+                                <span class="form-check-label">Test/orphan — no inventory undo</span>
+                            </label>
                             <button type="submit" class="btn-del-dr"><i class="bi bi-trash"></i> Delete</button>
                         </form>
                     </div>
@@ -127,6 +133,13 @@
 </div>
 
 <script>
+function confirmDestroySaleForm(form) {
+    var dr = form.getAttribute('data-dr') || '';
+    if (form.querySelector('input[name="orphan_delete"]:checked')) {
+        return confirm('ORPHAN / TEST DELETE — DR# ' + dr + '\n\nThis removes the DR from sales only. Warehouse and area stock will NOT be changed.\n\nOnly use if this DR never had a matching “Deliver Products” record (or you accept that inventory stays as-is).\n\nContinue?');
+    }
+    return confirm('Delete DR# ' + dr + '?\n\n• Removes this DR and all sold / BO / payment data stored on it\n• Restores main warehouse stock, production batches, and area inventory using the original delivery movements\n\nIf area stock is lower than this delivery (e.g. after returns), deletion may fail until inventory matches.\n\nThis cannot be undone. Continue?');
+}
 document.getElementById('searchInput').addEventListener('input', function() {
     var q = this.value.toLowerCase().trim();
     document.querySelectorAll('.dr-row').forEach(function(row) {

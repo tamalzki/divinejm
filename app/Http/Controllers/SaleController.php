@@ -345,7 +345,7 @@ class SaleController extends Controller
     // ──────────────────────────────────────────────────────────────────
     // DESTROY DR — remove sale + lines; reverse warehouse / area / batches
     // ──────────────────────────────────────────────────────────────────
-    public function destroy(Sale $sale)
+    public function destroy(Request $request, Sale $sale)
     {
         $redirect = fn () => redirect()->route('sales.show', [
             $sale->branch_id,
@@ -359,6 +359,7 @@ class SaleController extends Controller
         $saleId = $sale->id;
         $drNumber = $sale->dr_number;
         $customerName = $sale->customer_name;
+        $allowOrphanDelete = $request->boolean('orphan_delete');
 
         try {
             DB::beginTransaction();
@@ -372,10 +373,11 @@ class SaleController extends Controller
             $movements = $this->lockDeliveryMovementsForSaleDestroy($sale);
 
             $totalDeployed = (float) $sale->items->sum('quantity_deployed');
-            if ($movements->isEmpty() && $totalDeployed > 0.02) {
+            if ($movements->isEmpty() && $totalDeployed > 0.02 && ! $allowOrphanDelete) {
                 throw new \RuntimeException(
                     'Could not match a warehouse delivery to this DR to undo stock. The app looks for movements with this DR# and area, first with your customer name in the notes (Customer: …), then by matching transfer quantities to these product lines. None of that matched, so inventory was not changed and the delete was cancelled. '
-                    .'Check that delivery movements still use the same DR number and area, and that notes include the correct customer name. If the customer was renamed on the sale, re-deliver or adjust stock movements—or contact support.'
+                    .'Check that delivery movements still use the same DR number and area, and that notes include the correct customer name. If the customer was renamed on the sale, re-deliver or adjust stock movements—or contact support. '
+                    .'For a test DR that never had a real delivery (or data is out of sync), check “Test/orphan DR” on the delete form and submit again to remove only this sales record without changing warehouse stock.'
                 );
             }
 
@@ -402,6 +404,8 @@ class SaleController extends Controller
 
             DB::commit();
 
+            $orphanDeleted = $movements->isEmpty() && $totalDeployed > 0.02 && $allowOrphanDelete;
+
             Log::info('Sale DR deleted', [
                 'sale_id' => $saleId,
                 'dr_number' => $drNumber,
@@ -410,9 +414,15 @@ class SaleController extends Controller
                 'amount_paid_cleared' => $clearedPayment,
                 'quantity_sold_cleared' => $qtySoldBeforeDelete,
                 'quantity_bo_cleared' => $qtyBoBeforeDelete,
+                'orphan_delete' => $orphanDeleted,
             ]);
 
-            $msg = 'DR# '.$drNumber.' was removed. Warehouse and area stock were restored where delivery records matched.';
+            $msg = 'DR# '.$drNumber.' was removed.';
+            if ($movements->isNotEmpty()) {
+                $msg .= ' Warehouse and area stock were restored where delivery records matched.';
+            } elseif ($orphanDeleted) {
+                $msg .= ' Test/orphan delete: no matching delivery was found, so warehouse and area inventory were not changed. Use this only if this DR never reflected a real transfer.';
+            }
             if ($qtySoldBeforeDelete > 0.0001 || $qtyBoBeforeDelete > 0.0001) {
                 $msg .= ' Recorded sold / BO quantities on this DR were discarded with the delete.';
             }

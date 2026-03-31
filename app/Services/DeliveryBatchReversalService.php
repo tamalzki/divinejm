@@ -37,7 +37,9 @@ class DeliveryBatchReversalService
 
                 if (! $inventory || (float) $inventory->quantity < $regularQty - 0.0001) {
                     throw new \RuntimeException(
-                        "Cannot reverse delivery: area stock for {$product->name} is lower than this delivery. Another change may have altered inventory."
+                        'Cannot complete this undo: '.$product->name.' no longer has enough quantity at this area to match the original delivery. '
+                        .'That usually means stock left the area after delivery — for example returns to the main warehouse, bad-order returns, recorded sales that reduced area stock, or manual area adjustments. '
+                        .'Restore or align area inventory for this product (or reverse those movements first), then try again.'
                     );
                 }
 

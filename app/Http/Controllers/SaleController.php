@@ -353,12 +353,6 @@ class SaleController extends Controller
 
         $sale->load('items');
 
-        foreach ($sale->items as $item) {
-            if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
-                return $redirect()->with('error', 'Cannot delete this DR while products show sold or BO quantities. Those records must stay for inventory integrity.');
-            }
-        }
-
         $branchId = $sale->branch_id;
         $customerEnc = rawurlencode($sale->customer_name);
         $saleId = $sale->id;
@@ -371,11 +365,8 @@ class SaleController extends Controller
             $sale = Sale::whereKey($saleId)->lockForUpdate()->firstOrFail();
             $sale->load('items');
 
-            foreach ($sale->items as $item) {
-                if ((float) $item->quantity_sold > 0 || (float) $item->quantity_bo > 0) {
-                    throw new \RuntimeException('DR changed while deleting. Refresh and try again.');
-                }
-            }
+            $qtySoldBeforeDelete = (float) $sale->items->sum('quantity_sold');
+            $qtyBoBeforeDelete = (float) $sale->items->sum('quantity_bo');
 
             $escaped = addcslashes($customerName, '%_\\');
             $movements = StockMovement::query()
@@ -423,9 +414,14 @@ class SaleController extends Controller
                 'branch_id' => $branchId,
                 'user_id' => Auth::id(),
                 'amount_paid_cleared' => $clearedPayment,
+                'quantity_sold_cleared' => $qtySoldBeforeDelete,
+                'quantity_bo_cleared' => $qtyBoBeforeDelete,
             ]);
 
             $msg = 'DR# '.$drNumber.' was removed. Warehouse and area stock were restored where delivery records matched.';
+            if ($qtySoldBeforeDelete > 0.0001 || $qtyBoBeforeDelete > 0.0001) {
+                $msg .= ' Recorded sold / BO quantities on this DR were discarded with the delete.';
+            }
             if ($clearedPayment > 0.0001) {
                 $msg .= ' Recorded payment of ₱'.number_format($clearedPayment, 2).' on this DR was cleared (the DR no longer exists in the system).';
             }

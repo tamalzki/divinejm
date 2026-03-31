@@ -158,7 +158,7 @@
         </div>
     </div>
     <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0"
-          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR from sales\n• Clears payment / less-deduction stored on this DR\n• Restores warehouse stock and area inventory when records match\n• Blocked if any line has sold or BO quantities\n\nContinue?');">
+          onsubmit="return confirm('Delete this DR entirely?\n\n• Removes this DR and all sold / BO / payment / less data on it\n• Restores main warehouse, batches, and area stock from delivery movements\n\nContinue only if area still holds enough stock for this delivery, or deletion may error.\n\nContinue?');">
         @csrf
         @method('DELETE')
         <button type="submit" class="btn-del-dr-h"><i class="bi bi-trash"></i> Delete DR</button>

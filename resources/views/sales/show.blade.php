@@ -117,7 +117,7 @@
                             <i class="bi bi-pencil-square"></i> Record Sales
                         </a>
                         <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="d-inline"
-                              onsubmit="return confirm('Delete DR# {{ $sale->dr_number }}?\n\n• Removes this DR from sales\n• Clears any payment recorded only on this DR (no separate ledger entry is adjusted)\n• Restores warehouse stock and area inventory when delivery records match\n• Blocked if any line has sold or BO quantities\n\nThis cannot be undone. Continue?');">
+                              onsubmit="return confirm('Delete DR# {{ $sale->dr_number }}?\n\n• Removes this DR and all sold / BO / payment data stored on it\n• Restores main warehouse stock, production batches, and area inventory using the original delivery movements\n\nIf area stock is lower than this delivery (e.g. after returns), deletion may fail until inventory matches.\n\nThis cannot be undone. Continue?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn-del-dr"><i class="bi bi-trash"></i> Delete</button>

@@ -6,9 +6,13 @@ use App\Models\FinishedProduct;
 use App\Models\ProductionMix;
 use App\Models\ProductionMixIngredient;
 use App\Models\RawMaterial;
+use App\Support\RawMaterialQuantityConverter;
+use App\Support\RawMaterialUnit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProductionMixController extends Controller
 {
@@ -21,17 +25,17 @@ class ProductionMixController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('batch_number', 'like', "%{$search}%")
-                  ->orWhereHas('finishedProduct', fn($p) => $p->where('name', 'like', "%{$search}%"));
+                    ->orWhereHas('finishedProduct', fn ($p) => $p->where('name', 'like', "%{$search}%"));
             });
         }
 
         // Filters
         match ($request->input('filter')) {
-            'expiring'    => $query->whereDate('expiration_date', '>=', now())
-                                   ->whereDate('expiration_date', '<=', now()->addDays(7)),
-            'expired'     => $query->whereDate('expiration_date', '<', now()),
+            'expiring' => $query->whereDate('expiration_date', '>=', now())
+                ->whereDate('expiration_date', '<=', now()->addDays(7)),
+            'expired' => $query->whereDate('expiration_date', '<', now()),
             'high_reject' => $query->whereRaw('rejected_quantity / NULLIF(actual_output, 0) * 100 > 5'),
-            default       => null,
+            default => null,
         };
 
         $mixes = $query->paginate(15)->withQueryString();
@@ -39,7 +43,7 @@ class ProductionMixController extends Controller
         return view('production-mixes.index', compact('mixes'));
     }
 
-    public function create(FinishedProduct $finishedProduct = null)
+    public function create(?FinishedProduct $finishedProduct = null)
     {
         // Load all products with their recipes
         $products = FinishedProduct::with('recipes.rawMaterial')
@@ -48,20 +52,34 @@ class ProductionMixController extends Controller
 
         $allMaterials = RawMaterial::orderBy('category')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function ($m) {
+                return [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'unit' => $m->unit,
+                    'unit_canonical' => RawMaterialUnit::resolveToCanonical($m->unit) ?? strtoupper(trim((string) $m->unit)),
+                    'category' => $m->category,
+                    'quantity' => (float) $m->quantity,
+                    'unit_price' => (float) $m->unit_price,
+                ];
+            })
+            ->values();
 
         // Pre-build recipe map keyed by product ID — avoids arrow functions in Blade
         $productRecipes = [];
         foreach ($products as $p) {
             $productRecipes[$p->id] = $p->recipes->map(function ($recipe) {
                 $rm = $recipe->rawMaterial;
+
                 return [
                     'raw_material_id' => $recipe->raw_material_id,
-                    'name'            => $rm->name,
-                    'unit'            => $rm->unit,
-                    'category'        => $rm->category,
-                    'stock_quantity'  => $rm->quantity,
-                    'cost_per_unit'   => $rm->unit_price,
+                    'name' => $rm->name,
+                    'unit' => $rm->unit,
+                    'unit_canonical' => RawMaterialUnit::resolveToCanonical($rm->unit) ?? strtoupper(trim((string) $rm->unit)),
+                    'category' => $rm->category,
+                    'stock_quantity' => $rm->quantity,
+                    'cost_per_unit' => $rm->unit_price,
                     'quantity_needed' => $recipe->quantity_needed,
                 ];
             })->values()->toArray();
@@ -75,85 +93,117 @@ class ProductionMixController extends Controller
             // Make sure it's also in the productRecipes map with fresh data
             $productRecipes[$preselectedProduct->id] = $preselectedProduct->recipes->map(function ($recipe) {
                 $rm = $recipe->rawMaterial;
+
                 return [
                     'raw_material_id' => $recipe->raw_material_id,
-                    'name'            => $rm->name,
-                    'unit'            => $rm->unit,
-                    'category'        => $rm->category,
-                    'stock_quantity'  => $rm->quantity,
-                    'cost_per_unit'   => $rm->unit_price,
+                    'name' => $rm->name,
+                    'unit' => $rm->unit,
+                    'unit_canonical' => RawMaterialUnit::resolveToCanonical($rm->unit) ?? strtoupper(trim((string) $rm->unit)),
+                    'category' => $rm->category,
+                    'stock_quantity' => $rm->quantity,
+                    'cost_per_unit' => $rm->unit_price,
                     'quantity_needed' => $recipe->quantity_needed,
                 ];
             })->values()->toArray();
         }
 
-        return view('production-mixes.create', compact('products', 'allMaterials', 'productRecipes', 'preselectedProduct'));
+        $mixUnitOptions = config('raw_materials.units', []);
+
+        return view('production-mixes.create', compact('products', 'allMaterials', 'productRecipes', 'preselectedProduct', 'mixUnitOptions'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'finished_product_id'     => 'required|exists:finished_products,id',
-            'mix_date'                => 'required|date',
-            'expected_output'         => 'required|numeric|min:0.01',
-            'actual_output'           => 'required|numeric|min:0.01',
-            'rejected_quantity'       => 'nullable|numeric|min:0',
-            'expiration_date'         => 'nullable|date|after:mix_date',
-            'notes'                   => 'nullable|string|max:500',
-            'multiplier'              => 'nullable|integer|min:1|max:99',
-            'items'                   => 'required|array|min:1',
+            'finished_product_id' => 'required|exists:finished_products,id',
+            'mix_date' => 'required|date',
+            'expected_output' => 'required|numeric|min:0.01',
+            'actual_output' => 'required|numeric|min:0.01',
+            'rejected_quantity' => 'nullable|numeric|min:0',
+            'expiration_date' => 'nullable|date|after:mix_date',
+            'notes' => 'nullable|string|max:500',
+            'multiplier' => 'nullable|integer|min:1|max:99',
+            'items' => 'required|array|min:1',
             'items.*.raw_material_id' => 'required|exists:raw_materials,id',
-            'items.*.quantity_used'   => 'required|numeric|min:0.0001',
+            'items.*.quantity_used' => 'required|numeric|min:0.0001',
+            'items.*.unit' => ['required', 'string', Rule::in(array_keys(config('raw_materials.units', [])))],
         ], [
             'finished_product_id.required' => 'Please select a finished product.',
-            'mix_date.required'            => 'Mix date is required.',
-            'expected_output.required'     => 'Expected output is required.',
-            'expected_output.min'          => 'Expected output must be greater than zero.',
-            'actual_output.required'       => 'Actual output is required.',
-            'actual_output.min'            => 'Actual output must be greater than zero.',
-            'expiration_date.after'        => 'Expiry date must be after the mix date.',
-            'items.required'               => 'At least one raw material is required.',
-            'items.min'                    => 'At least one raw material is required.',
+            'mix_date.required' => 'Mix date is required.',
+            'expected_output.required' => 'Expected output is required.',
+            'expected_output.min' => 'Expected output must be greater than zero.',
+            'actual_output.required' => 'Actual output is required.',
+            'actual_output.min' => 'Actual output must be greater than zero.',
+            'expiration_date.after' => 'Expiry date must be after the mix date.',
+            'items.required' => 'At least one raw material is required.',
+            'items.min' => 'At least one raw material is required.',
             'items.*.raw_material_id.required' => 'Please select a material for each row.',
-            'items.*.quantity_used.required'   => 'Please enter a quantity for each material.',
-            'items.*.quantity_used.min'        => 'Quantity used must be greater than zero.',
+            'items.*.quantity_used.required' => 'Please enter a quantity for each material.',
+            'items.*.quantity_used.min' => 'Quantity used must be greater than zero.',
+            'items.*.unit.required' => 'Choose the unit for each quantity (e.g. G or KG).',
         ]);
 
         $multiplier = max(1, (int) ($request->multiplier ?? 1));
 
-        // Scale items by multiplier
-        $scaledItems = collect($request->items)->map(function ($item) use ($multiplier) {
-            $item['quantity_used'] = $item['quantity_used'] * $multiplier;
-            return $item;
-        })->all();
+        $allowedUnits = array_keys(config('raw_materials.units', []));
 
-        // Check stock availability before touching DB
-        $stockErrors = [];
-        foreach ($scaledItems as $item) {
+        // Convert each line from input unit → raw material storage unit.
+        // Form qty is already total for the run (UI applies multiplier to line qty).
+        $scaledItems = [];
+        foreach ($request->items as $index => $item) {
             $material = RawMaterial::find($item['raw_material_id']);
-            if ($material && $item['quantity_used'] > $material->quantity) {
-                $short = round($item['quantity_used'] - $material->quantity, 4);
-                $stockErrors[] = "{$material->name}: needs {$item['quantity_used']} {$material->unit}, only {$material->quantity} available (short by {$short})" . ($multiplier > 1 ? " [×{$multiplier} batches]" : "") . ".";
+            if (! $material) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.raw_material_id" => 'Invalid material.',
+                ]);
             }
-        }
 
-        if (!empty($stockErrors)) {
-            return back()
-                ->withInput()
-                ->withErrors(['items' => 'Insufficient stock: ' . implode(' | ', $stockErrors)]);
+            $inputQty = (float) $item['quantity_used'];
+            $inputUnit = (string) $item['unit'];
+
+            if (! in_array($inputUnit, $allowedUnits, true)) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.unit" => 'Invalid unit.',
+                ]);
+            }
+
+            [$storageQty, $convertErr] = RawMaterialQuantityConverter::convertToStorage(
+                $inputQty,
+                $inputUnit,
+                (string) $material->unit
+            );
+
+            if ($convertErr !== null) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.unit" => $material->name.': '.$convertErr,
+                ]);
+            }
+
+            if ($storageQty <= 0) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.quantity_used" => $material->name.': converted quantity must be greater than zero.',
+                ]);
+            }
+
+            $scaledItems[] = [
+                'raw_material_id' => (int) $item['raw_material_id'],
+                'quantity_used' => round($storageQty, 6),
+                'input_quantity' => round($inputQty, 6),
+                'input_unit' => $inputUnit,
+            ];
         }
 
         try {
             DB::beginTransaction();
 
-            $product          = FinishedProduct::findOrFail($request->finished_product_id);
+            $product = FinishedProduct::findOrFail($request->finished_product_id);
             // Rejects are standalone documentation — do NOT subtract from actual output
             $rejectedQty = max(0, (float) ($request->rejected_quantity ?? 0));
 
             // Calculate total cost from ingredients
             $totalCost = 0;
             foreach ($scaledItems as $item) {
-                $material   = RawMaterial::find($item['raw_material_id']);
+                $material = RawMaterial::find($item['raw_material_id']);
                 $totalCost += $item['quantity_used'] * ($material->unit_price ?? 0);
             }
 
@@ -162,31 +212,33 @@ class ProductionMixController extends Controller
 
             // Auto-generate batch number
             $batchNumber = 'MIX-'
-                . strtoupper(substr($product->name, 0, 3))
-                . '-' . date('Ymd')
-                . '-' . str_pad(ProductionMix::count() + 1, 3, '0', STR_PAD_LEFT);
+                .strtoupper(substr($product->name, 0, 3))
+                .'-'.date('Ymd')
+                .'-'.str_pad(ProductionMix::count() + 1, 3, '0', STR_PAD_LEFT);
 
             // Create the mix record
             $mix = ProductionMix::create([
                 'finished_product_id' => $request->finished_product_id,
-                'batch_number'        => $batchNumber,
-                'mix_date'            => $request->mix_date,
-                'expected_output'     => round($request->expected_output / $multiplier, 2),
-                'actual_output'       => $request->actual_output,
-                'rejected_quantity'   => $rejectedQty,
-                'expiration_date'     => $request->expiration_date,
-                'notes'               => $request->notes,
-                'multiplier'          => $multiplier,
-                'status'              => 'completed',
-                'user_id'             => Auth::id(),
+                'batch_number' => $batchNumber,
+                'mix_date' => $request->mix_date,
+                'expected_output' => round($request->expected_output / $multiplier, 2),
+                'actual_output' => $request->actual_output,
+                'rejected_quantity' => $rejectedQty,
+                'expiration_date' => $request->filled('expiration_date') ? $request->expiration_date : null,
+                'notes' => $request->notes,
+                'multiplier' => $multiplier,
+                'status' => 'completed',
+                'user_id' => Auth::id(),
             ]);
 
             // Save ingredients & deduct stock
             foreach ($scaledItems as $item) {
                 ProductionMixIngredient::create([
                     'production_mix_id' => $mix->id,
-                    'raw_material_id'   => $item['raw_material_id'],
-                    'quantity_used'     => $item['quantity_used'],
+                    'raw_material_id' => $item['raw_material_id'],
+                    'quantity_used' => $item['quantity_used'],
+                    'input_quantity' => $item['input_quantity'],
+                    'input_unit' => $item['input_unit'],
                 ]);
 
                 DB::table('raw_materials')
@@ -206,10 +258,11 @@ class ProductionMixController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            report($e);
 
             return back()
                 ->withInput()
-                ->with('error', 'Failed to save production batch: ' . $e->getMessage());
+                ->with('error', 'Could not save this production batch. Please check the form and try again.');
         }
     }
 
@@ -224,24 +277,24 @@ class ProductionMixController extends Controller
     public function updateActualOutput(Request $request, ProductionMix $productionMix)
     {
         $request->validate([
-            'actual_output'    => 'required|numeric|min:0.01',
-            'rejected_quantity'=> 'nullable|numeric|min:0',
-            'expiration_date'  => 'nullable|date',
-            'notes'            => 'nullable|string|max:500',
+            'actual_output' => 'required|numeric|min:0.01',
+            'rejected_quantity' => 'nullable|numeric|min:0',
+            'expiration_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $oldOutput = (float) $productionMix->actual_output;
         $newOutput = (float) $request->actual_output;
-        $diff      = $newOutput - $oldOutput;
+        $diff = $newOutput - $oldOutput;
 
         try {
             DB::beginTransaction();
 
             $productionMix->update([
-                'actual_output'    => $newOutput,
-                'rejected_quantity'=> max(0, (float) ($request->rejected_quantity ?? 0)),
-                'expiration_date'  => $request->expiration_date ?: null,
-                'notes'            => $request->notes ?: null,
+                'actual_output' => $newOutput,
+                'rejected_quantity' => max(0, (float) ($request->rejected_quantity ?? 0)),
+                'expiration_date' => $request->expiration_date ?: null,
+                'notes' => $request->notes ?: null,
             ]);
 
             // Adjust warehouse stock by the difference only
@@ -255,13 +308,14 @@ class ProductionMixController extends Controller
 
             $action = $diff > 0
                 ? "+{$diff} units added to stock"
-                : (abs($diff) > 0 ? abs($diff) . " units removed from stock" : "no stock change");
+                : (abs($diff) > 0 ? abs($diff).' units removed from stock' : 'no stock change');
 
             return back()->with('success', "Batch updated — actual output: {$newOutput}. {$action}.");
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Update failed: ' . $e->getMessage());
+
+            return back()->with('error', 'Update failed: '.$e->getMessage());
         }
     }
 
@@ -294,11 +348,12 @@ class ProductionMixController extends Controller
             DB::commit();
 
             return redirect()->route('production-mixes.index')
-                ->with('success', "Batch deleted. Inventory reverted — raw materials restored and finished product stock reduced.");
+                ->with('success', 'Batch deleted. Inventory reverted — raw materials restored and finished product stock reduced.');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Delete failed: ' . $e->getMessage());
+
+            return back()->with('error', 'Delete failed: '.$e->getMessage());
         }
     }
 }

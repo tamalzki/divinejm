@@ -10,10 +10,13 @@ class ProductionMixIngredient extends Model
         'production_mix_id',
         'raw_material_id',
         'quantity_used',
+        'input_quantity',
+        'input_unit',
     ];
 
     protected $casts = [
-        'quantity_used' => 'decimal:2',
+        'quantity_used' => 'decimal:4',
+        'input_quantity' => 'decimal:4',
     ];
 
     public function productionMix()

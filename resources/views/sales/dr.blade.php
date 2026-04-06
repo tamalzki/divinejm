@@ -456,10 +456,15 @@ function confirmDestroyDrForm(form) {
 function recalcRow(itemId, unitPrice) {
     var sold     = parseFloat(document.getElementById('sold-' + itemId).value) || 0;
     var deployed = parseFloat(document.querySelector('#sold-' + itemId).dataset.deployed) || 0;
+    var unsoldEl = document.getElementById('unsold-' + itemId);
+    var boEl     = document.getElementById('bo-' + itemId);
+    var unsold   = unsoldEl ? parseFloat(unsoldEl.value) || 0 : 0;
+    var bo       = boEl ? parseFloat(boEl.value) || 0 : 0;
     var subtotal = sold * unitPrice;
     document.getElementById('subtotal-' + itemId).innerHTML = '<strong>&#8369;' + fmtNum(subtotal) + '</strong>';
     var rowBtn = document.getElementById('btn-row-' + itemId);
-    if (rowBtn) rowBtn.classList.toggle('done', sold >= deployed && sold > 0);
+    var lineFullyAccounted = sold >= deployed && sold > 0 && unsold === 0 && bo === 0;
+    if (rowBtn) rowBtn.classList.toggle('done', lineFullyAccounted);
     recalcGrandTotal();
 }
 
@@ -487,6 +492,10 @@ function onTrackingChange(itemId, unitPrice) {
 
 function soldOutRow(itemId, deployed, unitPrice) {
     document.getElementById('sold-' + itemId).value = deployed;
+    var unsold = document.getElementById('unsold-' + itemId);
+    var bo     = document.getElementById('bo-' + itemId);
+    if (unsold) unsold.value = 0;
+    if (bo) bo.value = 0;
     recalcRow(itemId, unitPrice);
 }
 
@@ -495,6 +504,10 @@ function soldOutAll() {
         var itemId = input.dataset.item;
         var price  = parseFloat(input.dataset.price) || 0;
         input.value = parseFloat(input.dataset.deployed);
+        var unsold = document.getElementById('unsold-' + itemId);
+        var bo     = document.getElementById('bo-' + itemId);
+        if (unsold) unsold.value = 0;
+        if (bo) bo.value = 0;
         recalcRow(itemId, price);
     });
 }

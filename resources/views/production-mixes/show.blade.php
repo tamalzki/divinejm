@@ -149,12 +149,12 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width:35%">Material</th>
-                    <th style="width:15%">Category</th>
-                    <th style="width:10%">Unit</th>
-                    <th class="text-end" style="width:13%">Qty Used</th>
-                    <th class="text-end" style="width:13%">Cost/Unit</th>
-                    <th class="text-end" style="width:14%">Line Cost</th>
+                    <th style="width:32%">Material</th>
+                    <th style="width:14%">Category</th>
+                    <th style="width:9%">Inv. unit</th>
+                    <th class="text-end" style="width:12%">Qty used</th>
+                    <th class="text-end" style="width:11%">Cost/Unit</th>
+                    <th class="text-end" style="width:12%">Line Cost</th>
                 </tr>
             </thead>
             <tbody>
@@ -169,7 +169,16 @@
                     @endif
                 </td>
                 <td style="color:var(--text-muted);font-size:.75rem">{{ $ingredient->rawMaterial->unit }}</td>
-                <td class="text-end" style="font-weight:600">{{ number_format($ingredient->quantity_used, 4) }}</td>
+                <td class="text-end" style="font-weight:600">
+                    @if($ingredient->input_quantity !== null && $ingredient->input_unit)
+                        <span>{{ number_format($ingredient->input_quantity, 4) }} {{ $ingredient->input_unit }}</span>
+                        <span style="font-size:.68rem;color:var(--text-muted);font-weight:500;display:block">
+                            → {{ number_format($ingredient->quantity_used, 4) }} {{ $ingredient->rawMaterial->unit }} deducted
+                        </span>
+                    @else
+                        {{ number_format($ingredient->quantity_used, 4) }}
+                    @endif
+                </td>
                 <td class="text-end" style="color:var(--text-muted);font-size:.75rem">&#8369;{{ number_format($ingredient->rawMaterial->unit_price, 4) }}</td>
                 <td class="text-end" style="font-weight:700;color:var(--s-success-text)">
                     &#8369;{{ number_format($ingredient->quantity_used * $ingredient->rawMaterial->unit_price, 2) }}

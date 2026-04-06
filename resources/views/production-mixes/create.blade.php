@@ -76,11 +76,17 @@
     .cost-strip-item-label { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; display: block; }
     .cost-strip-item-value { font-size: .92rem; font-weight: 700; color: var(--accent); }
 
-    /* Stock warning */
+    /* Stock warning (blocking) */
     .stock-warning {
         padding: .55rem .85rem; font-size: .78rem;
         background: var(--s-danger-bg); border: 1px solid #f5c0c0;
         color: var(--s-danger-text); border-radius: var(--radius); margin-bottom: .75rem;
+    }
+    /* Short stock advisory (non-blocking — inventory may go negative) */
+    .stock-advisory {
+        padding: .55rem .85rem; font-size: .78rem;
+        background: var(--s-warning-bg); border: 1px solid #e8d5a0;
+        color: var(--s-warning-text); border-radius: var(--radius); margin-bottom: .75rem;
     }
 
     /* Actions */
@@ -188,6 +194,15 @@
                     <button type="button" id="multPlus" style="width:28px;height:31px;border:1px solid var(--border);border-radius:5px;background:var(--bg-page);color:var(--text-secondary);font-size:.9rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">+</button>
                 </div>
                 <div class="field-hint" style="color:var(--accent)">1 = single batch</div>
+                <div class="field-hint" style="font-size:.68rem;color:var(--text-muted);max-width:28rem">
+                    Ingredient <strong>Qty</strong> below = (recipe per batch × this number). Changing it updates all lines.
+                </div>
+            </div>
+            <div class="col-12 mb-0">
+                <p class="mb-0" style="font-size:.72rem;color:var(--text-muted);line-height:1.45">
+                    <i class="bi bi-info-circle me-1" style="color:var(--accent)"></i>
+                    <strong>Qty unit:</strong> enter amounts in any compatible unit (e.g. <strong>300 G</strong> of flour when inventory is tracked in <strong>KG</strong>) — stock deducts in the material&rsquo;s inventory unit.
+                </p>
             </div>
 
             {{-- Expected --}}
@@ -230,11 +245,16 @@
         {{-- Raw Materials --}}
         <div class="section-label">Raw Materials Used</div>
 
-        {{-- Stock warning --}}
+        {{-- Blocking: invalid qty unit. Advisory: short stock (save still allowed). --}}
         <div id="stockWarning" class="stock-warning d-none mb-2">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            <strong>Cannot proceed:</strong>
+            <strong>Fix before saving:</strong>
             <span id="stockWarningMsg"></span>
+        </div>
+        <div id="stockAdvisory" class="stock-advisory d-none mb-2">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Below-zero inventory:</strong> you can still save — raw material stock will go negative for:
+            <span id="stockAdvisoryMsg"></span>
         </div>
 
         {{-- No product notice --}}
@@ -254,15 +274,16 @@
                 <table class="mat-table" id="itemsTable">
                     <thead>
                         <tr>
-                            <th style="width:28%">Material</th>
-                            <th style="width:10%">Category</th>
-                            <th style="width:13%">Available</th>
-                            <th style="width:7%">Unit</th>
-                            <th style="width:11%">Qty Used</th>
-                            <th style="width:13%">Remaining</th>
-                            <th style="width:10%">Cost/Unit</th>
-                            <th style="width:10%">Line Cost</th>
-                            <th style="width:5%" class="text-center">—</th>
+                            <th style="width:24%">Material</th>
+                            <th style="width:8%">Category</th>
+                            <th style="width:10%">Available</th>
+                            <th style="width:7%">Inv. unit</th>
+                            <th style="width:9%">Qty</th>
+                            <th style="width:11%">Qty unit</th>
+                            <th style="width:10%">Remaining</th>
+                            <th style="width:9%">Cost/Unit</th>
+                            <th style="width:9%">Line Cost</th>
+                            <th style="width:4%" class="text-center">—</th>
                         </tr>
                     </thead>
                     <tbody id="itemsBody"></tbody>
@@ -298,8 +319,80 @@
 <script>
 let allMaterials   = @json($allMaterials);
 let productRecipes = @json($productRecipes);
+const MIX_UNIT_OPTIONS = @json($mixUnitOptions);
 let rowIndex       = 0;
 let tomInstances   = {}; // { rowIndex: TomSelectInstance }
+
+function buildUnitSelectHtml(selected) {
+    let html = '';
+    const sel = selected || 'KG';
+    for (const [k, label] of Object.entries(MIX_UNIT_OPTIONS)) {
+        html += '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + label + '</option>';
+    }
+    return html;
+}
+
+/** Convert qty from input unit to raw material storage unit (matches server). */
+function toStorageQty(qty, fromUnit, storageUnit) {
+    if (!qty || !fromUnit || !storageUnit) return 0;
+    if (fromUnit === storageUnit) return qty;
+    const mass = { KG: 1000, G: 1 };
+    if (mass[fromUnit] && mass[storageUnit]) {
+        return qty * mass[fromUnit] / mass[storageUnit];
+    }
+    const vol = { L: 1000, ML: 1 };
+    if (vol[fromUnit] && vol[storageUnit]) {
+        return qty * vol[fromUnit] / vol[storageUnit];
+    }
+    return NaN;
+}
+
+/** Convert storage-unit qty to display unit (inverse of toStorageQty). */
+function fromStorageQty(storageQty, storageUnit, inputUnit) {
+    if (!storageQty || !storageUnit || !inputUnit) return 0;
+    if (storageUnit === inputUnit) return storageQty;
+    const mass = { KG: 1000, G: 1 };
+    if (mass[storageUnit] && mass[inputUnit]) {
+        return storageQty * mass[storageUnit] / mass[inputUnit];
+    }
+    const vol = { L: 1000, ML: 1 };
+    if (vol[storageUnit] && vol[inputUnit]) {
+        return storageQty * vol[storageUnit] / vol[inputUnit];
+    }
+    return NaN;
+}
+
+/** dataset.baseQty = per-batch quantity in inventory (storage) units. */
+function syncBaseQtyFromRow(row) {
+    var mult = getMultiplier();
+    var qtyIn = parseFloat(row.querySelector('.qty-input').value) || 0;
+    var unitIn = row.querySelector('.unit-select') ? row.querySelector('.unit-select').value : '';
+    var storageU = row.dataset.storageUnit || '';
+    if (!storageU || mult < 1) return;
+    if (qtyIn <= 0) {
+        row.dataset.baseQty = '';
+        return;
+    }
+    var totalStorage = toStorageQty(qtyIn, unitIn, storageU);
+    if (isNaN(totalStorage) || totalStorage <= 0) return;
+    row.dataset.baseQty = String(totalStorage / mult);
+}
+
+/** Set qty input from baseQty × multiplier, respecting qty unit dropdown. */
+function syncRowQtyFromBase(row) {
+    var mult = getMultiplier();
+    var base = parseFloat(row.dataset.baseQty);
+    var storageU = row.dataset.storageUnit || '';
+    var input = row.querySelector('.qty-input');
+    var unitSel = row.querySelector('.unit-select');
+    if (!input || !unitSel || !storageU) return;
+    if (isNaN(base) || base <= 0) return;
+    var totalStorage = base * mult;
+    var unitIn = unitSel.value;
+    var displayVal = fromStorageQty(totalStorage, storageU, unitIn);
+    if (isNaN(displayVal)) displayVal = totalStorage;
+    input.value = displayVal % 1 === 0 ? displayVal : parseFloat(displayVal.toFixed(4));
+}
 
 // ── Product select (free mode) ──────────────────────────────────────────────
 const productSelectEl = document.getElementById('productSelect');
@@ -331,13 +424,9 @@ function applyMultiplier() {
     document.getElementById('stripMultiplier').textContent = mult;
 
     document.querySelectorAll('.item-row').forEach(function(row) {
-        var base = parseFloat(row.dataset.baseQty);
-        if (!isNaN(base) && base > 0) {
-            var input = row.querySelector('.qty-input');
-            var newQty = base * mult;
-            input.value = newQty % 1 === 0 ? newQty : parseFloat(newQty.toFixed(4));
-            calcRow(row);
-        }
+        syncBaseQtyFromRow(row);
+        syncRowQtyFromBase(row);
+        calcRow(row);
     });
 
     // Scale expected output if it has a base value stored
@@ -361,7 +450,12 @@ function populateRecipe(productId) {
     if (recipe.length > 0) {
         var mult = getMultiplier();
         recipe.forEach(function(item) {
-            addRow(item, item.quantity_needed * mult, item.quantity_needed);
+            var storageU = item.unit_canonical || item.unit || 'KG';
+            var defU = storageU;
+            var totalStorage = parseFloat(item.quantity_needed) * mult;
+            var displayQty = fromStorageQty(totalStorage, storageU, defU);
+            if (isNaN(displayQty)) displayQty = totalStorage;
+            addRow(item, displayQty, item.quantity_needed, defU);
         });
     } else {
         addRow(null, '');
@@ -383,14 +477,16 @@ function getSelectedIds() {
 }
 
 // ── Add a row ───────────────────────────────────────────────────────────────
-function addRow(material = null, qty = '', baseQty = null) {
+function addRow(material = null, qty = '', baseQty = null, defaultUnit = null) {
     const idx     = rowIndex;
     const matId   = material ? (material.raw_material_id ?? material.id ?? '') : '';
     const stockVal = material ? parseFloat(material.stock_quantity ?? material.quantity ?? 0) : 0;
     const costVal  = material ? parseFloat(material.cost_per_unit  ?? material.unit_price  ?? 0) : 0;
     const unit     = material ? (material.unit ?? '—') : '—';
+    const storageU = material ? (material.unit_canonical || material.unit || '') : '';
     const cat      = material ? (material.category ?? '') : '';
     const stockClass = stockVal <= 0 ? 'color:var(--s-danger-text)' : 'color:var(--accent)';
+    const unitSelDefault = defaultUnit || storageU || 'KG';
 
     // Build option list
     const selected = getSelectedIds();
@@ -408,7 +504,20 @@ function addRow(material = null, qty = '', baseQty = null) {
     const tr = document.createElement('tr');
     tr.className = 'item-row';
     tr.dataset.index = idx;
-    tr.dataset.baseQty = (baseQty !== null ? baseQty : (parseFloat(qty) || ''));
+    if (baseQty !== null && baseQty !== '' && !isNaN(parseFloat(baseQty))) {
+        tr.dataset.baseQty = String(parseFloat(baseQty));
+    } else if (material && qty !== '' && qty !== null && !isNaN(parseFloat(qty))) {
+        var mult0 = getMultiplier();
+        var totalSt = toStorageQty(parseFloat(qty), unitSelDefault, storageU);
+        if (!isNaN(totalSt) && totalSt > 0 && mult0 >= 1 && storageU) {
+            tr.dataset.baseQty = String(totalSt / mult0);
+        } else {
+            tr.dataset.baseQty = '';
+        }
+    } else {
+        tr.dataset.baseQty = '';
+    }
+    tr.dataset.storageUnit = storageU;
     tr.innerHTML = `
         <td style="overflow:visible;min-width:180px">
             <select id="mat-select-${idx}" name="items[${idx}][raw_material_id]" required>
@@ -420,6 +529,7 @@ function addRow(material = null, qty = '', baseQty = null) {
         <td><span class="stock-label" data-stock="${stockVal}" style="font-size:.78rem;font-weight:600;${stockClass}">${material ? stockVal.toFixed(2)+' '+unit : '—'}</span></td>
         <td><span class="unit-label" style="font-size:.72rem;color:var(--text-muted)">${unit}</span></td>
         <td><input type="number" name="items[${idx}][quantity_used]" class="form-control form-control-sm qty-input" step="0.0001" min="0.0001" value="${qty}" placeholder="0" required></td>
+        <td><select name="items[${idx}][unit]" class="form-select form-select-sm unit-select" required>${buildUnitSelectHtml(unitSelDefault)}</select></td>
         <td><span class="remaining-label" style="font-size:.74rem;color:var(--text-muted)">—</span></td>
         <td><span class="cost-label" data-cost="${costVal}" style="font-size:.74rem;color:var(--text-muted)">${material ? '₱'+costVal.toFixed(4) : '—'}</span></td>
         <td><span class="line-cost" style="font-size:.78rem;font-weight:700;color:var(--s-success-text)">₱0.00</span></td>
@@ -430,6 +540,9 @@ function addRow(material = null, qty = '', baseQty = null) {
         </td>`;
 
     document.getElementById('itemsBody').appendChild(tr);
+
+    var unitSelEl = tr.querySelector('.unit-select');
+    if (unitSelEl) unitSelEl.dataset.prevUnitSnapshot = unitSelEl.value;
 
     // Init TomSelect on this row's select
     const ts = new TomSelect(`#mat-select-${idx}`, {
@@ -479,12 +592,18 @@ function handleMaterialChange(idx, value) {
 
     row.querySelector('.cat-label').textContent     = catLabel(m.category);
     row.querySelector('.unit-label').textContent    = m.unit;
+    row.dataset.storageUnit = m.unit_canonical || m.unit || '';
     row.querySelector('.stock-label').textContent   = parseFloat(m.quantity).toFixed(2) + ' ' + m.unit;
     row.querySelector('.stock-label').dataset.stock = m.quantity;
     row.querySelector('.stock-label').style.color   = parseFloat(m.quantity) <= 0 ? 'var(--s-danger-text)' : 'var(--accent)';
     row.querySelector('.cost-label').textContent    = '₱' + parseFloat(m.unit_price).toFixed(4);
     row.querySelector('.cost-label').dataset.cost   = m.unit_price;
     row.querySelector('.qty-input').value           = '';
+    var uSel = row.querySelector('.unit-select');
+    if (uSel) {
+        uSel.value = m.unit_canonical || m.unit || 'KG';
+        uSel.dataset.prevUnitSnapshot = uSel.value;
+    }
     row.querySelector('.remaining-label').textContent = '—';
     row.querySelector('.line-cost').textContent     = '₱0.00';
 
@@ -507,16 +626,28 @@ function refreshAllTom() {
 
 // ── Calc row ────────────────────────────────────────────────────────────────
 function calcRow(row) {
-    const qty      = parseFloat(row.querySelector('.qty-input').value) || 0;
+    const qtyIn    = parseFloat(row.querySelector('.qty-input').value) || 0;
+    const unitIn   = row.querySelector('.unit-select') ? row.querySelector('.unit-select').value : '';
+    const storageU = row.dataset.storageUnit || '';
+    const qty      = toStorageQty(qtyIn, unitIn, storageU);
     const cost     = parseFloat(row.querySelector('.cost-label').dataset.cost) || 0;
     const stock    = parseFloat(row.querySelector('.stock-label').dataset.stock) || 0;
     const unit     = row.querySelector('.unit-label').textContent.trim();
     const remaining = stock - qty;
 
+    if (qtyIn > 0 && isNaN(qty)) {
+        row.querySelector('.line-cost').textContent = '—';
+        row.querySelector('.remaining-label').textContent = 'Incompatible unit';
+        row.querySelector('.remaining-label').style.color = 'var(--s-danger-text)';
+        calcTotals();
+        checkAllStock();
+        return;
+    }
+
     row.querySelector('.line-cost').textContent = '₱' + (qty * cost).toFixed(2);
 
     const rem = row.querySelector('.remaining-label');
-    if (qty > 0) {
+    if (qtyIn > 0 && !isNaN(qty)) {
         rem.textContent = remaining.toFixed(4) + ' ' + unit;
         rem.style.color = remaining < 0 ? 'var(--s-danger-text)' : remaining === 0 ? 'var(--s-warning-text)' : 'var(--s-success-text)';
         rem.style.fontWeight = '600';
@@ -532,46 +663,89 @@ function calcRow(row) {
 function calcTotals() {
     let total = 0;
     document.querySelectorAll('.line-cost').forEach(el => {
-        total += parseFloat(el.textContent.replace('₱','')) || 0;
+        const raw = el.textContent.replace('₱', '').trim();
+        if (raw === '—' || raw === '-') return;
+        total += parseFloat(raw) || 0;
     });
     document.getElementById('totalCost').textContent = total.toFixed(2);
     const actual = parseFloat(document.getElementById('actualQty').value) || 0;
     document.getElementById('costPerUnit').textContent = actual > 0 ? (total/actual).toFixed(4) : '0.0000';
 }
 
-// ── Stock check ─────────────────────────────────────────────────────────────
+// ── Stock check: only invalid units block save; short stock shows advisory only. ──
 function checkAllStock() {
     var errors = [];
+    var shortfalls = [];
     var mult = getMultiplier();
     document.querySelectorAll('.item-row').forEach(function(row) {
-        var qty   = parseFloat(row.querySelector('.qty-input').value) || 0;
+        var qtyIn = parseFloat(row.querySelector('.qty-input').value) || 0;
+        var unitIn = row.querySelector('.unit-select') ? row.querySelector('.unit-select').value : '';
+        var storageU = row.dataset.storageUnit || '';
+        var qty = toStorageQty(qtyIn, unitIn, storageU);
         var stock = parseFloat(row.querySelector('.stock-label').dataset.stock) || 0;
         var idx   = row.dataset.index;
         var ts    = tomInstances[idx];
+        var invU  = row.querySelector('.unit-label').textContent.trim();
         var rawName = ts ? (ts.getOption(ts.getValue()) ? ts.getOption(ts.getValue()).textContent.split('—')[0].trim() : 'Item') : 'Item';
-        if (ts && ts.getValue() && qty > stock) {
+        if (ts && ts.getValue() && qtyIn > 0 && isNaN(qty)) {
+            errors.push('<strong>' + rawName + '</strong>: qty unit does not match inventory unit (' + invU + ').');
+        } else if (ts && ts.getValue() && qtyIn > 0 && !isNaN(qty) && qty > stock) {
             var shortage = (qty - stock).toFixed(4);
-            var multNote = mult > 1 ? ' (×' + mult + ' batches)' : '';
-            errors.push('<strong>' + rawName + '</strong>' + multNote + ': needs <strong>' + qty + '</strong>, only <strong>' + stock + '</strong> available — short by ' + shortage);
+            var multNote = mult > 1 ? ' (×' + mult + ' mixes)' : '';
+            shortfalls.push('<strong>' + rawName + '</strong>' + multNote + ': after mix, <strong>' + (qty - stock).toFixed(4) + ' ' + invU + '</strong> short (remaining will be negative)');
         }
     });
 
     var banner = document.getElementById('stockWarning');
+    var advis  = document.getElementById('stockAdvisory');
     var btn    = document.getElementById('submitBtn');
     if (errors.length > 0) {
         banner.classList.remove('d-none');
         document.getElementById('stockWarningMsg').innerHTML = '<ul class="mb-0 mt-1 ps-3">'+errors.map(function(e){ return '<li>'+e+'</li>'; }).join('')+'</ul>';
         btn.disabled = true;
+        advis.classList.add('d-none');
     } else {
         banner.classList.add('d-none');
         btn.disabled = false;
+        if (shortfalls.length > 0) {
+            advis.classList.remove('d-none');
+            document.getElementById('stockAdvisoryMsg').innerHTML = '<ul class="mb-0 mt-1 ps-3">'+shortfalls.map(function(e){ return '<li>'+e+'</li>'; }).join('')+'</ul>';
+        } else {
+            advis.classList.add('d-none');
+        }
     }
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────
 document.getElementById('itemsBody').addEventListener('input', function(e) {
-    if (e.target.classList.contains('qty-input'))
-        calcRow(e.target.closest('.item-row'));
+    if (e.target.classList.contains('qty-input')) {
+        var row = e.target.closest('.item-row');
+        syncBaseQtyFromRow(row);
+        calcRow(row);
+    }
+});
+document.getElementById('itemsBody').addEventListener('focusin', function(e) {
+    if (e.target.classList.contains('unit-select')) {
+        e.target.dataset.prevUnitSnapshot = e.target.value;
+    }
+});
+document.getElementById('itemsBody').addEventListener('change', function(e) {
+    if (e.target.classList.contains('unit-select')) {
+        var row = e.target.closest('.item-row');
+        var prev = e.target.dataset.prevUnitSnapshot || e.target.value;
+        var storageU = row.dataset.storageUnit || '';
+        var qtyIn = parseFloat(row.querySelector('.qty-input').value) || 0;
+        var mult = getMultiplier();
+        if (qtyIn > 0 && storageU) {
+            var totalStorage = toStorageQty(qtyIn, prev, storageU);
+            if (!isNaN(totalStorage) && totalStorage > 0) {
+                row.dataset.baseQty = String(totalStorage / mult);
+            }
+        }
+        e.target.dataset.prevUnitSnapshot = e.target.value;
+        syncRowQtyFromBase(row);
+        calcRow(row);
+    }
 });
 
 document.getElementById('actualQty').addEventListener('input', calcTotals);
@@ -626,7 +800,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const oldItems = @json(old('items', []));
         Object.values(oldItems).forEach(item => {
             const mat = allMaterials.find(m => String(m.id) === String(item.raw_material_id));
-            addRow(mat, item.quantity_used);
+            addRow(mat, item.quantity_used, null, item.unit);
+        });
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            syncBaseQtyFromRow(row);
         });
         calcTotals(); checkAllStock();
     @elseif($preselectedProduct)

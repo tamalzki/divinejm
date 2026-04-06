@@ -53,6 +53,7 @@
     .act-btn { display:inline-flex; align-items:center; gap:.22rem; padding:.2rem .52rem; border-radius:5px; font-size:.71rem; font-weight:600; border:none; cursor:pointer; text-decoration:none !important; white-space:nowrap; transition:filter .15s; }
     .act-btn:hover { filter:brightness(.88); }
     .act-manage { background:var(--accent);       color:#fff; }
+    .act-adjust { background:var(--s-warning-bg); color:var(--s-warning-text); border:1px solid #e8d5a0; }
     .act-edit   { background:var(--s-warning-bg); color:var(--s-warning-text); border:1px solid #e8d5a0; }
     .act-delete { background:var(--s-danger-bg);  color:var(--s-danger-text);  border:1px solid #f0c0c0; }
     .btn-add-rm { display:inline-flex; align-items:center; gap:.35rem; padding:.38rem .85rem; background:var(--accent); color:#fff; border-radius:6px; font-size:.78rem; font-weight:700; text-decoration:none !important; transition:background .15s; }
@@ -202,6 +203,14 @@
                         <a href="{{ route('raw-materials.show', $material) }}" class="act-btn act-manage">
                             <i class="bi bi-arrow-left-right"></i> Stock In
                         </a>
+                        <button type="button" class="act-btn act-adjust" style="margin-left:.2rem"
+                                data-id="{{ $material->id }}"
+                                data-name="{{ $material->name }}"
+                                data-qty="{{ $material->quantity }}"
+                                data-unit="{{ $material->unit }}"
+                                onclick="openAdjustModalBtn(this)">
+                            <i class="bi bi-sliders"></i> Adjust
+                        </button>
                         <a href="{{ route('raw-materials.edit', $material) }}" class="act-btn act-edit" style="margin-left:.2rem">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
@@ -292,6 +301,61 @@
     @endif
 </div>
 
+{{-- Adjust stock modal --}}
+<div class="modal fade" id="adjustModal" tabindex="-1" aria-labelledby="adjustModalTitleLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px">
+        <div class="modal-content" style="border-radius:var(--radius);border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.12)">
+            <div class="modal-header py-2 px-3" style="background:var(--s-warning-bg);border-bottom:1px solid #e8d5a0">
+                <h6 class="modal-title mb-0" id="adjustModalTitleLabel" style="font-size:.83rem;font-weight:700;color:var(--s-warning-text)">
+                    <i class="bi bi-sliders me-1"></i><span id="adjustModalTitleText">Adjust stock</span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:.7rem"></button>
+            </div>
+            <form id="adjustForm" method="POST" action="">
+                @csrf
+                <input type="hidden" name="adjust_material_id" id="adjustMaterialId" value="{{ old('adjust_material_id') }}">
+                <input type="hidden" name="adjust_material_name" id="adjustMaterialName" value="{{ old('adjust_material_name') }}">
+                <input type="hidden" name="adjust_material_unit" id="adjustMaterialUnit" value="{{ old('adjust_material_unit') }}">
+                <div class="modal-body" style="padding:1rem 1.1rem;font-size:.81rem">
+                    <p class="mb-3" style="font-size:.72rem;color:var(--text-muted);line-height:1.45">
+                        Set the <strong>actual</strong> on-hand quantity (cycle count / correction). Logged as an adjustment.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label mb-1" style="font-size:.72rem;font-weight:600;color:var(--text-secondary)">New on-hand qty <span style="color:var(--s-danger-text)">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" step="0.01" name="quantity" id="adjustQtyInput"
+                                   class="form-control @error('quantity') is-invalid @enderror"
+                                   value="{{ old('quantity') }}" placeholder="0.00" required>
+                            <span class="input-group-text" id="adjustUnitSpan" style="font-size:.75rem;background:var(--bg-page);color:var(--text-muted)">{{ old('adjust_material_unit', '—') }}</span>
+                        </div>
+                        @error('quantity')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label mb-1" style="font-size:.72rem;font-weight:600;color:var(--text-secondary)">Date <span style="color:var(--s-danger-text)">*</span></label>
+                        <input type="date" name="adjustment_date" id="adjustDateInput"
+                               class="form-control form-control-sm @error('adjustment_date') is-invalid @enderror"
+                               value="{{ old('adjustment_date', date('Y-m-d')) }}" required>
+                        @error('adjustment_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label mb-1" style="font-size:.72rem;font-weight:600;color:var(--text-secondary)">Reason (optional)</label>
+                        <input type="text" name="reason" id="adjustReasonInput" maxlength="500"
+                               class="form-control form-control-sm @error('reason') is-invalid @enderror"
+                               value="{{ old('reason') }}" placeholder="e.g. Cycle count, damaged goods…">
+                        @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="modal-footer py-2 px-3" style="background:var(--bg-page);border-top:1px solid var(--border)">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm" style="background:var(--s-warning-text);color:#fff;border:none;font-weight:600">
+                        <i class="bi bi-check2-circle me-1"></i>Save adjustment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {{-- Delete Modal --}}
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
@@ -332,6 +396,43 @@
 </div>
 
 <script>
+var adjustUrlBase = @json(url('/raw-materials'));
+
+function openAdjustModalBtn(btn) {
+    openAdjustModal({
+        id: btn.getAttribute('data-id'),
+        name: btn.getAttribute('data-name'),
+        qty: btn.getAttribute('data-qty'),
+        unit: btn.getAttribute('data-unit'),
+    });
+}
+
+function openAdjustModal(d) {
+    var id = d.id;
+    document.getElementById('adjustForm').action = adjustUrlBase + '/' + id + '/adjust';
+    document.getElementById('adjustMaterialId').value = id;
+    document.getElementById('adjustMaterialName').value = d.name || '';
+    document.getElementById('adjustMaterialUnit').value = d.unit || '';
+    document.getElementById('adjustModalTitleText').textContent = (d.name || 'Material') + ' — Adjust stock';
+    document.getElementById('adjustUnitSpan').textContent = d.unit || '—';
+    if (Object.prototype.hasOwnProperty.call(d, 'qty') && d.qty !== null && d.qty !== undefined) {
+        document.getElementById('adjustQtyInput').value = d.qty;
+    }
+    var m = document.getElementById('adjustModal');
+    bootstrap.Modal.getOrCreateInstance(m).show();
+}
+
+@if($errors->any() && old('adjust_material_id'))
+document.addEventListener('DOMContentLoaded', function() {
+    openAdjustModal({
+        id: '{{ old('adjust_material_id') }}',
+        name: @json(old('adjust_material_name')),
+        qty: @json(old('quantity')),
+        unit: @json(old('adjust_material_unit')),
+    });
+});
+@endif
+
 function confirmDeleteBtn(btn) {
     var id       = btn.getAttribute('data-id');
     var name     = btn.getAttribute('data-name');

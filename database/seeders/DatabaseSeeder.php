@@ -2,10 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -21,8 +22,11 @@ class DatabaseSeeder extends Seeder
             'finished_products', 'raw_materials', 'branches', 'users',
             'product_alerts', 'finished_product_restocks', 'raw_material_usages',
         ] as $table) {
-            try { DB::table($table)->truncate(); }
-            catch (\Exception $e) { $this->command->warn("Skipped: {$table}"); }
+            try {
+                DB::table($table)->truncate();
+            } catch (\Exception $e) {
+                $this->command->warn("Skipped: {$table}");
+            }
         }
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
@@ -30,22 +34,16 @@ class DatabaseSeeder extends Seeder
         // USERS
         // ══════════════════════════════════════════════
 
-        $adminId = DB::table('users')->insertGetId([
-            'name'              => 'Admin User',
-            'email'             => 'admin@divinejm.com',
-            'password'          => Hash::make('password'),
-            'email_verified_at' => $now,
-            'created_at'        => $now,
-            'updated_at'        => $now,
-        ]);
+        $this->call(UserSeeder::class);
+        $adminId = (int) User::query()->where('email', 'divinejm@admin.com')->value('id');
 
         DB::table('users')->insert([
-            'name'              => 'Maria Santos',
-            'email'             => 'maria@divinejm.com',
-            'password'          => Hash::make('password'),
+            'name' => 'Maria Santos',
+            'email' => 'maria@divinejm.com',
+            'password' => Hash::make('password'),
             'email_verified_at' => $now,
-            'created_at'        => $now,
-            'updated_at'        => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
 
         // ══════════════════════════════════════════════
@@ -54,48 +52,48 @@ class DatabaseSeeder extends Seeder
 
         $branchDefs = [
             [
-                'id'   => 8,  'name' => 'PANABO',           'code' => 'PAN',
-                'customers' => ['JCA','JOSMAR','AZUENI','LAI','MAROT ONE STOP SHOP','COLE','VV VENTURES','TRANS EURO'],
+                'id' => 8,  'name' => 'PANABO',           'code' => 'PAN',
+                'customers' => ['JCA', 'JOSMAR', 'AZUENI', 'LAI', 'MAROT ONE STOP SHOP', 'COLE', 'VV VENTURES', 'TRANS EURO'],
             ],
             [
-                'id'   => 10, 'name' => 'TAGUM',            'code' => 'TAG',
-                'customers' => ['STALL #12','STALL #20','STALL #21','STALL #22','STALL #23','STALL #24','STALL #25','STALL #5','STALL #7','STALL #8','STALL #31','STALL #32','STALL #33','STALL #35','STALL #36','STALL #48','STALL #50','STALL #16','STALL #17 & 18','STALL #19','STALL #5 & 6','JOANE','NITS','OISHI MANJU','EVANS','LINA','LING2','ELIJAH','JAVEN','PRINCESS MELODY','VON2','IMJS','TINKERBELLE','GWAPA','ANGEL','BEBING','IA'],
+                'id' => 10, 'name' => 'TAGUM',            'code' => 'TAG',
+                'customers' => ['STALL #12', 'STALL #20', 'STALL #21', 'STALL #22', 'STALL #23', 'STALL #24', 'STALL #25', 'STALL #5', 'STALL #7', 'STALL #8', 'STALL #31', 'STALL #32', 'STALL #33', 'STALL #35', 'STALL #36', 'STALL #48', 'STALL #50', 'STALL #16', 'STALL #17 & 18', 'STALL #19', 'STALL #5 & 6', 'JOANE', 'NITS', 'OISHI MANJU', 'EVANS', 'LINA', 'LING2', 'ELIJAH', 'JAVEN', 'PRINCESS MELODY', 'VON2', 'IMJS', 'TINKERBELLE', 'GWAPA', 'ANGEL', 'BEBING', 'IA'],
             ],
             [
-                'id'   => 11, 'name' => 'ECOLAND TERMINAL', 'code' => 'ECO',
-                'customers' => ['MAYA','TONTON','W&A','ARTHUR','BLESSES','LANI','PEPE','JOCELYN','MIDZ','KEN','BING','CHIN2','MARILYN','MADELYN','DODONG'],
+                'id' => 11, 'name' => 'ECOLAND TERMINAL', 'code' => 'ECO',
+                'customers' => ['MAYA', 'TONTON', 'W&A', 'ARTHUR', 'BLESSES', 'LANI', 'PEPE', 'JOCELYN', 'MIDZ', 'KEN', 'BING', 'CHIN2', 'MARILYN', 'MADELYN', 'DODONG'],
             ],
             [
-                'id'   => 12, 'name' => 'CITY AREA',        'code' => 'CITY',
-                'customers' => ['VILLAPARK MINI MART','DMMA','VENUS','BABY AMA','BETH','ERNA','SHELL BAJADA','SHELL SASA','LUPIN'],
+                'id' => 12, 'name' => 'CITY AREA',        'code' => 'CITY',
+                'customers' => ['VILLAPARK MINI MART', 'DMMA', 'VENUS', 'BABY AMA', 'BETH', 'ERNA', 'SHELL BAJADA', 'SHELL SASA', 'LUPIN'],
             ],
             [
-                'id'   => 13, 'name' => 'DIGOS',            'code' => 'DG',
-                'customers' => ['LEDOUX COMPANY','MARILOR','MANCAO','GLORIA 1','FRAME ROSE','GLORIA 2','ISAY','ROSE','EMILY','RODRIGO','NICE','PEARLY','LITA PAYAT','TISAY','MILDRED','LIZA','NELIA','NILDA','PRANGELS','ROSHELLE MHAY','TM STORE'],
+                'id' => 13, 'name' => 'DIGOS',            'code' => 'DG',
+                'customers' => ['LEDOUX COMPANY', 'MARILOR', 'MANCAO', 'GLORIA 1', 'FRAME ROSE', 'GLORIA 2', 'ISAY', 'ROSE', 'EMILY', 'RODRIGO', 'NICE', 'PEARLY', 'LITA PAYAT', 'TISAY', 'MILDRED', 'LIZA', 'NELIA', 'NILDA', 'PRANGELS', 'ROSHELLE MHAY', 'TM STORE'],
             ],
         ];
 
         $branchIds = [];
         foreach ($branchDefs as $b) {
-            $customersJson = json_encode(array_map(fn($n) => ['name' => $n, 'phone' => null], $b['customers']));
+            $customersJson = json_encode(array_map(fn ($n) => ['name' => $n, 'phone' => null], $b['customers']));
             DB::table('branches')->insert([
-                'id'         => $b['id'],
-                'name'       => $b['name'],
-                'code'       => $b['code'],
-                'address'    => null,
-                'customers'  => $customersJson,
-                'is_active'  => 1,
+                'id' => $b['id'],
+                'name' => $b['name'],
+                'code' => $b['code'],
+                'address' => null,
+                'customers' => $customersJson,
+                'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
             $branchIds[$b['code']] = $b['id'];
         }
 
-        $pan  = $branchIds['PAN'];
-        $tag  = $branchIds['TAG'];
-        $eco  = $branchIds['ECO'];
+        $pan = $branchIds['PAN'];
+        $tag = $branchIds['TAG'];
+        $eco = $branchIds['ECO'];
         $city = $branchIds['CITY'];
-        $dg   = $branchIds['DG'];
+        $dg = $branchIds['DG'];
         $allBranchIds = [$pan, $tag, $eco, $city, $dg];
 
         $customersByBranch = [];
@@ -125,7 +123,7 @@ class DatabaseSeeder extends Seeder
             [15, 'EGG',                      'PIECE', 'ingredient', 27.00,    60.00,    7.00],
             [16, 'EVAPORATED MILK',          'CAN',   'ingredient', 5.00,     6.00,     35.00],
             [17, 'UBE COLORING - NECO',      'g',     'ingredient', 500.00,   500.00,   0.43],
-            [18, 'EGG YELLOW COLORING - NECO','g',    'ingredient', 500.00,   500.00,   0.27],
+            [18, 'EGG YELLOW COLORING - NECO', 'g',    'ingredient', 500.00,   500.00,   0.27],
             [19, 'UBE ESSENCE',              'g',     'ingredient', 1000.00,  500.00,   1.80],
             [20, 'DURIAN ESSENCE',           'g',     'ingredient', 1000.00,  499.99,   1.80],
             [21, 'SESAME SEEDS',             'g',     'ingredient', 1500.00,  2000.00,  0.15],
@@ -144,7 +142,7 @@ class DatabaseSeeder extends Seeder
             [34, 'MONGO FILLING',            'Kg',    'ingredient', 5.00,     5.00,     108.50],
             [35, 'UBE FILLING',              'Kg',    'ingredient', 10.00,    20.00,    120.00],
             [36, '4X8 PPO2',                 'REAM',  'packaging',  2.00,     2.00,     260.00],
-            [37, 'WATER',                    'LITERS','ingredient', 50.00,    50000.00, 2.40],
+            [37, 'WATER',                    'LITERS', 'ingredient', 50.00,    50000.00, 2.40],
             [38, 'CORN OIL',                 'Kg',    'ingredient', 34.00,    34.00,    129.00],
             [41, 'CORNSTARCH',               'Kg',    'ingredient', 25.00,    50.00,    37.20],
             [42, 'LARD - SPRING',            'g',     'ingredient', 40.00,    25.00,    0.12],
@@ -155,15 +153,15 @@ class DatabaseSeeder extends Seeder
         $rmIds = [];
         foreach ($rmDefs as [$id, $name, $unit, $cat, $qty, $min, $price]) {
             DB::table('raw_materials')->insert([
-                'id'            => $id,
-                'name'          => $name,
-                'unit'          => $unit,
-                'category'      => $cat,
-                'quantity'      => $qty,
+                'id' => $id,
+                'name' => $name,
+                'unit' => $unit,
+                'category' => $cat,
+                'quantity' => $qty,
                 'minimum_stock' => $min,
-                'unit_price'    => $price,
-                'created_at'    => $now,
-                'updated_at'    => $now,
+                'unit_price' => $price,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
             $rmIds[$name] = $id;
         }
@@ -187,36 +185,36 @@ class DatabaseSeeder extends Seeder
             [13, 'HOPIA DURIAN',   'PROD-9168', 445.92,  22.00, 100.00, 60],
         ];
 
-        $fpIds      = [];
-        $fpPrices   = [];
-        $fpCosts    = [];
-        $mfgDate    = $now->copy()->subDays(15)->format('Y-m-d');
+        $fpIds = [];
+        $fpPrices = [];
+        $fpCosts = [];
+        $mfgDate = $now->copy()->subDays(15)->format('Y-m-d');
 
         foreach ($fpDefs as [$id, $name, $sku, $cost, $sell, $min, $shelf]) {
             $onHand = rand(300, 800);
-            $out    = rand(100, 400);
+            $out = rand(100, 400);
             DB::table('finished_products')->insert([
-                'id'                 => $id,
-                'name'               => $name,
-                'sku'                => $sku,
-                'product_type'       => 'manufactured',
-                'quantity'           => $onHand,
-                'stock_on_hand'      => $onHand,
-                'stock_out'          => $out,
-                'minimum_stock'      => $min,
-                'cost_price'         => $cost,
-                'total_cost'         => round($cost * $onHand, 2),
-                'selling_price'      => $sell,
+                'id' => $id,
+                'name' => $name,
+                'sku' => $sku,
+                'product_type' => 'manufactured',
+                'quantity' => $onHand,
+                'stock_on_hand' => $onHand,
+                'stock_out' => $out,
+                'minimum_stock' => $min,
+                'cost_price' => $cost,
+                'total_cost' => round($cost * $onHand, 2),
+                'selling_price' => $sell,
                 'manufacturing_date' => $mfgDate,
-                'expiry_date'        => $now->copy()->addDays($shelf)->format('Y-m-d'),
-                'shelf_life_days'    => $shelf,
-                'is_expired'         => 0,
-                'created_at'         => $now,
-                'updated_at'         => $now,
+                'expiry_date' => $now->copy()->addDays($shelf)->format('Y-m-d'),
+                'shelf_life_days' => $shelf,
+                'is_expired' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
-            $fpIds[$sku]    = $id;
-            $fpPrices[$id]  = $sell;
-            $fpCosts[$id]   = $cost;
+            $fpIds[$sku] = $id;
+            $fpPrices[$id] = $sell;
+            $fpCosts[$id] = $cost;
         }
 
         $allFpIds = array_values($fpIds);
@@ -227,33 +225,33 @@ class DatabaseSeeder extends Seeder
 
         // Ingredient sets per product (realistic)
         $ingredientSets = [
-            3  => [[2,500],[3,300],[9,1],[15,12],[17,5],[19,5],[35,2],[23,1]],   // DICE UBE
-            4  => [[2,500],[3,300],[9,1],[15,12],[27,5],[34,2],[23,1]],           // DICE MONGO
-            5  => [[2,400],[4,200],[10,1],[15,10],[34,2],[24,1]],                 // HOPIA MONGO
-            6  => [[2,400],[4,200],[10,1],[15,10],[17,5],[19,5],[35,2],[24,1]],   // HOPIA UBE
-            7  => [[2,800],[5,400],[11,2],[13,300],[7,50],[25,2]],                // PIAYA PLAIN
-            8  => [[2,300],[3,200],[9,1],[15,8],[21,100],[26,1]],                 // OTAP PLAIN
-            9  => [[2,300],[3,150],[9,1],[15,8],[21,200],[23,1]],                 // SESAME KISSES
-            10 => [[2,250],[3,200],[9,1],[15,6],[8,10],[32,5],[36,1]],            // BUTTER COOKIES
-            11 => [[2,250],[3,200],[9,1],[15,6],[8,10],[32,5],[36,1]],            // SAMPAGUITA
-            12 => [[2,500],[3,300],[9,1],[15,12],[20,5],[44,2],[23,1]],           // DICE DURIAN
-            13 => [[2,400],[4,200],[10,1],[15,10],[20,5],[44,2],[24,1]],          // HOPIA DURIAN
+            3 => [[2, 500], [3, 300], [9, 1], [15, 12], [17, 5], [19, 5], [35, 2], [23, 1]],   // DICE UBE
+            4 => [[2, 500], [3, 300], [9, 1], [15, 12], [27, 5], [34, 2], [23, 1]],           // DICE MONGO
+            5 => [[2, 400], [4, 200], [10, 1], [15, 10], [34, 2], [24, 1]],                 // HOPIA MONGO
+            6 => [[2, 400], [4, 200], [10, 1], [15, 10], [17, 5], [19, 5], [35, 2], [24, 1]],   // HOPIA UBE
+            7 => [[2, 800], [5, 400], [11, 2], [13, 300], [7, 50], [25, 2]],                // PIAYA PLAIN
+            8 => [[2, 300], [3, 200], [9, 1], [15, 8], [21, 100], [26, 1]],                 // OTAP PLAIN
+            9 => [[2, 300], [3, 150], [9, 1], [15, 8], [21, 200], [23, 1]],                 // SESAME KISSES
+            10 => [[2, 250], [3, 200], [9, 1], [15, 6], [8, 10], [32, 5], [36, 1]],            // BUTTER COOKIES
+            11 => [[2, 250], [3, 200], [9, 1], [15, 6], [8, 10], [32, 5], [36, 1]],            // SAMPAGUITA
+            12 => [[2, 500], [3, 300], [9, 1], [15, 12], [20, 5], [44, 2], [23, 1]],           // DICE DURIAN
+            13 => [[2, 400], [4, 200], [10, 1], [15, 10], [20, 5], [44, 2], [24, 1]],          // HOPIA DURIAN
         ];
 
-        $mixIds      = [];
+        $mixIds = [];
         $batchNumbers = [];
-        $mixConfigs  = [];
+        $mixConfigs = [];
 
         // Generate 2 batches per product spread over last 45 days
         $batchCounter = 1;
         foreach ($allFpIds as $fpId) {
-            foreach ([rand(30,44), rand(5,15)] as $daysAgo) {
-                $mixDate  = $now->copy()->subDays($daysAgo)->format('Y-m-d');
-                $shelf    = collect($fpDefs)->firstWhere(0, $fpId)[6] ?? 60;
-                $expiry   = $now->copy()->subDays($daysAgo)->addDays($shelf)->format('Y-m-d');
-                $actual   = rand(200, 500);
+            foreach ([rand(30, 44), rand(5, 15)] as $daysAgo) {
+                $mixDate = $now->copy()->subDays($daysAgo)->format('Y-m-d');
+                $shelf = collect($fpDefs)->firstWhere(0, $fpId)[6] ?? 60;
+                $expiry = $now->copy()->subDays($daysAgo)->addDays($shelf)->format('Y-m-d');
+                $actual = rand(200, 500);
                 $rejected = rand(0, 10);
-                $batchNo  = 'BATCH-' . str_pad($batchCounter, 4, '0', STR_PAD_LEFT);
+                $batchNo = 'BATCH-'.str_pad($batchCounter, 4, '0', STR_PAD_LEFT);
 
                 $idx = count($mixIds);
                 $mixConfigs[$idx] = [$fpId, $actual, $rejected, 1, $shelf, $daysAgo];
@@ -261,18 +259,18 @@ class DatabaseSeeder extends Seeder
 
                 $mixId = DB::table('production_mixes')->insertGetId([
                     'finished_product_id' => $fpId,
-                    'batch_number'        => $batchNo,
-                    'mix_date'            => $mixDate,
-                    'expected_output'     => $actual + rand(5, 20),
-                    'actual_output'       => $actual,
-                    'rejected_quantity'   => $rejected,
-                    'expiration_date'     => $expiry,
-                    'multiplier'          => 1,
-                    'status'              => 'completed',
-                    'notes'               => "Batch {$batchNo} produced on {$mixDate}.",
-                    'user_id'             => $adminId,
-                    'created_at'          => $now,
-                    'updated_at'          => $now,
+                    'batch_number' => $batchNo,
+                    'mix_date' => $mixDate,
+                    'expected_output' => $actual + rand(5, 20),
+                    'actual_output' => $actual,
+                    'rejected_quantity' => $rejected,
+                    'expiration_date' => $expiry,
+                    'multiplier' => 1,
+                    'status' => 'completed',
+                    'notes' => "Batch {$batchNo} produced on {$mixDate}.",
+                    'user_id' => $adminId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]);
 
                 $mixIds[$idx] = $mixId;
@@ -281,27 +279,27 @@ class DatabaseSeeder extends Seeder
                 foreach ($ingredientSets[$fpId] as [$rmId, $qty]) {
                     DB::table('production_mix_ingredients')->insert([
                         'production_mix_id' => $mixId,
-                        'raw_material_id'   => $rmId,
-                        'quantity_used'     => $qty,
-                        'created_at'        => $now,
-                        'updated_at'        => $now,
+                        'raw_material_id' => $rmId,
+                        'quantity_used' => $qty,
+                        'created_at' => $now,
+                        'updated_at' => $now,
                     ]);
                 }
 
                 // Stock movement for production
                 DB::table('stock_movements')->insert([
                     'finished_product_id' => $fpId,
-                    'branch_id'           => null,
-                    'production_mix_id'   => $mixId,
-                    'movement_type'       => 'production',
-                    'quantity'            => $actual,
-                    'movement_date'       => $mixDate,
-                    'batch_number'        => $batchNo,
-                    'expiration_date'     => $expiry,
-                    'notes'               => "Produced from {$batchNo}",
-                    'user_id'             => $adminId,
-                    'created_at'          => $now,
-                    'updated_at'          => $now,
+                    'branch_id' => null,
+                    'production_mix_id' => $mixId,
+                    'movement_type' => 'production',
+                    'quantity' => $actual,
+                    'movement_date' => $mixDate,
+                    'batch_number' => $batchNo,
+                    'expiration_date' => $expiry,
+                    'notes' => "Produced from {$batchNo}",
+                    'user_id' => $adminId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]);
 
                 $batchCounter++;
@@ -320,41 +318,41 @@ class DatabaseSeeder extends Seeder
             $custList = $customersByBranch[$branchId];
 
             foreach ($allFpIds as $fpId) {
-                $qty      = rand(30, 120);
+                $qty = rand(30, 120);
                 $customer = $custList[array_rand($custList)];
-                $mixIdx   = array_rand($mixIds);
-                $batchNo  = $batchNumbers[$mixIdx];
-                $cfg      = $mixConfigs[$mixIdx];
-                $expiry   = $now->copy()->subDays($cfg[5])->addDays($cfg[4])->format('Y-m-d');
-                $drNumber = 'DR-' . $deliveryDrCounter++;
-                $delDate  = $now->copy()->subDays(rand(5, 20))->format('Y-m-d');
+                $mixIdx = array_rand($mixIds);
+                $batchNo = $batchNumbers[$mixIdx];
+                $cfg = $mixConfigs[$mixIdx];
+                $expiry = $now->copy()->subDays($cfg[5])->addDays($cfg[4])->format('Y-m-d');
+                $drNumber = 'DR-'.$deliveryDrCounter++;
+                $delDate = $now->copy()->subDays(rand(5, 20))->format('Y-m-d');
 
                 DB::table('branch_inventory')->insert([
-                    'branch_id'           => $branchId,
+                    'branch_id' => $branchId,
                     'finished_product_id' => $fpId,
-                    'quantity'            => $qty,
-                    'batch_number'        => $batchNo,
-                    'expiration_date'     => $expiry,
-                    'batch_expiry_date'   => $expiry,
-                    'is_expired'          => 0,
-                    'created_at'          => $now,
-                    'updated_at'          => $now,
+                    'quantity' => $qty,
+                    'batch_number' => $batchNo,
+                    'expiration_date' => $expiry,
+                    'batch_expiry_date' => $expiry,
+                    'is_expired' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]);
 
                 DB::table('stock_movements')->insert([
                     'finished_product_id' => $fpId,
-                    'branch_id'           => $branchId,
-                    'production_mix_id'   => null,
-                    'movement_type'       => 'transfer_out',
-                    'quantity'            => $qty,
-                    'movement_date'       => $delDate,
-                    'batch_number'        => $batchNo,
-                    'expiration_date'     => $expiry,
-                    'reference_number'    => $drNumber,
-                    'notes'               => 'Customer: ' . $customer,
-                    'user_id'             => $adminId,
-                    'created_at'          => $now,
-                    'updated_at'          => $now,
+                    'branch_id' => $branchId,
+                    'production_mix_id' => null,
+                    'movement_type' => 'transfer_out',
+                    'quantity' => $qty,
+                    'movement_date' => $delDate,
+                    'batch_number' => $batchNo,
+                    'expiration_date' => $expiry,
+                    'reference_number' => $drNumber,
+                    'notes' => 'Customer: '.$customer,
+                    'user_id' => $adminId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]);
             }
         }
@@ -366,81 +364,101 @@ class DatabaseSeeder extends Seeder
         $drCounter = 1001;
 
         for ($daysAgo = 44; $daysAgo >= 0; $daysAgo--) {
-            $saleDate    = $now->copy()->subDays($daysAgo)->format('Y-m-d');
+            $saleDate = $now->copy()->subDays($daysAgo)->format('Y-m-d');
             $salesPerDay = rand(4, 8);
 
             for ($s = 0; $s < $salesPerDay; $s++) {
-                $branchId  = $allBranchIds[array_rand($allBranchIds)];
-                $custList  = $customersByBranch[$branchId];
-                $customer  = $custList[array_rand($custList)];
-                $drNumber  = 'DR-' . $drCounter++;
+                $branchId = $allBranchIds[array_rand($allBranchIds)];
+                $custList = $customersByBranch[$branchId];
+                $customer = $custList[array_rand($custList)];
+                $drNumber = 'DR-'.$drCounter++;
                 $itemCount = rand(2, 5);
 
                 $shuffled = $allFpIds;
                 shuffle($shuffled);
                 $pickedFps = array_slice($shuffled, 0, $itemCount);
 
-                $totalAmount   = 0;
+                $totalAmount = 0;
                 $saleItemsData = [];
 
                 foreach ($pickedFps as $fpId) {
-                    $qtySold  = rand(10, 50);
-                    $price    = $fpPrices[$fpId];
+                    $qtySold = rand(10, 50);
+                    $price = $fpPrices[$fpId];
                     $subtotal = $qtySold * $price;
                     $totalAmount += $subtotal;
-                    $mixIdx   = array_rand($batchNumbers);
+                    $mixIdx = array_rand($batchNumbers);
 
                     $saleItemsData[] = [
                         'finished_product_id' => $fpId,
-                        'quantity_deployed'   => $qtySold + rand(0, 10),
-                        'quantity_sold'       => $qtySold,
-                        'quantity_unsold'     => rand(0, 5),
-                        'quantity_bo'         => rand(0, 3),
-                        'quantity_replaced'   => 0,
-                        'unit_price'          => $price,
-                        'discount'            => 0,
-                        'subtotal'            => $subtotal,
-                        'batch_number'        => $batchNumbers[$mixIdx],
+                        'quantity_deployed' => $qtySold + rand(0, 10),
+                        'quantity_sold' => $qtySold,
+                        'quantity_unsold' => rand(0, 5),
+                        'quantity_bo' => rand(0, 3),
+                        'quantity_replaced' => 0,
+                        'unit_price' => $price,
+                        'discount' => 0,
+                        'subtotal' => $subtotal,
+                        'batch_number' => $batchNumbers[$mixIdx],
                     ];
                 }
 
                 // Payment logic — older = more likely collected
                 $rand = rand(1, 100);
                 if ($daysAgo > 14) {
-                    if ($rand <= 75)     { $status = 'paid';            $amtPaid = $totalAmount; $payMode = ['cash','gcash','cash','cash'][rand(0,3)]; }
-                    elseif ($rand <= 90) { $status = 'partial';         $amtPaid = round($totalAmount * (rand(40,80)/100), 2); $payMode = 'cash'; }
-                    else                 { $status = 'to_be_collected'; $amtPaid = 0; $payMode = null; }
+                    if ($rand <= 75) {
+                        $status = 'paid';
+                        $amtPaid = $totalAmount;
+                        $payMode = ['cash', 'gcash', 'cash', 'cash'][rand(0, 3)];
+                    } elseif ($rand <= 90) {
+                        $status = 'partial';
+                        $amtPaid = round($totalAmount * (rand(40, 80) / 100), 2);
+                        $payMode = 'cash';
+                    } else {
+                        $status = 'to_be_collected';
+                        $amtPaid = 0;
+                        $payMode = null;
+                    }
                 } else {
-                    if ($rand <= 50)     { $status = 'paid';            $amtPaid = $totalAmount; $payMode = ['cash','gcash','cash'][rand(0,2)]; }
-                    elseif ($rand <= 75) { $status = 'to_be_collected'; $amtPaid = 0; $payMode = null; }
-                    else                 { $status = 'partial';         $amtPaid = round($totalAmount * (rand(30,70)/100), 2); $payMode = 'cash'; }
+                    if ($rand <= 50) {
+                        $status = 'paid';
+                        $amtPaid = $totalAmount;
+                        $payMode = ['cash', 'gcash', 'cash'][rand(0, 2)];
+                    } elseif ($rand <= 75) {
+                        $status = 'to_be_collected';
+                        $amtPaid = 0;
+                        $payMode = null;
+                    } else {
+                        $status = 'partial';
+                        $amtPaid = round($totalAmount * (rand(30, 70) / 100), 2);
+                        $payMode = 'cash';
+                    }
                 }
 
-                $payRef  = ($payMode === 'gcash') ? '09' . rand(100000000, 999999999) : null;
+                $payRef = ($payMode === 'gcash') ? '09'.rand(100000000, 999999999) : null;
                 $balance = $totalAmount - $amtPaid;
-                $payDate = ($status === 'paid') ? $now->copy()->subDays($daysAgo)->addDays(rand(0,2))->format('Y-m-d') : null;
+                $payDate = ($status === 'paid') ? $now->copy()->subDays($daysAgo)->addDays(rand(0, 2))->format('Y-m-d') : null;
                 $createdAt = $now->copy()->subDays($daysAgo);
 
                 $saleId = DB::table('sales')->insertGetId([
-                    'branch_id'         => $branchId,
-                    'customer_name'     => $customer,
-                    'dr_number'         => $drNumber,
-                    'sale_date'         => $saleDate,
-                    'payment_period'    => 'one_time',
-                    'due_date'          => $now->copy()->subDays($daysAgo)->addDays(7)->format('Y-m-d'),
-                    'total_amount'      => $totalAmount,
-                    'amount_paid'       => $amtPaid,
-                    'balance'           => $balance,
-                    'payment_status'    => $status,
-                    'payment_mode'      => $payMode,
-                    'payment_method'    => $payMode ?? 'cash',
+                    'branch_id' => $branchId,
+                    'customer_name' => $customer,
+                    'dr_number' => $drNumber,
+                    'sale_date' => $saleDate,
+                    'payment_period' => 'one_time',
+                    'due_date' => $now->copy()->subDays($daysAgo)->addDays(7)->format('Y-m-d'),
+                    'total_amount' => $totalAmount,
+                    'amount_paid' => $amtPaid,
+                    'balance' => $balance,
+                    'payment_status' => $status,
+                    'payment_mode' => $payMode,
+                    'payment_method' => $payMode ?? 'cash',
                     'payment_reference' => $payRef,
-                    'payment_date'      => $payDate,
-                    'notes'             => null,
-                    'status'            => 'active',
-                    'user_id'           => $adminId,
-                    'created_at'        => $createdAt,
-                    'updated_at'        => $createdAt,
+                    'payment_date' => $payDate,
+                    'notes' => null,
+                    'status' => 'active',
+                    'user_id' => $adminId,
+                    'created_at' => $createdAt,
+                    'updated_at' => $createdAt,
                 ]);
 
                 foreach ($saleItemsData as $item) {
@@ -478,14 +496,14 @@ class DatabaseSeeder extends Seeder
 
         foreach ($expenseRows as [$cat, $desc, $amount, $daysAgo, $method]) {
             DB::table('expenses')->insert([
-                'category'       => $cat,
-                'description'    => $desc,
-                'amount'         => $amount,
-                'expense_date'   => $now->copy()->subDays($daysAgo)->format('Y-m-d'),
+                'category' => $cat,
+                'description' => $desc,
+                'amount' => $amount,
+                'expense_date' => $now->copy()->subDays($daysAgo)->format('Y-m-d'),
                 'payment_method' => $method,
-                'notes'          => null,
-                'created_at'     => $now,
-                'updated_at'     => $now,
+                'notes' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
         }
 
@@ -505,14 +523,14 @@ class DatabaseSeeder extends Seeder
 
         foreach ($depositRows as [$bank, $acct, $amount, $daysAgo]) {
             DB::table('bank_deposits')->insert([
-                'bank_name'      => $bank,
+                'bank_name' => $bank,
                 'account_number' => $acct,
-                'amount'         => $amount,
-                'deposit_date'   => $now->copy()->subDays($daysAgo)->format('Y-m-d'),
-                'notes'          => null,
-                'created_by'     => $adminId,
-                'created_at'     => $now,
-                'updated_at'     => $now,
+                'amount' => $amount,
+                'deposit_date' => $now->copy()->subDays($daysAgo)->format('Y-m-d'),
+                'notes' => null,
+                'created_by' => $adminId,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
         }
 
@@ -523,17 +541,17 @@ class DatabaseSeeder extends Seeder
         $this->command->info('');
         $this->command->info('✅  Divine JM Foods — Seeded Successfully!');
         $this->command->info('');
-        $this->command->info('  👤  Users            : ' . DB::table('users')->count()              . '   → admin@divinejm.com / password');
-        $this->command->info('  🏪  Branches         : ' . DB::table('branches')->count());
-        $this->command->info('  🌾  Raw Materials    : ' . DB::table('raw_materials')->count());
-        $this->command->info('  📦  Finished Products: ' . DB::table('finished_products')->count());
-        $this->command->info('  ⚙️   Production Mixes : ' . DB::table('production_mixes')->count());
-        $this->command->info('  🚚  Deliveries       : ' . DB::table('branch_inventory')->count());
-        $this->command->info('  🚚  Sales (DRs)      : ' . DB::table('sales')->count());
-        $this->command->info('  🧾  Sale Items       : ' . DB::table('sale_items')->count());
-        $this->command->info('  💸  Expenses         : ' . DB::table('expenses')->count());
-        $this->command->info('  🏦  Bank Deposits    : ' . DB::table('bank_deposits')->count());
-        $this->command->info('  📊  Stock Movements  : ' . DB::table('stock_movements')->count());
+        $this->command->info('  👤  Users            : '.DB::table('users')->count().'   → divinejm@admin.com / divinejmadmin');
+        $this->command->info('  🏪  Branches         : '.DB::table('branches')->count());
+        $this->command->info('  🌾  Raw Materials    : '.DB::table('raw_materials')->count());
+        $this->command->info('  📦  Finished Products: '.DB::table('finished_products')->count());
+        $this->command->info('  ⚙️   Production Mixes : '.DB::table('production_mixes')->count());
+        $this->command->info('  🚚  Deliveries       : '.DB::table('branch_inventory')->count());
+        $this->command->info('  🚚  Sales (DRs)      : '.DB::table('sales')->count());
+        $this->command->info('  🧾  Sale Items       : '.DB::table('sale_items')->count());
+        $this->command->info('  💸  Expenses         : '.DB::table('expenses')->count());
+        $this->command->info('  🏦  Bank Deposits    : '.DB::table('bank_deposits')->count());
+        $this->command->info('  📊  Stock Movements  : '.DB::table('stock_movements')->count());
         $this->command->info('');
     }
 }

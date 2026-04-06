@@ -54,9 +54,7 @@
             </div>
             <div class="col-md-3">
                 <label class="field-label">Unit <span style="color:var(--s-danger-text)">*</span></label>
-                <input type="text" name="unit" class="form-control form-control-sm @error('unit') is-invalid @enderror"
-                       value="{{ old('unit', $rawMaterial->unit) }}" required>
-                @error('unit')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                @include('partials.raw-material-unit-select', ['selected' => old('unit', $rawMaterial->unit)])
             </div>
             <div class="col-md-3">
                 <label class="field-label">Unit Price (₱) <span style="color:var(--s-danger-text)">*</span></label>

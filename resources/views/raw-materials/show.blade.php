@@ -30,6 +30,7 @@
     .type-pill { display:inline-flex; align-items:center; gap:.25rem; font-size:.68rem; font-weight:700; padding:.12rem .45rem; border-radius:4px; }
     .type-restock { background:var(--s-success-bg); color:var(--s-success-text); }
     .type-usage   { background:var(--s-danger-bg);  color:var(--s-danger-text); }
+    .type-adjust  { background:var(--s-warning-bg); color:var(--s-warning-text); }
     .purpose-tag  { display:inline-block; font-size:.68rem; padding:.1rem .4rem; border-radius:4px; background:var(--s-info-bg); color:var(--s-info-text); font-weight:600; }
 
     .filter-bar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; padding:.6rem .9rem; background:var(--bg-page); border-bottom:1px solid var(--border); }
@@ -173,6 +174,7 @@
                 <option value="">All Types</option>
                 <option value="restock" {{ request('type') === 'restock' ? 'selected' : '' }}>Restock</option>
                 <option value="usage"   {{ request('type') === 'usage'   ? 'selected' : '' }}>Usage</option>
+                <option value="adjustment" {{ request('type') === 'adjustment' ? 'selected' : '' }}>Adjustment</option>
             </select>
             <input type="text" name="search" id="searchInput" class="search-input"
                    value="{{ request('search') }}" placeholder="Search notes / purpose…">
@@ -202,13 +204,15 @@
             <tr>
                 <td style="font-size:.76rem;color:var(--text-muted)">{{ $usage->usage_date->format('M d, Y') }}</td>
                 <td>
-                    @if($usage->quantity_used < 0)
+                    @if($usage->purpose === 'adjustment')
+                        <span class="type-pill type-adjust"><i class="bi bi-sliders"></i> Adjustment</span>
+                    @elseif($usage->quantity_used < 0)
                         <span class="type-pill type-restock"><i class="bi bi-arrow-up-circle"></i> Restock</span>
                     @else
                         <span class="type-pill type-usage"><i class="bi bi-arrow-down-circle"></i> Usage</span>
                     @endif
                 </td>
-                <td class="text-end" style="font-weight:700;font-variant-numeric:tabular-nums;color:{{ $usage->quantity_used < 0 ? 'var(--s-success-text)' : 'var(--s-danger-text)' }}">
+                <td class="text-end" style="font-weight:700;font-variant-numeric:tabular-nums;color:{{ $usage->purpose === 'adjustment' ? 'var(--s-warning-text)' : ($usage->quantity_used < 0 ? 'var(--s-success-text)' : 'var(--s-danger-text)') }}">
                     {{ $usage->quantity_used < 0 ? '+' : '-' }}{{ number_format(abs($usage->quantity_used), 2) }}
                     <span style="font-size:.7rem;font-weight:400;color:var(--text-muted)">{{ $rawMaterial->unit }}</span>
                 </td>

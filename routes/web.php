@@ -1,19 +1,19 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AccountsReceivableController;
+use App\Http\Controllers\BankDepositController;
+use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BranchInventoryController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\RawMaterialController;
-use App\Http\Controllers\FinishedProductController;
-use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FinancialReportController;
-use App\Http\Controllers\BranchController;
-use App\Http\Controllers\BranchInventoryController; 
-use App\Http\Controllers\BankDepositController;
-use App\Http\Controllers\ProductionMixController;
+use App\Http\Controllers\FinishedProductController;
 use App\Http\Controllers\InventoryReportController;
+use App\Http\Controllers\ProductionMixController;
+use App\Http\Controllers\RawMaterialController;
+use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
-use App\Http\Controllers\AccountsReceivableController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -21,23 +21,25 @@ Route::get('/', function () {
 
 Auth::routes(['register' => false]);
 
-Route::get('/home', function() {
+Route::get('/home', function () {
     return redirect()->route('dashboard');
 })->middleware('auth');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
+
     Route::resource('raw-materials', RawMaterialController::class);
     Route::post('raw-materials/{rawMaterial}/use', [RawMaterialController::class, 'recordUsage'])
         ->name('raw-materials.use');
     Route::post('raw-materials/{rawMaterial}/restock', [RawMaterialController::class, 'restock'])
         ->name('raw-materials.restock');
-    
+    Route::post('raw-materials/{rawMaterial}/adjust', [RawMaterialController::class, 'adjust'])
+        ->name('raw-materials.adjust');
+
     Route::post('/finished-products/{finishedProduct}/regenerate-barcode',
         [FinishedProductController::class, 'regenerateBarcode'])
         ->name('finished-products.regenerate-barcode');
-    
+
     Route::resource('finished-products', FinishedProductController::class);
     Route::post('finished-products/{finishedProduct}/restock', [FinishedProductController::class, 'restock'])
         ->name('finished-products.restock');
@@ -51,23 +53,23 @@ Route::middleware(['auth'])->group(function () {
 
     // Item-level AJAX routes (must be before wildcards)
     Route::patch('/sales/items/{saleItem}/mark-sold', [SaleController::class, 'markSold'])->name('sales.markSold');
-    Route::patch('/sales/items/{saleItem}/sold-out',  [SaleController::class, 'soldOutItem'])->name('sales.soldOutItem');
+    Route::patch('/sales/items/{saleItem}/sold-out', [SaleController::class, 'soldOutItem'])->name('sales.soldOutItem');
 
     // DR detail page (must be before {sale} and {branch} wildcards)
-    Route::get   ('/sales/dr/{sale}',        [SaleController::class, 'drDetail'])->name('sales.dr');
-    Route::patch ('/sales/dr/{sale}/update', [SaleController::class, 'drUpdate'])->name('sales.drUpdate');
-    Route::delete('/sales/dr/{sale}',       [SaleController::class, 'destroy'])->name('sales.destroy');
+    Route::get('/sales/dr/{sale}', [SaleController::class, 'drDetail'])->name('sales.dr');
+    Route::patch('/sales/dr/{sale}/update', [SaleController::class, 'drUpdate'])->name('sales.drUpdate');
+    Route::delete('/sales/dr/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
 
     // Sale-level routes
     Route::patch('/sales/{sale}/sold-out', [SaleController::class, 'soldOutSale'])->name('sales.soldOut');
-    Route::get   ('/sales/{sale}/payment', [SaleController::class, 'paymentPage'])->name('sales.paymentPage');
-    Route::patch ('/sales/{sale}/payment', [SaleController::class, 'updatePayment'])->name('sales.updatePayment');
+    Route::get('/sales/{sale}/payment', [SaleController::class, 'paymentPage'])->name('sales.paymentPage');
+    Route::patch('/sales/{sale}/payment', [SaleController::class, 'updatePayment'])->name('sales.updatePayment');
 
     // Sales API endpoints
-    Route::get('/api/sales/customers/{branch}',                          [SaleController::class, 'getCustomers'])->name('sales.api.customers');
-    Route::get('/api/sales/dr-numbers/{branch}',                         [SaleController::class, 'getDRNumbers'])->name('sales.api.dr-numbers');
-    Route::get('/api/sales/dr-products/{branch}/{drNumber}',             [SaleController::class, 'getDRProducts'])->name('sales.api.dr-products');
-    Route::get('/api/sales/products/{branch}/{customerName}',            [SaleController::class, 'getProducts'])->name('sales.api.products');
+    Route::get('/api/sales/customers/{branch}', [SaleController::class, 'getCustomers'])->name('sales.api.customers');
+    Route::get('/api/sales/dr-numbers/{branch}', [SaleController::class, 'getDRNumbers'])->name('sales.api.dr-numbers');
+    Route::get('/api/sales/dr-products/{branch}/{drNumber}', [SaleController::class, 'getDRProducts'])->name('sales.api.dr-products');
+    Route::get('/api/sales/products/{branch}/{customerName}', [SaleController::class, 'getProducts'])->name('sales.api.products');
     Route::get('/api/sales/check-dr/{branch}/{customerName}/{drNumber}', [SaleController::class, 'checkDrNumber'])->name('sales.api.check-dr');
 
     // Wildcard LAST
@@ -80,7 +82,7 @@ Route::middleware(['auth'])->group(function () {
     // ──────────────────────────────────────────────────────────────────
 
     Route::resource('expenses', ExpenseController::class);
-    
+
     // ── Reports ───────────────────────────────────────────────────────
     Route::get('/reports/inventory', [InventoryReportController::class, 'index'])->name('reports.inventory');
     Route::get('/reports/sales', [SalesReportController::class, 'index'])->name('reports.sales');
@@ -88,7 +90,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])
         ->name('financial-reports.index');
-    
+
     // Branches / Areas
     Route::resource('branches', BranchController::class);
 

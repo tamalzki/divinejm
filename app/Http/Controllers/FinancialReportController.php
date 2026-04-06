@@ -13,6 +13,7 @@ use App\Models\StockMovement;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class FinancialReportController extends Controller
 {
@@ -34,33 +35,28 @@ class FinancialReportController extends Controller
         // SALES DATA
         // ======================
         $salesQuery = Sale::with(['items.finishedProduct', 'branch'])
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('sale_date', [$startDate, $endDate]);
 
-        $totalSales = $salesQuery->sum('total_amount');
+        $grossInvoiceTotal = (clone $salesQuery)->sum('total_amount');
+        $totalDrLess = Schema::hasColumn('sales', 'less_amount')
+            ? (clone $salesQuery)->sum('less_amount')
+            : 0;
+        $totalSales = $grossInvoiceTotal - $totalDrLess;
         $allSales = $salesQuery->get();
 
         // Sales by Product with proper cost calculation
         $salesByProduct = SaleItem::with(['finishedProduct', 'sale'])
             ->whereHas('sale', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('sale_date', [$startDate, $endDate]);
+                $q->where('status', '!=', 'cancelled')
+                    ->whereBetween('sale_date', [$startDate, $endDate]);
             })
             ->get()
             ->groupBy('finished_product_id')
             ->map(function ($items) {
                 $product = $items->first()->finishedProduct;
                 $quantity = $items->sum('quantity_sold');
-
-                // Check if discount column exists
-                $hasDiscountColumn = \Illuminate\Support\Facades\Schema::hasColumn('sale_items', 'discount');
-
-                $revenue = $items->sum(function ($item) use ($hasDiscountColumn) {
-                    $subtotal = $item->quantity_sold * $item->unit_price;
-                    if ($hasDiscountColumn && isset($item->discount)) {
-                        return $subtotal - $item->discount;
-                    }
-
-                    return $subtotal;
-                });
+                $revenue = $items->sum(fn ($item) => (float) $item->subtotal);
 
                 $cost = $product->cost_price * $quantity;
                 $profit = $revenue - $cost;
@@ -82,7 +78,8 @@ class FinancialReportController extends Controller
         // ======================
         // SALES BY CUSTOMER (NEW)
         // ======================
-        $salesByCustomer = Sale::whereBetween('sale_date', [$startDate, $endDate])
+        $salesByCustomer = Sale::where('status', '!=', 'cancelled')
+            ->whereBetween('sale_date', [$startDate, $endDate])
             ->select(
                 'customer_name',
                 'branch_id',
@@ -102,7 +99,8 @@ class FinancialReportController extends Controller
 
         // Deliveries per customer (from sales + stock movements)
         // Get unique DR numbers from sales first
-        $salesDRs = Sale::whereBetween('sale_date', [$startDate, $endDate])
+        $salesDRs = Sale::where('status', '!=', 'cancelled')
+            ->whereBetween('sale_date', [$startDate, $endDate])
             ->select('dr_number', 'customer_name', 'branch_id')
             ->get()
             ->unique(function ($sale) {
@@ -179,13 +177,14 @@ class FinancialReportController extends Controller
         // ======================
         // ACCOUNTS RECEIVABLE (NEW)
         // ======================
-        $accountsReceivable = Sale::whereBetween('sale_date', [$startDate, $endDate])
+        $accountsReceivable = Sale::where('status', '!=', 'cancelled')
+            ->whereBetween('sale_date', [$startDate, $endDate])
             ->where('payment_status', '!=', 'paid')
             ->select(
                 'customer_name',
                 'branch_id',
                 DB::raw('COUNT(*) as unpaid_count'),
-                DB::raw('SUM(total_amount - amount_paid) as total_receivable'),
+                DB::raw('SUM(balance) as total_receivable'),
                 DB::raw('MIN(sale_date) as oldest_sale'),
                 DB::raw('MAX(sale_date) as latest_sale')
             )
@@ -206,9 +205,7 @@ class FinancialReportController extends Controller
         $paymentSummary = [
             'total_sales' => $totalSales,
             'total_collected' => $allSales->sum('amount_paid'),
-            'to_be_collected' => $allSales->where('payment_status', 'to_be_collected')->sum(function ($s) {
-                return $s->total_amount - $s->amount_paid;
-            }),
+            'to_be_collected' => $allSales->where('payment_status', 'to_be_collected')->sum('balance'),
             'partial_payments' => $allSales->where('payment_status', 'partial')->count(),
             'paid_in_full' => $allSales->where('payment_status', 'paid')->count(),
         ];
@@ -231,7 +228,8 @@ class FinancialReportController extends Controller
         // ======================
         // CASH FLOW DATA
         // ======================
-        $cashSales = Sale::whereBetween('sale_date', [$startDate, $endDate])
+        $cashSales = Sale::where('status', '!=', 'cancelled')
+            ->whereBetween('sale_date', [$startDate, $endDate])
             ->where('payment_mode', 'cash')
             ->sum('amount_paid');
 
@@ -283,6 +281,8 @@ class FinancialReportController extends Controller
             'startDate',
             'endDate',
             'reportType',
+            'grossInvoiceTotal',
+            'totalDrLess',
             'totalSales',
             'totalCOGS',
             'grossProfit',

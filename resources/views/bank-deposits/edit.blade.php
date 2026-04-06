@@ -13,26 +13,26 @@
             @method('PUT')
 
             <div class="mb-3">
+                <label class="form-label fw-bold">Bank Name</label>
+                <input type="text" name="bank_name" class="form-control"
+                       value="{{ old('bank_name', $bankDeposit->bank_name) }}" required>
+            </div>
+
+            <div class="mb-3">
                 <label>Date</label>
                 <input type="date" name="deposit_date" class="form-control"
-                       value="{{ $bankDeposit->deposit_date }}" required>
+                       value="{{ old('deposit_date', $bankDeposit->deposit_date->format('Y-m-d')) }}" required>
             </div>
 
             <div class="mb-3">
                 <label>Amount</label>
                 <input type="number" step="0.01" name="amount" class="form-control"
-                       value="{{ $bankDeposit->amount }}" required>
+                       value="{{ old('amount', $bankDeposit->amount) }}" required>
             </div>
 
             <div class="mb-3">
-                <label>Reference</label>
-                <input type="text" name="reference_number" class="form-control"
-                       value="{{ $bankDeposit->reference_number }}">
-            </div>
-
-            <div class="mb-3">
-                <label>Remarks</label>
-                <textarea name="remarks" class="form-control">{{ $bankDeposit->remarks }}</textarea>
+                <label>Notes</label>
+                <textarea name="notes" class="form-control">{{ old('notes', $bankDeposit->notes) }}</textarea>
             </div>
 
             <button type="submit" class="btn btn-success">Update</button>

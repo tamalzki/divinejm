@@ -109,15 +109,34 @@
     .empty-sm i { font-size:1.5rem; display:block; opacity:.22; margin-bottom:.3rem; }
     .empty-sm.ok { color:#16a34a; }
     .empty-sm.ok i { opacity:.35; }
+
+    /* ── Quick links (reports) ── */
+    .dash-quick { display:flex; flex-wrap:wrap; gap:.35rem; justify-content:flex-end; align-items:center; }
+    .dash-quick a {
+        font-size:.68rem; font-weight:600; padding:.22rem .55rem; border-radius:4px;
+        background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary);
+        text-decoration:none; white-space:nowrap; transition:background .12s,border-color .12s,color .12s;
+    }
+    .dash-quick a:hover { background:var(--accent-faint); border-color:var(--accent); color:var(--accent); }
+
+    @media (max-width: 992px) {
+        .kpi-grid-4 { grid-template-columns:repeat(2,1fr); }
+    }
+    @media (max-width: 520px) {
+        .kpi-grid-4 { grid-template-columns:1fr; }
+    }
 </style>
 
 {{-- ══ PAGE HEADER ══ --}}
-<div class="d-flex align-items-center justify-content-between mb-2">
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
     <div>
         <h5 class="fw-bold mb-0" style="font-size:.93rem">
             <i class="bi bi-speedometer2 me-1" style="color:var(--accent)"></i>Dashboard
         </h5>
         <span style="font-size:.67rem;color:var(--text-muted)">{{ now()->format('l, F d, Y') }}</span>
+    </div>
+    <div class="dash-quick no-print">
+        <a href="{{ route('reports.index') }}"><i class="bi bi-graph-up-arrow me-1"></i>Reports</a>
     </div>
 </div>
 
@@ -259,6 +278,17 @@
         <span class="kpi-label">Monthly Revenue</span>
         <span class="kpi-value c-green">&#8369;{{ number_format($monthlySales, 2) }}</span>
         <span class="kpi-sub">Net profit: &#8369;{{ number_format($monthlyProfit, 2) }}</span>
+        @if(($monthlyLineDiscounts ?? 0) > 0 || ($monthlyDrLess ?? 0) > 0)
+        <span class="kpi-sub" style="font-size:.60rem;line-height:1.35;color:var(--text-muted)">
+            @if(($monthlyLineDiscounts ?? 0) > 0)
+                Item discounts −&#8369;{{ number_format($monthlyLineDiscounts, 0) }}
+            @endif
+            @if(($monthlyDrLess ?? 0) > 0)
+                @if(($monthlyLineDiscounts ?? 0) > 0)<span> · </span>@endif
+                DR Less −&#8369;{{ number_format($monthlyDrLess, 0) }}
+            @endif
+        </span>
+        @endif
         <span class="kpi-growth {{ $collectionRate >= 80 ? 'up' : 'down' }}">
             <i class="bi bi-percent"></i> {{ number_format($collectionRate, 1) }}% collected
         </span>
@@ -602,10 +632,24 @@
                     <div style="font-size:.69rem;color:var(--text-secondary)">{{ $sale->customer_name }}</div>
                     <div style="font-size:.64rem;color:var(--text-muted)">
                         {{ $sale->branch->name ?? '—' }} &middot; {{ $sale->sale_date->format('M d') }}
+                        @if($sale->payment_mode)
+                            &middot; <span style="text-transform:uppercase;font-size:.62rem">{{ $sale->payment_mode }}</span>
+                        @endif
                     </div>
+                    @if($sale->due_date)
+                    <div style="font-size:.61rem;color:#b45309;margin-top:.12rem">
+                        <i class="bi bi-calendar-event"></i> Due {{ $sale->due_date->format('M j') }}
+                    </div>
+                    @endif
                 </div>
                 <div style="text-align:right">
                     <div style="font-size:.79rem;font-weight:700;color:#16a34a">&#8369;{{ number_format($sale->total_amount, 0) }}</div>
+                    @if(($sale->less_amount ?? 0) > 0)
+                    <div style="font-size:.62rem;color:var(--text-muted)">Less −&#8369;{{ number_format($sale->less_amount, 0) }}</div>
+                    @endif
+                    @if($sale->balance > 0)
+                    <div style="font-size:.65rem;font-weight:600;color:#dc2626">Bal. &#8369;{{ number_format($sale->balance, 0) }}</div>
+                    @endif
                     @if($sale->payment_status === 'paid')
                         <span class="pill pill-green">PAID</span>
                     @elseif($sale->payment_status === 'partial')

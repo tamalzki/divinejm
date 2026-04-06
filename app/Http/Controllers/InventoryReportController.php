@@ -107,6 +107,7 @@ class InventoryReportController extends Controller
         $branchStock = $branches->map(function ($branch) use ($from, $to) {
             // Get all sales items in range for this branch
             $sales = Sale::where('branch_id', $branch->id)
+                ->where('status', '!=', 'cancelled')
                 ->whereBetween('sale_date', [$from->format('Y-m-d'), $to->format('Y-m-d')])
                 ->with(['items.finishedProduct'])
                 ->get();

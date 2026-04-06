@@ -29,11 +29,6 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label fw-bold">Account Number</label>
-                <input type="text" name="account_number" class="form-control" required>
-            </div>
-
-            <div class="mb-3">
                 <label class="form-label fw-bold">Amount</label>
                 <input type="number" step="0.01" name="amount" class="form-control" required>
             </div>

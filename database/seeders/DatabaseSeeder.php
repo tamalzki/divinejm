@@ -512,19 +512,18 @@ class DatabaseSeeder extends Seeder
         // ══════════════════════════════════════════════
 
         $depositRows = [
-            ['BDO Unibank', '1234-5678-901', 25000.00, 3],
-            ['BDO Unibank', '1234-5678-901', 18500.00, 10],
-            ['Metrobank',   '098-765-4321',  32000.00, 7],
-            ['BDO Unibank', '1234-5678-901', 20000.00, 17],
-            ['Metrobank',   '098-765-4321',  15000.00, 24],
-            ['BDO Unibank', '1234-5678-901', 28000.00, 31],
-            ['Landbank',    '5555-6666-777', 10000.00, 38],
+            ['BDO Unibank', 25000.00, 3],
+            ['BDO Unibank', 18500.00, 10],
+            ['Metrobank', 32000.00, 7],
+            ['BDO Unibank', 20000.00, 17],
+            ['Metrobank', 15000.00, 24],
+            ['BDO Unibank', 28000.00, 31],
+            ['Landbank', 10000.00, 38],
         ];
 
-        foreach ($depositRows as [$bank, $acct, $amount, $daysAgo]) {
+        foreach ($depositRows as [$bank, $amount, $daysAgo]) {
             DB::table('bank_deposits')->insert([
                 'bank_name' => $bank,
-                'account_number' => $acct,
                 'amount' => $amount,
                 'deposit_date' => $now->copy()->subDays($daysAgo)->format('Y-m-d'),
                 'notes' => null,

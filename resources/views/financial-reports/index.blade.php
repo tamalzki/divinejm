@@ -90,6 +90,8 @@
     .rpt-full { margin-bottom:.75rem; }
 </style>
 
+@include('reports._back')
+
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-2">
     <div>
@@ -131,9 +133,14 @@
 {{-- ── KPI Row 1: P&L ── --}}
 <div class="kpi-grid">
     <div class="kpi-tile">
-        <span class="kpi-label">Total Revenue</span>
+        <span class="kpi-label">Net Revenue</span>
         <span class="kpi-value">&#8369;{{ number_format($totalSales, 2) }}</span>
-        <span class="kpi-sub">{{ $totalTransactions }} transactions · avg &#8369;{{ number_format($averageTransactionValue, 0) }}</span>
+        <span class="kpi-sub">
+            {{ $totalTransactions }} transactions · avg &#8369;{{ number_format($averageTransactionValue, 0) }}
+            @if(($totalDrLess ?? 0) > 0)
+                <span style="display:block;margin-top:.2rem;color:var(--text-muted)">DR Less: &#8369;{{ number_format($totalDrLess, 0) }}</span>
+            @endif
+        </span>
     </div>
     <div class="kpi-tile amber">
         <span class="kpi-label">Gross Profit</span>
@@ -190,11 +197,17 @@
                     {{-- Revenue --}}
                     <tr class="pl-group"><td colspan="2">Revenue</td></tr>
                     <tr class="pl-item">
-                        <td>Sales Revenue</td>
-                        <td>&#8369;{{ number_format($totalSales, 2) }}</td>
+                        <td>Sales (invoice total)</td>
+                        <td>&#8369;{{ number_format($grossInvoiceTotal ?? $totalSales, 2) }}</td>
                     </tr>
+                    @if(($totalDrLess ?? 0) > 0)
+                    <tr class="pl-item">
+                        <td>DR Less (adjustments)</td>
+                        <td class="pl-neg">(&#8369;{{ number_format($totalDrLess, 2) }})</td>
+                    </tr>
+                    @endif
                     <tr class="pl-sub">
-                        <td>Total Revenue</td>
+                        <td>Net Revenue</td>
                         <td>&#8369;{{ number_format($totalSales, 2) }}</td>
                     </tr>
 
@@ -310,7 +323,7 @@
             </thead>
             <tbody>
                 @foreach($salesByProduct as $p)
-                @php $pct = $totalSales > 0 ? ($p['revenue'] / $totalSales) * 100 : 0; @endphp
+                @php $mixBase = ($grossInvoiceTotal ?? 0) > 0 ? $grossInvoiceTotal : $totalSales; $pct = $mixBase > 0 ? ($p['revenue'] / $mixBase) * 100 : 0; @endphp
                 <tr>
                     <td style="font-weight:600">{{ $p['product_name'] }}</td>
                     <td class="tc">{{ number_format($p['quantity'], 0) }}</td>
@@ -544,7 +557,7 @@
                         <td class="tr" style="color:var(--s-danger-text)">&#8369;{{ number_format($amt, 2) }}</td>
                         <td class="tc">
                             <span style="font-size:.70rem">{{ number_format($pctOfExp, 1) }}%</span>
-                            <div class="prog-bar"><div class="prog-fill" style="width:{{ $pctOfExp }};background:#dc2626"></div></div>
+                            <div class="prog-bar"><div class="prog-fill" style="width:{{ min(100, $pctOfExp) }}%;background:#dc2626"></div></div>
                         </td>
                         <td class="tc" style="font-size:.70rem;color:var(--text-muted)">{{ number_format($pctOfRev, 1) }}%</td>
                     </tr>

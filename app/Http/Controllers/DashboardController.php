@@ -10,10 +10,20 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
+    /**
+     * Exclude cancelled sales from operational metrics.
+     */
+    private function saleStatsQuery(): Builder
+    {
+        return Sale::query()->where('status', '!=', 'cancelled');
+    }
+
     public function index()
     {
         $today = Carbon::today();
@@ -26,17 +36,28 @@ class DashboardController extends Controller
         // SALES KPIs
         // ══════════════════════════════════════════════════════
 
-        $todaySales = Sale::whereDate('sale_date', $today)->sum('total_amount');
-        $todayCollected = Sale::whereDate('sale_date', $today)->sum('amount_paid');
-        $yesterdaySales = Sale::whereDate('sale_date', $yesterday)->sum('total_amount');
+        $todaySales = (clone $this->saleStatsQuery())->whereDate('sale_date', $today)->sum('total_amount');
+        $todayCollected = (clone $this->saleStatsQuery())->whereDate('sale_date', $today)->sum('amount_paid');
+        $yesterdaySales = (clone $this->saleStatsQuery())->whereDate('sale_date', $yesterday)->sum('total_amount');
         $salesGrowth = $yesterdaySales > 0
             ? (($todaySales - $yesterdaySales) / $yesterdaySales) * 100
             : 0;
 
-        $monthlySales = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('total_amount');
-        $monthlyCollected = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount_paid');
-        $monthlyTransactions = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->count();
+        $monthlySales = (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])->sum('total_amount');
+        $monthlyCollected = (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount_paid');
+        $monthlyTransactions = (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])->count();
         $collectionRate = $monthlySales > 0 ? ($monthlyCollected / $monthlySales) * 100 : 0;
+
+        $monthlyLineDiscounts = Schema::hasColumn('sale_items', 'discount')
+            ? SaleItem::whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
+                $q->where('status', '!=', 'cancelled')
+                    ->whereBetween('sale_date', [$monthStart, $monthEnd]);
+            })->sum('discount')
+            : 0;
+
+        $monthlyDrLess = Schema::hasColumn('sales', 'less_amount')
+            ? (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])->sum('less_amount')
+            : 0;
 
         // ══════════════════════════════════════════════════════
         // P&L THIS MONTH
@@ -44,7 +65,8 @@ class DashboardController extends Controller
 
         // COGS: sum of (qty_sold × cost_price) for items in the month
         $monthlyCOGS = SaleItem::whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
-            $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
+            $q->where('status', '!=', 'cancelled')
+                ->whereBetween('sale_date', [$monthStart, $monthEnd]);
         })
             ->with('finishedProduct')
             ->get()
@@ -63,15 +85,16 @@ class DashboardController extends Controller
         // RECEIVABLES
         // ══════════════════════════════════════════════════════
 
-        $totalReceivables = Sale::where('payment_status', '!=', 'paid')
-            ->selectRaw('SUM(total_amount - amount_paid) as total')
-            ->value('total') ?? 0;
+        $totalReceivables = (clone $this->saleStatsQuery())
+            ->whereIn('payment_status', ['to_be_collected', 'partial'])
+            ->sum('balance');
 
-        $overdueReceivables = Sale::where('payment_status', '!=', 'paid')
+        $overdueReceivables = (clone $this->saleStatsQuery())
+            ->where('payment_status', '!=', 'paid')
             ->where('sale_date', '<', $today->copy()->subDays(7))
             ->selectRaw('customer_name, branch_id,
                 COUNT(*) as overdue_count,
-                SUM(total_amount - amount_paid) as overdue_amount,
+                SUM(balance) as overdue_amount,
                 MIN(sale_date) as oldest_sale_date')
             ->groupBy('customer_name', 'branch_id')
             ->having('overdue_amount', '>', 0)
@@ -177,19 +200,20 @@ class DashboardController extends Controller
 
         $topSellingProducts = SaleItem::with('finishedProduct')
             ->whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
-                $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
+                $q->where('status', '!=', 'cancelled')
+                    ->whereBetween('sale_date', [$monthStart, $monthEnd]);
             })
             ->select(
                 'finished_product_id',
                 DB::raw('SUM(quantity_sold) as total_sold'),
-                DB::raw('SUM(quantity_sold * unit_price) as total_revenue')
+                DB::raw('SUM(subtotal) as total_revenue')
             )
             ->groupBy('finished_product_id')
             ->orderByDesc('total_revenue')
             ->limit(5)
             ->get();
 
-        $topCustomers = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
+        $topCustomers = (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])
             ->select(
                 'customer_name',
                 DB::raw('COUNT(*) as purchase_count'),
@@ -204,7 +228,7 @@ class DashboardController extends Controller
         // BRANCH PERFORMANCE (this month)
         // ══════════════════════════════════════════════════════
 
-        $branchSalesRaw = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])
+        $branchSalesRaw = (clone $this->saleStatsQuery())->whereBetween('sale_date', [$monthStart, $monthEnd])
             ->select(
                 'branch_id',
                 DB::raw('COUNT(*) as sales_count'),
@@ -228,7 +252,7 @@ class DashboardController extends Controller
         // RECENT SALES
         // ══════════════════════════════════════════════════════
 
-        $recentSales = Sale::with('branch')
+        $recentSales = (clone $this->saleStatsQuery())->with('branch')
             ->orderByDesc('sale_date')
             ->orderByDesc('id')
             ->limit(10)
@@ -238,6 +262,7 @@ class DashboardController extends Controller
             // Sales KPIs
             'todaySales', 'todayCollected', 'salesGrowth',
             'monthlySales', 'monthlyCollected', 'monthlyTransactions', 'collectionRate',
+            'monthlyLineDiscounts', 'monthlyDrLess',
             // P&L
             'monthlyCOGS', 'monthlyGrossProfit', 'monthlyExpenses', 'monthlyProfit',
             // Receivables

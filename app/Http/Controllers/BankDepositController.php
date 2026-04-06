@@ -51,7 +51,6 @@ class BankDepositController extends Controller
     {
         $validated = $request->validate([
             'bank_name' => 'required|string',
-            'account_number' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
             'deposit_date' => 'required|date',
             'notes' => 'nullable|string',
@@ -59,7 +58,6 @@ class BankDepositController extends Controller
 
         BankDeposit::create([
             'bank_name' => $validated['bank_name'],
-            'account_number' => $validated['account_number'],
             'amount' => $validated['amount'],
             'deposit_date' => $validated['deposit_date'],
             'notes' => $validated['notes'] ?? null,
@@ -79,7 +77,6 @@ class BankDepositController extends Controller
     {
         $validated = $request->validate([
             'bank_name' => 'required|string',
-            'account_number' => 'required|string',
             'amount' => 'required|numeric|min:0',
             'deposit_date' => 'required|date',
             'notes' => 'nullable|string',

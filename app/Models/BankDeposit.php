@@ -8,7 +8,6 @@ class BankDeposit extends Model
 {
     protected $fillable = [
         'bank_name',
-        'account_number',
         'amount',
         'deposit_date',
         'notes',

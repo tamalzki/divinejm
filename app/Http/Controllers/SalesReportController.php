@@ -52,6 +52,7 @@ class SalesReportController extends Controller
 
         // ── Sales query ───────────────────────────────────────────────
         $query = Sale::with(['items.finishedProduct', 'branch', 'user'])
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('sale_date', [$fromStr, $toStr])
             ->orderBy('sale_date')
             ->orderBy('dr_number');
@@ -77,6 +78,9 @@ class SalesReportController extends Controller
             }
 
             // Sub total per day grouping key
+            $less = (float) ($sale->less_amount ?? 0);
+            $collectible = max(0, (float) $sale->total_amount - $less);
+
             return [
                 'id' => $sale->id,
                 'date' => $sale->sale_date instanceof \Carbon\Carbon
@@ -86,6 +90,14 @@ class SalesReportController extends Controller
                 'dr_number' => $sale->dr_number,
                 'customer_name' => $sale->customer_name,
                 'total_amount' => $sale->total_amount,
+                'less_amount' => $less,
+                'collectible' => $collectible,
+                'amount_paid' => (float) $sale->amount_paid,
+                'balance' => (float) $sale->balance,
+                'due_date' => $sale->due_date
+                    ? (\Carbon\Carbon::parse($sale->due_date)->format('m/d/Y'))
+                    : '',
+                'payment_period' => $sale->payment_period ?? 'one_time',
                 'area' => $sale->branch->name ?? '—',
                 'status' => $sale->payment_status,
                 'delivered_by' => $sale->user->name ?? '—',
@@ -104,6 +116,9 @@ class SalesReportController extends Controller
 
         // ── Grand totals ──────────────────────────────────────────────
         $grandTotal = $sales->sum('total_amount');
+        $grandLess = $sales->sum(fn ($s) => (float) ($s->less_amount ?? 0));
+        $grandPaid = $sales->sum('amount_paid');
+        $grandBalance = $sales->sum('balance');
         $grandTotalItems = $rows->sum('total_items');
         $productTotals = [];
         foreach ($products as $fp) {
@@ -117,6 +132,7 @@ class SalesReportController extends Controller
 
         return view('reports.sales', compact(
             'rows', 'products', 'subTotals', 'grandTotal',
+            'grandLess', 'grandPaid', 'grandBalance',
             'grandTotalItems', 'productTotals',
             'fromStr', 'toStr', 'period',
             'areas', 'areaFilter', 'statusFilter'

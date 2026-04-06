@@ -88,6 +88,8 @@
 
 </style>
 
+@include('reports._back')
+
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-2 no-print">
     <div>
@@ -183,6 +185,11 @@
                     <th class="col-dr"   rowspan="2">DR#</th>
                     <th class="col-cust" rowspan="2">Customer</th>
                     <th rowspan="2" class="text-end" style="min-width:90px">Total Amount</th>
+                    <th rowspan="2" class="text-end" style="min-width:64px">Less</th>
+                    <th rowspan="2" class="text-end" style="min-width:72px">Paid</th>
+                    <th rowspan="2" class="text-end" style="min-width:72px">Balance</th>
+                    <th rowspan="2" style="min-width:72px">Due</th>
+                    <th rowspan="2" class="text-center" style="min-width:44px">Terms</th>
                     <th rowspan="2" class="text-end" style="min-width:90px">Sub Total/Day</th>
                     <th rowspan="2" style="min-width:70px">Area</th>
                     <th rowspan="2" style="min-width:70px">Status</th>
@@ -210,6 +217,20 @@
                     <td class="col-dr"   style="font-weight:700;color:var(--accent)">{{ $row['dr_number'] }}</td>
                     <td class="col-cust" style="font-weight:600">{{ $row['customer_name'] }}</td>
                     <td class="text-end" style="font-weight:600">&#8369;{{ number_format($row['total_amount'], 0) }}</td>
+                    <td class="text-end" style="font-size:.70rem;color:{{ ($row['less_amount'] ?? 0) > 0 ? 'var(--s-danger-text)' : 'var(--text-muted)' }}">
+                        {{ ($row['less_amount'] ?? 0) > 0 ? '−'.number_format($row['less_amount'], 0) : '—' }}
+                    </td>
+                    <td class="text-end" style="font-size:.70rem;color:var(--s-success-text)">&#8369;{{ number_format($row['amount_paid'], 0) }}</td>
+                    <td class="text-end" style="font-size:.70rem;font-weight:600;color:{{ ($row['balance'] ?? 0) > 0 ? 'var(--s-danger-text)' : 'var(--text-muted)' }}">&#8369;{{ number_format($row['balance'], 0) }}</td>
+                    <td style="font-size:.68rem;color:var(--text-muted)">{{ $row['due_date'] ?: '—' }}</td>
+                    <td class="text-center" style="font-size:.62rem;color:var(--text-muted)">
+                        @switch($row['payment_period'] ?? 'one_time')
+                            @case('daily') D @break
+                            @case('weekly') W @break
+                            @case('monthly') M @break
+                            @default 1×
+                        @endswitch
+                    </td>
                     <td class="text-end" style="font-weight:700;color:var(--accent)">
                         @if($isFirstOfDate && ($subTotals[$row['date']] ?? 0) > 0)
                             &#8369;{{ number_format($subTotals[$row['date']], 0) }}
@@ -242,7 +263,7 @@
 
             @empty
                 <tr>
-                    <td colspan="{{ 12 + $products->count() }}" class="empty-state">
+                    <td colspan="{{ 16 + $products->count() }}" class="empty-state">
                         <i class="bi bi-inbox" style="font-size:1.8rem;display:block;opacity:.3;margin-bottom:.5rem"></i>
                         No sales data for this period.
                     </td>
@@ -255,6 +276,11 @@
                 <td class="col-dr"></td>
                 <td class="col-cust" style="text-align:right;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px">Grand Total</td>
                 <td class="text-end">&#8369;{{ number_format($grandTotal, 0) }}</td>
+                <td class="text-end" style="font-size:.70rem">{{ $grandLess > 0 ? '−'.number_format($grandLess, 0) : '—' }}</td>
+                <td class="text-end" style="font-size:.70rem">&#8369;{{ number_format($grandPaid, 0) }}</td>
+                <td class="text-end" style="font-size:.70rem">&#8369;{{ number_format($grandBalance, 0) }}</td>
+                <td></td>
+                <td></td>
                 <td></td>
                 <td colspan="5"></td>
                 @foreach($products as $fp)
@@ -273,14 +299,18 @@
 <script id="csvRows" type="application/json">{!! json_encode($rows->map(function($r) use ($products) {
     $base = [
         $r['date'], $r['dr_number'], $r['customer_name'],
-        $r['total_amount'], '', $r['area'],
+        $r['total_amount'],
+        $r['less_amount'], $r['amount_paid'], $r['balance'], $r['due_date'], $r['payment_period'],
+        '',
+        $r['area'],
         $r['status'], $r['payment_mode'],
-        $r['gcash_ref'], $r['notes']
+        $r['gcash_ref'], $r['notes'],
     ];
-    foreach($products as $fp) {
+    foreach ($products as $fp) {
         $base[] = $r['products'][$fp->id] ?? '';
     }
     $base[] = $r['total_items'];
+
     return $base;
 })->values()) !!}</script>
 <script id="csvProductTotals" type="application/json">{!! json_encode(array_values($productTotals)) !!}</script>
@@ -291,7 +321,7 @@ function downloadCSV() {
     var rows       = JSON.parse(document.getElementById('csvRows').textContent);
     var prodTotals = JSON.parse(document.getElementById('csvProductTotals').textContent);
 
-    var fixedHeaders = ['DATE','DR#','CUSTOMER','TOTAL AMOUNT','SUB TOTAL/DAY','AREA','STATUS','PAYMENT','GCASH REF','NOTE'];
+    var fixedHeaders = ['DATE','DR#','CUSTOMER','TOTAL AMOUNT','LESS','PAID','BALANCE','DUE','TERMS','SUB TOTAL/DAY','AREA','STATUS','PAYMENT','GCASH REF','NOTE'];
     var headers = fixedHeaders.concat(products).concat(['TOTAL#']);
 
     var lines = [];
@@ -309,8 +339,8 @@ function downloadCSV() {
 
     // grand total
     var grandRow = ['','','GRAND TOTAL',
-        rows.reduce(function(s,r){ return s + (parseFloat(r[3])||0); }, 0),
-        '','','','','','',''];
+        {{ $grandTotal }}, {{ $grandLess }}, {{ $grandPaid }}, {{ $grandBalance }},
+        '', '', '', '', '', '', '', ''];
     for (var p = 0; p < prodTotals.length; p++) grandRow.push(prodTotals[p] || '');
     grandRow.push(rows.reduce(function(s,r){ return s + (parseFloat(r[r.length-1])||0); }, 0));
     lines.push(grandRow.map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(','));

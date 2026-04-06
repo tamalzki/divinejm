@@ -66,6 +66,8 @@
     .empty-row td { text-align:center; padding:1.5rem; color:var(--text-muted); font-size:.80rem; }
 </style>
 
+@include('reports._back')
+
 {{-- Page header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>

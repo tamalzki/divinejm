@@ -510,14 +510,8 @@
         </a>
 
         <div class="sidebar-section">Reports</div>
-        <a href="{{ route('financial-reports.index') }}" class="sidebar-link {{ request()->routeIs('financial-reports.*') ? 'active' : '' }}">
-            <i class="bi bi-bar-chart-line"></i> Financial Report
-        </a>
-        <a href="{{ route('reports.sales') }}" class="sidebar-link {{ request()->routeIs('reports.sales*') ? 'active' : '' }}">
-            <i class="bi bi-graph-up"></i> Sales Report
-        </a>
-        <a href="{{ route('reports.inventory') }}" class="sidebar-link {{ request()->routeIs('reports.inventory*') ? 'active' : '' }}">
-            <i class="bi bi-clipboard-data"></i> Inventory Report
+        <a href="{{ route('reports.index') }}" class="sidebar-link {{ request()->routeIs('reports.*') || request()->routeIs('financial-reports.*') ? 'active' : '' }}">
+            <i class="bi bi-graph-up-arrow"></i> Reports
         </a>
 
     </nav>

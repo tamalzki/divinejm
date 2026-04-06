@@ -6,11 +6,14 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchInventoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\FinishedProductController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\ProductionMixController;
+use App\Http\Controllers\ProductionReportController;
 use App\Http\Controllers\RawMaterialController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
 use Illuminate\Support\Facades\Route;
@@ -83,10 +86,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('expenses', ExpenseController::class);
 
-    // ── Reports ───────────────────────────────────────────────────────
+    // ── Reports hub & specific reports ────────────────────────────────
+    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('/reports/expenses', [ExpenseReportController::class, 'index'])->name('reports.expenses');
+    Route::get('/reports/production', [ProductionReportController::class, 'index'])->name('reports.production');
     Route::get('/reports/inventory', [InventoryReportController::class, 'index'])->name('reports.inventory');
     Route::get('/reports/sales', [SalesReportController::class, 'index'])->name('reports.sales');
-    // ──────────────────────────────────────────────────────────────────
 
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])
         ->name('financial-reports.index');

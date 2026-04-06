@@ -119,7 +119,6 @@
                 <tr>
                     <th>Date</th>
                     <th>Bank</th>
-                    <th>Account #</th>
                     <th>Notes</th>
                     <th class="text-end">Amount</th>
                     <th class="text-center">Actions</th>
@@ -132,7 +131,6 @@
                     {{ $deposit->deposit_date->format('M d, Y') }}
                 </td>
                 <td style="font-weight:600">{{ $deposit->bank_name }}</td>
-                <td style="font-size:.77rem;color:var(--text-muted)">{{ $deposit->account_number }}</td>
                 <td style="font-size:.76rem;color:var(--text-muted)">{{ $deposit->notes ?? '—' }}</td>
                 <td class="text-end" style="font-weight:700;color:var(--s-success-text)">
                     &#8369;{{ number_format($deposit->amount, 2) }}
@@ -154,13 +152,13 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="empty-state">No deposits recorded yet.</td></tr>
+            <tr><td colspan="5" class="empty-state">No deposits recorded yet.</td></tr>
             @endforelse
             </tbody>
             @if($deposits->count())
             <tfoot>
                 <tr>
-                    <td colspan="4" class="text-end">Total Deposited</td>
+                    <td colspan="3" class="text-end">Total Deposited</td>
                     <td class="text-end">&#8369;{{ number_format($totalDeposited, 2) }}</td>
                     <td></td>
                 </tr>

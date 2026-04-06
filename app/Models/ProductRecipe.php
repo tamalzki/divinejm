@@ -10,7 +10,7 @@ class ProductRecipe extends Model
         'finished_product_id',
         'raw_material_id',
         'quantity_needed',
-        'cost_per_unit'
+        'cost_per_unit',
     ];
 
     protected $casts = [

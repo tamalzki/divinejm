@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('production_mixes', function (Blueprint $table) {
             // Add multiplier (how many batches in one production run)
             $table->integer('multiplier')->default(1)->after('expected_output');
-            
+
             // Add rejected quantity (defective/rejected products)
             $table->decimal('rejected_quantity', 10, 2)->default(0)->after('actual_output');
         });

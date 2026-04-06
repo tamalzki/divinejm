@@ -12,7 +12,7 @@ class BankDeposit extends Model
         'amount',
         'deposit_date',
         'notes',
-        'created_by'
+        'created_by',
     ];
 
     protected $casts = [

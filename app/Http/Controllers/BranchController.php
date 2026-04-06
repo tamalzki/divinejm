@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class BranchController extends Controller
 {
@@ -25,32 +24,32 @@ class BranchController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'               => 'required|string|max:255',
-            'code'               => 'required|string|max:50|unique:branches,code',
-            'address'            => 'nullable|string|max:500',
-            'phone'              => 'nullable|string|max:50',
-            'customers'          => 'nullable|array',
-            'customers.*.name'   => 'required|string|max:255',
-            'customers.*.phone'  => 'nullable|string|max:50',
-            'is_active'          => 'boolean',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:branches,code',
+            'address' => 'nullable|string|max:500',
+            'phone' => 'nullable|string|max:50',
+            'customers' => 'nullable|array',
+            'customers.*.name' => 'required|string|max:255',
+            'customers.*.phone' => 'nullable|string|max:50',
+            'is_active' => 'boolean',
         ], [
-            'name.required'             => 'Area name is required.',
-            'name.max'                  => 'Area name must not exceed 255 characters.',
-            'code.required'             => 'Area code is required.',
-            'code.max'                  => 'Area code must not exceed 50 characters.',
-            'code.unique'               => 'This area code is already in use. Please choose a different code.',
-            'address.max'               => 'Address must not exceed 500 characters.',
-            'phone.max'                 => 'Phone number must not exceed 50 characters.',
+            'name.required' => 'Area name is required.',
+            'name.max' => 'Area name must not exceed 255 characters.',
+            'code.required' => 'Area code is required.',
+            'code.max' => 'Area code must not exceed 50 characters.',
+            'code.unique' => 'This area code is already in use. Please choose a different code.',
+            'address.max' => 'Address must not exceed 500 characters.',
+            'phone.max' => 'Phone number must not exceed 50 characters.',
             'customers.*.name.required' => 'Each customer row must have a name. Please fill in the name or remove the empty row.',
-            'customers.*.name.max'      => 'A customer name must not exceed 255 characters.',
-            'customers.*.phone.max'     => 'A customer phone number must not exceed 50 characters.',
+            'customers.*.name.max' => 'A customer name must not exceed 255 characters.',
+            'customers.*.phone.max' => 'A customer phone number must not exceed 50 characters.',
         ]);
 
-        $validated['code']      = strtoupper(trim($validated['code']));
-        $validated['name']      = trim($validated['name']);
+        $validated['code'] = strtoupper(trim($validated['code']));
+        $validated['name'] = trim($validated['name']);
         $validated['is_active'] = $request->has('is_active');
 
-        if (!empty($validated['customers'])) {
+        if (! empty($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);
         } else {
             $validated['customers'] = [];
@@ -65,44 +64,46 @@ class BranchController extends Controller
     public function show(Branch $branch)
     {
         $branch->loadCount('inventory');
+
         return view('branches.show', compact('branch'));
     }
 
     public function edit(Branch $branch)
     {
         $branch->loadCount('inventory');
+
         return view('branches.edit', compact('branch'));
     }
 
     public function update(Request $request, Branch $branch)
     {
         $validated = $request->validate([
-            'name'               => 'required|string|max:255',
-            'code'               => 'required|string|max:50|unique:branches,code,' . $branch->id,
-            'address'            => 'nullable|string|max:500',
-            'phone'              => 'nullable|string|max:50',
-            'customers'          => 'nullable|array',
-            'customers.*.name'   => 'required|string|max:255',
-            'customers.*.phone'  => 'nullable|string|max:50',
-            'is_active'          => 'boolean',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:branches,code,'.$branch->id,
+            'address' => 'nullable|string|max:500',
+            'phone' => 'nullable|string|max:50',
+            'customers' => 'nullable|array',
+            'customers.*.name' => 'required|string|max:255',
+            'customers.*.phone' => 'nullable|string|max:50',
+            'is_active' => 'boolean',
         ], [
-            'name.required'             => 'Area name is required.',
-            'name.max'                  => 'Area name must not exceed 255 characters.',
-            'code.required'             => 'Area code is required.',
-            'code.max'                  => 'Area code must not exceed 50 characters.',
-            'code.unique'               => 'This area code is already in use. Please choose a different code.',
-            'address.max'               => 'Address must not exceed 500 characters.',
-            'phone.max'                 => 'Phone number must not exceed 50 characters.',
+            'name.required' => 'Area name is required.',
+            'name.max' => 'Area name must not exceed 255 characters.',
+            'code.required' => 'Area code is required.',
+            'code.max' => 'Area code must not exceed 50 characters.',
+            'code.unique' => 'This area code is already in use. Please choose a different code.',
+            'address.max' => 'Address must not exceed 500 characters.',
+            'phone.max' => 'Phone number must not exceed 50 characters.',
             'customers.*.name.required' => 'Each customer row must have a name. Please fill in the name or remove the empty row.',
-            'customers.*.name.max'      => 'A customer name must not exceed 255 characters.',
-            'customers.*.phone.max'     => 'A customer phone number must not exceed 50 characters.',
+            'customers.*.name.max' => 'A customer name must not exceed 255 characters.',
+            'customers.*.phone.max' => 'A customer phone number must not exceed 50 characters.',
         ]);
 
-        $validated['code']      = strtoupper(trim($validated['code']));
-        $validated['name']      = trim($validated['name']);
+        $validated['code'] = strtoupper(trim($validated['code']));
+        $validated['name'] = trim($validated['name']);
         $validated['is_active'] = $request->has('is_active');
 
-        if (!empty($validated['customers'])) {
+        if (! empty($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);
         } else {
             $validated['customers'] = [];

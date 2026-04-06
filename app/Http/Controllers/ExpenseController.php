@@ -10,6 +10,7 @@ class ExpenseController extends Controller
     public function index()
     {
         $expenses = Expense::orderBy('expense_date', 'desc')->paginate(15);
+
         return view('expenses.index', compact('expenses'));
     }
 

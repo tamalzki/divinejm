@@ -12,7 +12,7 @@ class RawMaterialUsage extends Model
         'purpose',
         'notes',
         'usage_date',
-        'user_id'
+        'user_id',
     ];
 
     protected $casts = [

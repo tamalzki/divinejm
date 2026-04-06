@@ -12,7 +12,7 @@ class ProductAlert extends Model
         'product_name',
         'current_stock',
         'minimum_stock',
-        'is_resolved'
+        'is_resolved',
     ];
 
     protected $casts = [

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\BankDeposit;
 use App\Models\Sale;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class BankDepositController extends Controller
@@ -17,14 +16,14 @@ class BankDepositController extends Controller
         // Cash position from PAID sales grouped by payment mode
         $paidSales = Sale::where('payment_status', 'paid')->get();
 
-        $cashCollected  = $paidSales->where('payment_mode', 'cash')->sum('amount_paid');
+        $cashCollected = $paidSales->where('payment_mode', 'cash')->sum('amount_paid');
         $gcashCollected = $paidSales->where('payment_mode', 'gcash')->sum('amount_paid');
-        $chequeCollected= $paidSales->where('payment_mode', 'cheque')->sum('amount_paid');
-        $bankCollected  = $paidSales->where('payment_mode', 'bank_transfer')->sum('amount_paid');
+        $chequeCollected = $paidSales->where('payment_mode', 'cheque')->sum('amount_paid');
+        $bankCollected = $paidSales->where('payment_mode', 'bank_transfer')->sum('amount_paid');
 
         // Cash on hand = cash collected minus what's already been deposited
         $totalDeposited = $deposits->sum('amount');
-        $cashOnHand     = max(0, $cashCollected - $totalDeposited);
+        $cashOnHand = max(0, $cashCollected - $totalDeposited);
 
         return view('bank-deposits.index', compact(
             'deposits',
@@ -40,9 +39,9 @@ class BankDepositController extends Controller
     public function create()
     {
         $totalDeposited = BankDeposit::sum('amount');
-        $cashCollected  = Sale::where('payment_status', 'paid')
-                              ->where('payment_mode', 'cash')
-                              ->sum('amount_paid');
+        $cashCollected = Sale::where('payment_status', 'paid')
+            ->where('payment_mode', 'cash')
+            ->sum('amount_paid');
         $cashOnHand = max(0, $cashCollected - $totalDeposited);
 
         return view('bank-deposits.create', compact('cashOnHand'));
@@ -51,20 +50,20 @@ class BankDepositController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'bank_name'      => 'required|string',
+            'bank_name' => 'required|string',
             'account_number' => 'required|string',
-            'amount'         => 'required|numeric|min:0.01',
-            'deposit_date'   => 'required|date',
-            'notes'          => 'nullable|string',
+            'amount' => 'required|numeric|min:0.01',
+            'deposit_date' => 'required|date',
+            'notes' => 'nullable|string',
         ]);
 
         BankDeposit::create([
-            'bank_name'      => $validated['bank_name'],
+            'bank_name' => $validated['bank_name'],
             'account_number' => $validated['account_number'],
-            'amount'         => $validated['amount'],
-            'deposit_date'   => $validated['deposit_date'],
-            'notes'          => $validated['notes'] ?? null,
-            'created_by'     => Auth::id(),
+            'amount' => $validated['amount'],
+            'deposit_date' => $validated['deposit_date'],
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => Auth::id(),
         ]);
 
         return redirect()->route('bank-deposits.index')
@@ -79,11 +78,11 @@ class BankDepositController extends Controller
     public function update(Request $request, BankDeposit $bankDeposit)
     {
         $validated = $request->validate([
-            'bank_name'      => 'required|string',
+            'bank_name' => 'required|string',
             'account_number' => 'required|string',
-            'amount'         => 'required|numeric|min:0',
-            'deposit_date'   => 'required|date',
-            'notes'          => 'nullable|string',
+            'amount' => 'required|numeric|min:0',
+            'deposit_date' => 'required|date',
+            'notes' => 'nullable|string',
         ]);
 
         $bankDeposit->update($validated);

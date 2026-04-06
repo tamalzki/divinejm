@@ -13,7 +13,7 @@ class RawMaterial extends Model
         'quantity',
         'minimum_stock',
         'unit_price',
-        'description'
+        'description',
     ];
 
     protected $casts = [

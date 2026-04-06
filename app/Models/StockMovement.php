@@ -62,7 +62,7 @@ class StockMovement extends Model
     // Helper method to get movement type label
     public function getMovementTypeLabelAttribute()
     {
-        return match($this->movement_type) {
+        return match ($this->movement_type) {
             'production' => 'Production',
             'transfer_out' => 'Transfer Out',
             'transfer_in' => 'Transfer In',

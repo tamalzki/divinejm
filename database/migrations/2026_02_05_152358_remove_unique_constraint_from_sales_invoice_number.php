@@ -2,19 +2,19 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
-{
-    if (Schema::hasTable('sales')) {
+    {
+        if (Schema::hasTable('sales')) {
 
-        $connection = Schema::getConnection();
-        $database = $connection->getDatabaseName();
+            $connection = Schema::getConnection();
+            $database = $connection->getDatabaseName();
 
-        $indexExists = DB::select("
+            $indexExists = DB::select("
             SELECT COUNT(1) as count
             FROM information_schema.statistics
             WHERE table_schema = ?
@@ -22,13 +22,13 @@ return new class extends Migration
               AND index_name = 'sales_invoice_number_unique'
         ", [$database]);
 
-        if ($indexExists[0]->count > 0) {
-            Schema::table('sales', function (Blueprint $table) {
-                $table->dropUnique('sales_invoice_number_unique');
-            });
+            if ($indexExists[0]->count > 0) {
+                Schema::table('sales', function (Blueprint $table) {
+                    $table->dropUnique('sales_invoice_number_unique');
+                });
+            }
         }
     }
-}
 
     public function down()
     {

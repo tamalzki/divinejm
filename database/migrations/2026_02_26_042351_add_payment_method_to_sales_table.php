@@ -10,11 +10,11 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up()
-{
-    Schema::table('sales', function (Blueprint $table) {
-        $table->string('payment_method')->default('cash');
-    });
-}
+    {
+        Schema::table('sales', function (Blueprint $table) {
+            $table->string('payment_method')->default('cash');
+        });
+    }
 
     /**
      * Reverse the migrations.

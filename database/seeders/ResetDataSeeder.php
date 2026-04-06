@@ -2,15 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use App\Models\RawMaterial;
-use App\Models\RawMaterialUsage;
+use App\Models\Expense;
 use App\Models\FinishedProduct;
 use App\Models\FinishedProductRestock;
-use App\Models\Sale;
-use App\Models\Expense;
 use App\Models\ProductAlert;
+use App\Models\RawMaterial;
+use App\Models\RawMaterialUsage;
+use App\Models\Sale;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class ResetDataSeeder extends Seeder
 {

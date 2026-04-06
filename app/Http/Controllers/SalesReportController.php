@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Sale;
-use App\Models\SaleItem;
-use App\Models\FinishedProduct;
 use App\Models\Branch;
-use Illuminate\Http\Request;
+use App\Models\FinishedProduct;
+use App\Models\Sale;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class SalesReportController extends Controller
 {
@@ -15,7 +14,7 @@ class SalesReportController extends Controller
     {
         // ── Period resolution ──────────────────────────────────────────
         $period = $request->get('period', 'daily');
-        $today  = Carbon::today();
+        $today = Carbon::today();
 
         if ($period === 'weekly') {
             $from = $request->get('from')
@@ -42,10 +41,10 @@ class SalesReportController extends Controller
         }
 
         $fromStr = $from->format('Y-m-d');
-        $toStr   = $to->format('Y-m-d');
+        $toStr = $to->format('Y-m-d');
 
         // ── Filters ────────────────────────────────────────────────────
-        $areaFilter   = $request->get('area');
+        $areaFilter = $request->get('area');
         $statusFilter = $request->get('status');
 
         // ── All finished products (columns) ───────────────────────────
@@ -79,22 +78,22 @@ class SalesReportController extends Controller
 
             // Sub total per day grouping key
             return [
-                'id'             => $sale->id,
-                'date'           => $sale->sale_date instanceof \Carbon\Carbon
+                'id' => $sale->id,
+                'date' => $sale->sale_date instanceof \Carbon\Carbon
                                     ? $sale->sale_date->format('m/d/Y')
                                     : \Carbon\Carbon::parse($sale->sale_date)->format('m/d/Y'),
-                'date_raw'       => $sale->sale_date,
-                'dr_number'      => $sale->dr_number,
-                'customer_name'  => $sale->customer_name,
-                'total_amount'   => $sale->total_amount,
-                'area'           => $sale->branch->name ?? '—',
-                'status'         => $sale->payment_status,
-                'delivered_by'   => $sale->user->name ?? '—',
-                'payment_mode'   => $sale->payment_mode ?? '—',
-                'gcash_ref'      => $sale->payment_mode === 'gcash' ? ($sale->payment_reference ?? '') : '',
-                'notes'          => $sale->notes ?? '',
-                'products'       => $productQtys,
-                'total_items'    => $sale->items->sum('quantity_sold'),
+                'date_raw' => $sale->sale_date,
+                'dr_number' => $sale->dr_number,
+                'customer_name' => $sale->customer_name,
+                'total_amount' => $sale->total_amount,
+                'area' => $sale->branch->name ?? '—',
+                'status' => $sale->payment_status,
+                'delivered_by' => $sale->user->name ?? '—',
+                'payment_mode' => $sale->payment_mode ?? '—',
+                'gcash_ref' => $sale->payment_mode === 'gcash' ? ($sale->payment_reference ?? '') : '',
+                'notes' => $sale->notes ?? '',
+                'products' => $productQtys,
+                'total_items' => $sale->items->sum('quantity_sold'),
             ];
         });
 
@@ -104,9 +103,9 @@ class SalesReportController extends Controller
         });
 
         // ── Grand totals ──────────────────────────────────────────────
-        $grandTotal        = $sales->sum('total_amount');
-        $grandTotalItems   = $rows->sum('total_items');
-        $productTotals     = [];
+        $grandTotal = $sales->sum('total_amount');
+        $grandTotalItems = $rows->sum('total_items');
+        $productTotals = [];
         foreach ($products as $fp) {
             $productTotals[$fp->id] = $rows->sum(function ($row) use ($fp) {
                 return $row['products'][$fp->id] ?? 0;

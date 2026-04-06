@@ -13,18 +13,18 @@ return new class extends Migration
     {
         Schema::table('stock_movements', function (Blueprint $table) {
             // Add batch_number column if it doesn't exist
-            if (!Schema::hasColumn('stock_movements', 'batch_number')) {
+            if (! Schema::hasColumn('stock_movements', 'batch_number')) {
                 $table->string('batch_number')->nullable()->after('finished_product_id');
                 $table->index('batch_number');
             }
 
             // Add expiration_date column if it doesn't exist
-            if (!Schema::hasColumn('stock_movements', 'expiration_date')) {
+            if (! Schema::hasColumn('stock_movements', 'expiration_date')) {
                 $table->date('expiration_date')->nullable()->after('movement_date');
             }
 
             // Add production_mix_id column if it doesn't exist
-            if (!Schema::hasColumn('stock_movements', 'production_mix_id')) {
+            if (! Schema::hasColumn('stock_movements', 'production_mix_id')) {
                 $table->unsignedBigInteger('production_mix_id')->nullable()->after('branch_id');
                 $table->foreign('production_mix_id')->references('id')->on('production_mixes')->onDelete('set null');
             }

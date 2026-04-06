@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Sale;
-use App\Models\SaleItem;
+use App\Models\BankDeposit;
+use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\FinishedProduct;
-use App\Models\StockMovement;
-use App\Models\BankDeposit;
 use App\Models\ProductionMix;
-use App\Models\Branch;
-use Illuminate\Http\Request;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\StockMovement;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class FinancialReportController extends Controller
@@ -23,10 +23,10 @@ class FinancialReportController extends Controller
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth());
         $reportType = $request->input('report_type', 'monthly'); // monthly, quarterly, weekly
 
-        if (!$startDate instanceof Carbon) {
+        if (! $startDate instanceof Carbon) {
             $startDate = Carbon::parse($startDate);
         }
-        if (!$endDate instanceof Carbon) {
+        if (! $endDate instanceof Carbon) {
             $endDate = Carbon::parse($endDate);
         }
 
@@ -35,13 +35,13 @@ class FinancialReportController extends Controller
         // ======================
         $salesQuery = Sale::with(['items.finishedProduct', 'branch'])
             ->whereBetween('sale_date', [$startDate, $endDate]);
-        
+
         $totalSales = $salesQuery->sum('total_amount');
         $allSales = $salesQuery->get();
 
         // Sales by Product with proper cost calculation
         $salesByProduct = SaleItem::with(['finishedProduct', 'sale'])
-            ->whereHas('sale', function($q) use ($startDate, $endDate) {
+            ->whereHas('sale', function ($q) use ($startDate, $endDate) {
                 $q->whereBetween('sale_date', [$startDate, $endDate]);
             })
             ->get()
@@ -49,21 +49,22 @@ class FinancialReportController extends Controller
             ->map(function ($items) {
                 $product = $items->first()->finishedProduct;
                 $quantity = $items->sum('quantity_sold');
-                
+
                 // Check if discount column exists
                 $hasDiscountColumn = \Illuminate\Support\Facades\Schema::hasColumn('sale_items', 'discount');
-                
-                $revenue = $items->sum(function($item) use ($hasDiscountColumn) {
+
+                $revenue = $items->sum(function ($item) use ($hasDiscountColumn) {
                     $subtotal = $item->quantity_sold * $item->unit_price;
                     if ($hasDiscountColumn && isset($item->discount)) {
                         return $subtotal - $item->discount;
                     }
+
                     return $subtotal;
                 });
-                
+
                 $cost = $product->cost_price * $quantity;
                 $profit = $revenue - $cost;
-                
+
                 return [
                     'product_name' => $product->name,
                     'quantity' => $quantity,
@@ -93,8 +94,9 @@ class FinancialReportController extends Controller
             ->groupBy('customer_name', 'branch_id')
             ->orderByDesc('total_sales')
             ->get()
-            ->map(function($sale) {
+            ->map(function ($sale) {
                 $sale->branch = Branch::find($sale->branch_id);
+
                 return $sale;
             });
 
@@ -103,20 +105,20 @@ class FinancialReportController extends Controller
         $salesDRs = Sale::whereBetween('sale_date', [$startDate, $endDate])
             ->select('dr_number', 'customer_name', 'branch_id')
             ->get()
-            ->unique(function($sale) {
-                return $sale->dr_number . '-' . $sale->customer_name;
+            ->unique(function ($sale) {
+                return $sale->dr_number.'-'.$sale->customer_name;
             });
 
         $deliveriesByCustomer = collect();
-        
+
         foreach ($salesDRs as $saleDR) {
             $movements = StockMovement::where('reference_number', $saleDR->dr_number)
                 ->whereIn('movement_type', ['transfer_out', 'extra_free'])
                 ->get();
-            
+
             if ($movements->count() > 0) {
                 $existing = $deliveriesByCustomer->get($saleDR->customer_name);
-                
+
                 if ($existing) {
                     $deliveriesByCustomer->put($saleDR->customer_name, [
                         'customer_name' => $saleDR->customer_name,
@@ -134,7 +136,7 @@ class FinancialReportController extends Controller
                 }
             }
         }
-        
+
         $deliveriesByCustomer = $deliveriesByCustomer->sortByDesc('total_delivered');
 
         // ======================
@@ -146,7 +148,7 @@ class FinancialReportController extends Controller
             ->get();
 
         $productionSummary = $productionMixes->groupBy('finished_product_id')
-            ->map(function($mixes) {
+            ->map(function ($mixes) {
                 $product = $mixes->first()->finishedProduct;
                 $totalExpected = $mixes->sum('total_expected_output');
                 $totalActual = $mixes->sum('actual_output');
@@ -191,9 +193,10 @@ class FinancialReportController extends Controller
             ->having('total_receivable', '>', 0)
             ->orderByDesc('total_receivable')
             ->get()
-            ->map(function($ar) {
+            ->map(function ($ar) {
                 $ar->branch = Branch::find($ar->branch_id);
                 $ar->days_outstanding = Carbon::parse($ar->oldest_sale)->diffInDays(now());
+
                 return $ar;
             });
 
@@ -203,7 +206,7 @@ class FinancialReportController extends Controller
         $paymentSummary = [
             'total_sales' => $totalSales,
             'total_collected' => $allSales->sum('amount_paid'),
-            'to_be_collected' => $allSales->where('payment_status', 'to_be_collected')->sum(function($s) {
+            'to_be_collected' => $allSales->where('payment_status', 'to_be_collected')->sum(function ($s) {
                 return $s->total_amount - $s->amount_paid;
             }),
             'partial_payments' => $allSales->where('payment_status', 'partial')->count(),
@@ -241,7 +244,7 @@ class FinancialReportController extends Controller
 
         // Cash in hand (not deposited)
         $cashInHand = $cashSales - $cashExpenses - $bankDeposits;
-        
+
         // Cash in bank (cumulative deposits)
         $cashInBank = BankDeposit::where('deposit_date', '<=', $endDate)->sum('amount');
 
@@ -318,15 +321,15 @@ class FinancialReportController extends Controller
     private function getProductionByPeriod($productionMixes, $reportType)
     {
         if ($reportType === 'weekly') {
-            return $productionMixes->groupBy(function($mix) {
+            return $productionMixes->groupBy(function ($mix) {
                 return $mix->mix_date->format('Y-W'); // Year-Week
-            })->map(function($mixes, $week) {
+            })->map(function ($mixes, $week) {
                 return [
-                    'period' => 'Week ' . substr($week, -2) . ', ' . substr($week, 0, 4),
+                    'period' => 'Week '.substr($week, -2).', '.substr($week, 0, 4),
                     'batches' => $mixes->count(),
                     'total_output' => $mixes->sum('actual_output'),
                     'total_rejected' => $mixes->sum('rejected_quantity'),
-                    'products' => $mixes->groupBy('finished_product_id')->map(function($p) {
+                    'products' => $mixes->groupBy('finished_product_id')->map(function ($p) {
                         return [
                             'name' => $p->first()->finishedProduct->name,
                             'quantity' => $p->sum('actual_output'),
@@ -335,15 +338,15 @@ class FinancialReportController extends Controller
                 ];
             });
         } elseif ($reportType === 'quarterly') {
-            return $productionMixes->groupBy(function($mix) {
-                return $mix->mix_date->format('Y') . '-Q' . $mix->mix_date->quarter;
-            })->map(function($mixes, $quarter) {
+            return $productionMixes->groupBy(function ($mix) {
+                return $mix->mix_date->format('Y').'-Q'.$mix->mix_date->quarter;
+            })->map(function ($mixes, $quarter) {
                 return [
                     'period' => str_replace('-', ' ', $quarter),
                     'batches' => $mixes->count(),
                     'total_output' => $mixes->sum('actual_output'),
                     'total_rejected' => $mixes->sum('rejected_quantity'),
-                    'products' => $mixes->groupBy('finished_product_id')->map(function($p) {
+                    'products' => $mixes->groupBy('finished_product_id')->map(function ($p) {
                         return [
                             'name' => $p->first()->finishedProduct->name,
                             'quantity' => $p->sum('actual_output'),
@@ -352,15 +355,15 @@ class FinancialReportController extends Controller
                 ];
             });
         } else { // monthly
-            return $productionMixes->groupBy(function($mix) {
+            return $productionMixes->groupBy(function ($mix) {
                 return $mix->mix_date->format('Y-m');
-            })->map(function($mixes, $month) {
+            })->map(function ($mixes, $month) {
                 return [
-                    'period' => Carbon::parse($month . '-01')->format('F Y'),
+                    'period' => Carbon::parse($month.'-01')->format('F Y'),
                     'batches' => $mixes->count(),
                     'total_output' => $mixes->sum('actual_output'),
                     'total_rejected' => $mixes->sum('rejected_quantity'),
-                    'products' => $mixes->groupBy('finished_product_id')->map(function($p) {
+                    'products' => $mixes->groupBy('finished_product_id')->map(function ($p) {
                         return [
                             'name' => $p->first()->finishedProduct->name,
                             'quantity' => $p->sum('actual_output'),

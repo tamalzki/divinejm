@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Sale;
-use App\Models\SaleItem;
+use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\FinishedProduct;
-use App\Models\StockMovement;
 use App\Models\ProductionMix;
-use App\Models\Branch;
-use Illuminate\Http\Request;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\StockMovement;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -17,27 +16,27 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $today      = Carbon::today();
-        $yesterday  = Carbon::yesterday();
+        $today = Carbon::today();
+        $yesterday = Carbon::yesterday();
         $monthStart = Carbon::now()->startOfMonth();
-        $monthEnd   = Carbon::now()->endOfMonth();
-        $week7Ago   = Carbon::now()->subDays(7);
+        $monthEnd = Carbon::now()->endOfMonth();
+        $week7Ago = Carbon::now()->subDays(7);
 
         // ══════════════════════════════════════════════════════
         // SALES KPIs
         // ══════════════════════════════════════════════════════
 
-        $todaySales     = Sale::whereDate('sale_date', $today)->sum('total_amount');
+        $todaySales = Sale::whereDate('sale_date', $today)->sum('total_amount');
         $todayCollected = Sale::whereDate('sale_date', $today)->sum('amount_paid');
         $yesterdaySales = Sale::whereDate('sale_date', $yesterday)->sum('total_amount');
-        $salesGrowth    = $yesterdaySales > 0
+        $salesGrowth = $yesterdaySales > 0
             ? (($todaySales - $yesterdaySales) / $yesterdaySales) * 100
             : 0;
 
-        $monthlySales        = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('total_amount');
-        $monthlyCollected    = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount_paid');
+        $monthlySales = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('total_amount');
+        $monthlyCollected = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount_paid');
         $monthlyTransactions = Sale::whereBetween('sale_date', [$monthStart, $monthEnd])->count();
-        $collectionRate      = $monthlySales > 0 ? ($monthlyCollected / $monthlySales) * 100 : 0;
+        $collectionRate = $monthlySales > 0 ? ($monthlyCollected / $monthlySales) * 100 : 0;
 
         // ══════════════════════════════════════════════════════
         // P&L THIS MONTH
@@ -45,8 +44,8 @@ class DashboardController extends Controller
 
         // COGS: sum of (qty_sold × cost_price) for items in the month
         $monthlyCOGS = SaleItem::whereHas('sale', function ($q) use ($monthStart, $monthEnd) {
-                $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
-            })
+            $q->whereBetween('sale_date', [$monthStart, $monthEnd]);
+        })
             ->with('finishedProduct')
             ->get()
             ->sum(function ($item) {
@@ -83,8 +82,9 @@ class DashboardController extends Controller
             ->get()->keyBy('id');
 
         $overdueReceivables = $overdueReceivables->map(function ($r) use ($overduebranchMap) {
-            $r->branch       = $overduebranchMap->get($r->branch_id);
+            $r->branch = $overduebranchMap->get($r->branch_id);
             $r->days_overdue = Carbon::parse($r->oldest_sale_date)->diffInDays(Carbon::now());
+
             return $r;
         });
 
@@ -92,14 +92,14 @@ class DashboardController extends Controller
         // INVENTORY
         // ══════════════════════════════════════════════════════
 
-        $allProducts         = FinishedProduct::all();
-        $totalStockOnHand    = $allProducts->sum('stock_on_hand');
-        $totalStockOut       = $allProducts->sum('stock_out');
-        $totalInventory      = $totalStockOnHand + $totalStockOut;
-        $warehouseValue      = $allProducts->sum(fn($p) => $p->stock_on_hand * $p->cost_price);
-        $branchValue         = $allProducts->sum(fn($p) => $p->stock_out * $p->cost_price);
+        $allProducts = FinishedProduct::all();
+        $totalStockOnHand = $allProducts->sum('stock_on_hand');
+        $totalStockOut = $allProducts->sum('stock_out');
+        $totalInventory = $totalStockOnHand + $totalStockOut;
+        $warehouseValue = $allProducts->sum(fn ($p) => $p->stock_on_hand * $p->cost_price);
+        $branchValue = $allProducts->sum(fn ($p) => $p->stock_out * $p->cost_price);
         $totalInventoryValue = $warehouseValue + $branchValue;
-        $zeroStockProducts   = $allProducts->where('stock_on_hand', 0)->count();
+        $zeroStockProducts = $allProducts->where('stock_on_hand', 0)->count();
 
         $lowStockFinished = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')
             ->orderBy('stock_on_hand')
@@ -116,6 +116,7 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($p) use ($today) {
                 $p->days_until_expiry = $today->diffInDays($p->expiry_date);
+
                 return $p;
             })
             ->sortBy('days_until_expiry');
@@ -136,9 +137,9 @@ class DashboardController extends Controller
 
         $productionStats = [
             'batches_completed' => $recentMixes->count(),
-            'total_output'      => $recentMixes->sum('actual_output'),
-            'total_rejected'    => $recentMixes->sum('rejected_quantity'),
-            'rejection_rate'    => $recentMixes->sum('actual_output') > 0
+            'total_output' => $recentMixes->sum('actual_output'),
+            'total_rejected' => $recentMixes->sum('rejected_quantity'),
+            'rejection_rate' => $recentMixes->sum('actual_output') > 0
                 ? ($recentMixes->sum('rejected_quantity') / $recentMixes->sum('actual_output')) * 100
                 : 0,
         ];
@@ -150,10 +151,10 @@ class DashboardController extends Controller
             ->groupBy('finished_product_id')
             ->map(function ($movements) {
                 return [
-                    'product'      => $movements->first()->finishedProduct,
-                    'total_bo'     => $movements->sum('quantity'),
-                    'dr_numbers'   => $movements->pluck('reference_number')->filter()->unique()->values(),
-                    'batch_numbers'=> $movements->pluck('batch_number')->filter()->unique()->values(),
+                    'product' => $movements->first()->finishedProduct,
+                    'total_bo' => $movements->sum('quantity'),
+                    'dr_numbers' => $movements->pluck('reference_number')->filter()->unique()->values(),
+                    'batch_numbers' => $movements->pluck('batch_number')->filter()->unique()->values(),
                 ];
             })
             ->values();
@@ -219,6 +220,7 @@ class DashboardController extends Controller
 
         $branchSales = $branchSalesRaw->map(function ($b) use ($branchMap) {
             $b->branch = $branchMap->get($b->branch_id);
+
             return $b;
         });
 

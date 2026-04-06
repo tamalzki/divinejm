@@ -3,11 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\FinishedProduct;
-use App\Models\FinishedProductRestock;
-use App\Models\RawMaterial;
 use App\Models\ProductRecipe;
-use App\Models\Sale;
-use App\Models\StockMovement;
+use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +18,7 @@ class FinishedProductController extends Controller
             ->orderBy('name');
 
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $query->where('name', 'like', '%'.$request->search.'%');
         }
 
         if ($request->filter === 'manufactured') {
@@ -34,8 +31,8 @@ class FinishedProductController extends Controller
 
         $products = $query->paginate(15)->withQueryString();
 
-        $pendingMixes   = \App\Models\ProductionMix::where('status', 'pending')->count();
-        $lowStockCount  = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->count();
+        $pendingMixes = \App\Models\ProductionMix::where('status', 'pending')->count();
+        $lowStockCount = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->count();
         $completedToday = \App\Models\ProductionMix::where('status', 'completed')
             ->whereDate('updated_at', today())
             ->count();
@@ -45,9 +42,9 @@ class FinishedProductController extends Controller
 
     public function create()
     {
-        $lastProduct  = FinishedProduct::latest('id')->first();
-        $nextNumber   = $lastProduct ? ($lastProduct->id + 1) : 1;
-        $suggestedSku = 'PROD-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $lastProduct = FinishedProduct::latest('id')->first();
+        $nextNumber = $lastProduct ? ($lastProduct->id + 1) : 1;
+        $suggestedSku = 'PROD-'.str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
         $rawMaterials = RawMaterial::orderBy('category')->orderBy('name')->get();
 
@@ -57,17 +54,17 @@ class FinishedProductController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'          => 'required|string|max:255',
-            'sku'           => 'required|string|max:255|unique:finished_products',
-            'product_type'  => 'required|in:manufactured,consigned',
-            'quantity'      => 'required|numeric|min:0',
+            'name' => 'required|string|max:255',
+            'sku' => 'required|string|max:255|unique:finished_products',
+            'product_type' => 'required|in:manufactured,consigned',
+            'quantity' => 'required|numeric|min:0',
             'minimum_stock' => 'required|numeric|min:0',
-            'cost_price'    => 'required|numeric|min:0',
+            'cost_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
-            'description'   => 'nullable|string',
+            'description' => 'nullable|string',
 
-            'ingredients'            => 'required_if:product_type,manufactured|array',
-            'ingredients.*.id'       => 'required_with:ingredients|exists:raw_materials,id',
+            'ingredients' => 'required_if:product_type,manufactured|array',
+            'ingredients.*.id' => 'required_with:ingredients|exists:raw_materials,id',
             'ingredients.*.quantity' => 'required_with:ingredients|numeric|min:0.01',
         ]);
 
@@ -75,17 +72,17 @@ class FinishedProductController extends Controller
             DB::beginTransaction();
 
             $product = FinishedProduct::create([
-                'name'          => $request->name,
-                'sku'           => $request->sku,
-                'product_type'  => $request->product_type,
-                'quantity'      => $request->quantity,
+                'name' => $request->name,
+                'sku' => $request->sku,
+                'product_type' => $request->product_type,
+                'quantity' => $request->quantity,
                 'stock_on_hand' => $request->quantity,
-                'stock_out'     => 0,
+                'stock_out' => 0,
                 'minimum_stock' => $request->minimum_stock,
-                'cost_price'    => $request->cost_price,
+                'cost_price' => $request->cost_price,
                 'selling_price' => $request->selling_price,
-                'total_cost'    => $request->cost_price,
-                'description'   => $request->description,
+                'total_cost' => $request->cost_price,
+                'description' => $request->description,
             ]);
 
             if (Schema::hasColumn('finished_products', 'barcode')) {
@@ -95,13 +92,13 @@ class FinishedProductController extends Controller
 
             if ($request->product_type === 'manufactured' && $request->filled('ingredients')) {
                 foreach ($request->ingredients as $ingredient) {
-                    if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
+                    if (! empty($ingredient['id']) && ! empty($ingredient['quantity'])) {
                         $rawMaterial = RawMaterial::find($ingredient['id']);
                         ProductRecipe::create([
                             'finished_product_id' => $product->id,
-                            'raw_material_id'     => $ingredient['id'],
-                            'quantity_needed'     => $ingredient['quantity'],
-                            'cost_per_unit'       => $rawMaterial ? $rawMaterial->unit_price : 0,
+                            'raw_material_id' => $ingredient['id'],
+                            'quantity_needed' => $ingredient['quantity'],
+                            'cost_per_unit' => $rawMaterial ? $rawMaterial->unit_price : 0,
                         ]);
                     }
                 }
@@ -114,7 +111,8 @@ class FinishedProductController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error("Product creation error: " . $e->getMessage());
+            \Log::error('Product creation error: '.$e->getMessage());
+
             return back()->withInput()->with('error', 'Failed to create product. Please try again.');
         }
     }
@@ -151,7 +149,7 @@ class FinishedProductController extends Controller
         $finishedProduct->load('recipes.rawMaterial');
 
         $ingredients = RawMaterial::where('category', 'ingredient')->orderBy('name')->get();
-        $packaging   = RawMaterial::where('category', 'packaging')->orderBy('name')->get();
+        $packaging = RawMaterial::where('category', 'packaging')->orderBy('name')->get();
 
         return view('finished-products.edit', compact('finishedProduct', 'ingredients', 'packaging'));
     }
@@ -159,15 +157,15 @@ class FinishedProductController extends Controller
     public function update(Request $request, FinishedProduct $finishedProduct)
     {
         $request->validate([
-            'name'          => 'required|string|max:255',
-            'sku'           => 'required|string|max:255|unique:finished_products,sku,' . $finishedProduct->id,
+            'name' => 'required|string|max:255',
+            'sku' => 'required|string|max:255|unique:finished_products,sku,'.$finishedProduct->id,
             'minimum_stock' => 'required|numeric|min:0',
-            'cost_price'    => 'required|numeric|min:0',
+            'cost_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
-            'description'   => 'nullable|string',
+            'description' => 'nullable|string',
 
-            'ingredients'            => 'required_if:product_type,manufactured|array',
-            'ingredients.*.id'       => 'required_with:ingredients|exists:raw_materials,id',
+            'ingredients' => 'required_if:product_type,manufactured|array',
+            'ingredients.*.id' => 'required_with:ingredients|exists:raw_materials,id',
             'ingredients.*.quantity' => 'required_with:ingredients|numeric|min:0.01',
         ]);
 
@@ -175,12 +173,12 @@ class FinishedProductController extends Controller
             DB::beginTransaction();
 
             $finishedProduct->update([
-                'name'          => $request->name,
-                'sku'           => $request->sku,
+                'name' => $request->name,
+                'sku' => $request->sku,
                 'minimum_stock' => $request->minimum_stock,
-                'cost_price'    => $request->cost_price,
+                'cost_price' => $request->cost_price,
                 'selling_price' => $request->selling_price,
-                'description'   => $request->description,
+                'description' => $request->description,
             ]);
 
             if ($finishedProduct->product_type === 'manufactured') {
@@ -188,13 +186,13 @@ class FinishedProductController extends Controller
 
                 if ($request->filled('ingredients')) {
                     foreach ($request->ingredients as $ingredient) {
-                        if (!empty($ingredient['id']) && !empty($ingredient['quantity'])) {
+                        if (! empty($ingredient['id']) && ! empty($ingredient['quantity'])) {
                             $rawMaterial = RawMaterial::find($ingredient['id']);
                             ProductRecipe::create([
                                 'finished_product_id' => $finishedProduct->id,
-                                'raw_material_id'     => $ingredient['id'],
-                                'quantity_needed'     => $ingredient['quantity'],
-                                'cost_per_unit'       => $rawMaterial ? $rawMaterial->unit_price : 0,
+                                'raw_material_id' => $ingredient['id'],
+                                'quantity_needed' => $ingredient['quantity'],
+                                'cost_per_unit' => $rawMaterial ? $rawMaterial->unit_price : 0,
                             ]);
                         }
                     }
@@ -208,7 +206,8 @@ class FinishedProductController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error("Product update error [{$finishedProduct->id}]: " . $e->getMessage());
+            \Log::error("Product update error [{$finishedProduct->id}]: ".$e->getMessage());
+
             return back()->withInput()->with('error', 'Failed to update product. Please try again.');
         }
     }
@@ -219,7 +218,7 @@ class FinishedProductController extends Controller
             DB::beginTransaction();
 
             $productName = $finishedProduct->name;
-            $pendingMix  = $finishedProduct->pendingMixes()->with('ingredients')->first();
+            $pendingMix = $finishedProduct->pendingMixes()->with('ingredients')->first();
 
             if ($pendingMix) {
                 foreach ($pendingMix->ingredients as $ingredient) {
@@ -230,12 +229,12 @@ class FinishedProductController extends Controller
                     if (Schema::hasTable('raw_material_usages')) {
                         DB::table('raw_material_usages')->insert([
                             'raw_material_id' => $ingredient->raw_material_id,
-                            'quantity_used'   => -$ingredient->quantity_used,
-                            'purpose'         => "Returned from deleted product: {$productName}",
-                            'usage_date'      => now()->toDateString(),
-                            'user_id'         => Auth::id(),
-                            'created_at'      => now(),
-                            'updated_at'      => now(),
+                            'quantity_used' => -$ingredient->quantity_used,
+                            'purpose' => "Returned from deleted product: {$productName}",
+                            'usage_date' => now()->toDateString(),
+                            'user_id' => Auth::id(),
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ]);
                     }
                 }
@@ -246,14 +245,15 @@ class FinishedProductController extends Controller
 
             $message = "✅ Product '{$productName}' deleted successfully!";
             if ($pendingMix) {
-                $message .= " Pending MIX was cancelled and materials returned.";
+                $message .= ' Pending MIX was cancelled and materials returned.';
             }
 
             return redirect()->route('finished-products.index')->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error("Product deletion error [{$productName}]: " . $e->getMessage());
+            \Log::error("Product deletion error [{$productName}]: ".$e->getMessage());
+
             return redirect()->route('finished-products.index')
                 ->with('error', 'Failed to delete product. Please try again.');
         }
@@ -276,7 +276,7 @@ class FinishedProductController extends Controller
         $newStock = (int) $request->new_stock;
 
         $finishedProduct->stock_on_hand = $newStock;
-        $finishedProduct->quantity      = $newStock;
+        $finishedProduct->quantity = $newStock;
         $finishedProduct->save();
 
         return back()->with('success', "Stock for '{$finishedProduct->name}' updated to {$newStock} units.");

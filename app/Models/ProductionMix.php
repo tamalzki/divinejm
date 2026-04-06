@@ -78,6 +78,7 @@ class ProductionMix extends Model
         if ($this->total_expected_output == 0) {
             return 0;
         }
+
         return ($this->good_output / $this->total_expected_output) * 100;
     }
 
@@ -87,37 +88,41 @@ class ProductionMix extends Model
         if ($this->actual_output == 0) {
             return 0;
         }
+
         return ($this->rejected_quantity / $this->actual_output) * 100;
     }
 
     public function getVarianceAttribute()
     {
-        if (!$this->actual_output) {
+        if (! $this->actual_output) {
             return null;
         }
+
         return $this->actual_output - $this->total_expected_output;
     }
 
     public function getVariancePercentageAttribute()
     {
-        if (!$this->actual_output || $this->total_expected_output == 0) {
+        if (! $this->actual_output || $this->total_expected_output == 0) {
             return null;
         }
+
         return (($this->actual_output - $this->total_expected_output) / $this->total_expected_output) * 100;
     }
 
     public function getTotalCostAttribute()
     {
-        return $this->ingredients->sum(function($ingredient) {
+        return $this->ingredients->sum(function ($ingredient) {
             return $ingredient->quantity_used * $ingredient->rawMaterial->unit_price;
         });
     }
 
     public function getCostPerUnitAttribute()
     {
-        if (!$this->good_output || $this->good_output == 0) {
+        if (! $this->good_output || $this->good_output == 0) {
             return 0;
         }
+
         return $this->total_cost / $this->good_output;
     }
 }

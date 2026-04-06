@@ -120,44 +120,59 @@ class FinishedProduct extends Model
 
     public function getStockStatusAttribute()
     {
-        if ($this->stock_on_hand == 0 && $this->stock_out == 0) return 'out_of_stock';
-        if ($this->stock_on_hand == 0 && $this->stock_out > 0)  return 'all_deployed';
-        if ($this->isLowStock())                                 return 'low_stock';
+        if ($this->stock_on_hand == 0 && $this->stock_out == 0) {
+            return 'out_of_stock';
+        }
+        if ($this->stock_on_hand == 0 && $this->stock_out > 0) {
+            return 'all_deployed';
+        }
+        if ($this->isLowStock()) {
+            return 'low_stock';
+        }
+
         return 'in_stock';
     }
 
     public function getStockBadgeColorAttribute()
     {
-        return match($this->stock_status) {
+        return match ($this->stock_status) {
             'out_of_stock' => 'danger',
             'all_deployed' => 'warning',
-            'low_stock'    => 'warning',
-            'in_stock'     => 'success',
-            default        => 'secondary',
+            'low_stock' => 'warning',
+            'in_stock' => 'success',
+            default => 'secondary',
         };
     }
 
     public function getStockStatusLabelAttribute()
     {
-        return match($this->stock_status) {
+        return match ($this->stock_status) {
             'out_of_stock' => 'Out of Stock',
             'all_deployed' => 'All Deployed',
-            'low_stock'    => 'Low Stock',
-            'in_stock'     => 'In Stock',
-            default        => 'Unknown',
+            'low_stock' => 'Low Stock',
+            'in_stock' => 'In Stock',
+            default => 'Unknown',
         };
     }
 
     // ── PRODUCT TYPE HELPERS ──────────────────────────────────────
 
-    public function isManufactured() { return $this->product_type === 'manufactured'; }
-    public function isConsigned()    { return $this->product_type === 'consigned'; }
+    public function isManufactured()
+    {
+        return $this->product_type === 'manufactured';
+    }
+
+    public function isConsigned()
+    {
+        return $this->product_type === 'consigned';
+    }
 
     public function calculateTotalCost()
     {
         if ($this->isManufactured()) {
             return $this->recipes()->sum(\DB::raw('quantity_needed * cost_per_unit'));
         }
+
         return $this->cost_price;
     }
 
@@ -165,22 +180,30 @@ class FinishedProduct extends Model
 
     public function isExpiringSoon($days = 7)
     {
-        if (!$this->expiry_date) return false;
-        return $this->expiry_date->diffInDays(now()) <= $days && !$this->is_expired;
+        if (! $this->expiry_date) {
+            return false;
+        }
+
+        return $this->expiry_date->diffInDays(now()) <= $days && ! $this->is_expired;
     }
 
     public function checkExpiry()
     {
         if ($this->expiry_date && $this->expiry_date < now()) {
             $this->update(['is_expired' => true]);
+
             return true;
         }
+
         return false;
     }
 
     public function daysUntilExpiry()
     {
-        if (!$this->expiry_date) return null;
+        if (! $this->expiry_date) {
+            return null;
+        }
+
         return max(0, $this->expiry_date->diffInDays(now()));
     }
 
@@ -226,17 +249,17 @@ class FinishedProduct extends Model
      */
     public function generateBarcode(): string
     {
-        $base      = 'DJM-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+        $base = 'DJM-'.str_pad($this->id, 6, '0', STR_PAD_LEFT);
         $candidate = $base;
-        $suffix    = 0;
+        $suffix = 0;
 
         while (
             static::where('barcode', $candidate)
-                  ->where('id', '!=', $this->id)
-                  ->exists()
+                ->where('id', '!=', $this->id)
+                ->exists()
         ) {
             $suffix++;
-            $candidate = $base . '-' . $suffix;
+            $candidate = $base.'-'.$suffix;
         }
 
         return $candidate;

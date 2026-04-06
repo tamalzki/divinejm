@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Sale;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class AccountsReceivableController extends Controller
@@ -20,13 +19,13 @@ class AccountsReceivableController extends Controller
 
         // Summary totals for tiles
         $totalOutstanding = $unpaidSales->sum('balance');
-        $agingCurrent     = $unpaidSales->filter(fn($s) => Carbon::parse($s->sale_date)->diffInDays(now()) <= 30)->sum('balance');
-        $agingMid         = $unpaidSales->filter(fn($s) => Carbon::parse($s->sale_date)->diffInDays(now()) > 30 && Carbon::parse($s->sale_date)->diffInDays(now()) <= 60)->sum('balance');
-        $agingOld         = $unpaidSales->filter(fn($s) => Carbon::parse($s->sale_date)->diffInDays(now()) > 60)->sum('balance');
+        $agingCurrent = $unpaidSales->filter(fn ($s) => Carbon::parse($s->sale_date)->diffInDays(now()) <= 30)->sum('balance');
+        $agingMid = $unpaidSales->filter(fn ($s) => Carbon::parse($s->sale_date)->diffInDays(now()) > 30 && Carbon::parse($s->sale_date)->diffInDays(now()) <= 60)->sum('balance');
+        $agingOld = $unpaidSales->filter(fn ($s) => Carbon::parse($s->sale_date)->diffInDays(now()) > 60)->sum('balance');
 
         // Group by branch → customer
         $branchIds = $unpaidSales->pluck('branch_id')->unique();
-        $branches  = Branch::whereIn('id', $branchIds)->orderBy('name')->get();
+        $branches = Branch::whereIn('id', $branchIds)->orderBy('name')->get();
 
         $areaData = $branches->map(function ($branch) use ($unpaidSales) {
             $branchSales = $unpaidSales->where('branch_id', $branch->id);
@@ -36,22 +35,22 @@ class AccountsReceivableController extends Controller
                 $oldestDays = $oldestDate ? (int) Carbon::parse($oldestDate)->diffInDays(now()) : 0;
 
                 return [
-                    'customer_name'    => $customerName,
-                    'branch_id'        => $branch->id,
-                    'unpaid_dr_count'  => $sales->count(),
-                    'total_billed'     => $sales->sum('total_amount'),
-                    'total_paid'       => $sales->sum('amount_paid'),
-                    'total_outstanding'=> $sales->sum('balance'),
-                    'oldest_dr_date'   => $oldestDate,
-                    'oldest_days'      => $oldestDays,
+                    'customer_name' => $customerName,
+                    'branch_id' => $branch->id,
+                    'unpaid_dr_count' => $sales->count(),
+                    'total_billed' => $sales->sum('total_amount'),
+                    'total_paid' => $sales->sum('amount_paid'),
+                    'total_outstanding' => $sales->sum('balance'),
+                    'oldest_dr_date' => $oldestDate,
+                    'oldest_days' => $oldestDays,
                 ];
             })->values();
 
             return [
-                'branch'    => $branch,
+                'branch' => $branch,
                 'customers' => $customers,
             ];
-        })->filter(fn($a) => $a['customers']->count() > 0)->values();
+        })->filter(fn ($a) => $a['customers']->count() > 0)->values();
 
         return view('ar.index', compact(
             'areaData', 'totalOutstanding', 'agingCurrent', 'agingMid', 'agingOld'

@@ -13,7 +13,7 @@ class FinishedProductRestock extends Model
         'production_date',
         'expiry_date',
         'notes',
-        'user_id'
+        'user_id',
     ];
 
     protected $casts = [

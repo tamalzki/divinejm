@@ -26,7 +26,7 @@ return new class extends Migration
         Schema::table('branch_inventory', function (Blueprint $table) {
             $table->dropColumn(['batch_number', 'expiration_date']);
         });
-        
+
         Schema::table('stock_movements', function (Blueprint $table) {
             $table->dropColumn(['batch_number', 'expiration_date']);
         });

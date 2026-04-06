@@ -39,7 +39,7 @@ class Sale extends Model
         static::saving(function ($sale) {
             // Calculate balance
             $sale->balance = $sale->total_amount - $sale->amount_paid;
-            
+
             // Auto-update payment status
             if ($sale->amount_paid >= $sale->total_amount) {
                 $sale->payment_status = 'paid';
@@ -80,7 +80,7 @@ class Sale extends Model
 
     public function getPaymentStatusBadgeAttribute()
     {
-        return match($this->payment_status) {
+        return match ($this->payment_status) {
             'paid' => 'success',
             'partial' => 'warning',
             'to_be_collected' => 'danger',
@@ -90,7 +90,7 @@ class Sale extends Model
 
     public function getPaymentStatusLabelAttribute()
     {
-        return match($this->payment_status) {
+        return match ($this->payment_status) {
             'paid' => 'Paid',
             'partial' => 'Partially Paid',
             'to_be_collected' => 'To Be Collected',
@@ -100,7 +100,7 @@ class Sale extends Model
 
     public function getPaymentModeLabelAttribute()
     {
-        return match($this->payment_mode) {
+        return match ($this->payment_mode) {
             'cash' => 'Cash',
             'gcash' => 'GCash',
             'cheque' => 'Cheque',

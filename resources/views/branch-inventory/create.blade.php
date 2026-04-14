@@ -453,12 +453,11 @@ document.addEventListener('DOMContentLoaded', function() {
             var priceEl = document.getElementById('price-' + i);
             var extra = parseMoney(extraEl);
             var unit  = parseMoney(priceEl);
-            var unitsOut = qty + extra;
-            var lineVal = unitsOut * unit;
+            var lineVal = qty * unit;
             totalCost += lineVal;
 
             var qtyDisp = String(qty) + (extra > 0
-                ? ' <span style="font-size:.68rem;color:var(--text-muted)">(+' + extra + ' free)</span>'
+                ? ' <span style="font-size:.68rem;color:var(--text-muted)">(+' + extra + ' free, not billed)</span>'
                 : '');
 
             var tr = document.createElement('tr');
@@ -579,9 +578,8 @@ function onQtyInput(idx, avail) {
 
 function calcRow(idx) {
     var qty   = parseMoney(document.getElementById('qty-' + idx));
-    var extra = parseMoney(document.getElementById('extra-' + idx));
     var price = parseMoney(document.getElementById('price-' + idx));
-    var total = qty > 0 ? (qty + extra) * price : 0;
+    var total = qty > 0 ? qty * price : 0;
     var cell  = document.getElementById('row-total-' + idx);
     cell.textContent = '\u20B1' + total.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
     cell.className   = 'row-total' + (total > 0 ? ' has-val' : '');
@@ -592,11 +590,10 @@ function calcGrand() {
     var grand = 0;
     for (var i = 0; i < rowIndex; i++) {
         var qEl = document.getElementById('qty-' + i);
-        var eEl = document.getElementById('extra-' + i);
         var pEl = document.getElementById('price-' + i);
         if (!qEl || !pEl) continue;
         var q = parseMoney(qEl);
-        if (q > 0) grand += (q + parseMoney(eEl)) * parseMoney(pEl);
+        if (q > 0) grand += q * parseMoney(pEl);
     }
     document.getElementById('grandTotal').textContent =
         '\u20B1' + grand.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});

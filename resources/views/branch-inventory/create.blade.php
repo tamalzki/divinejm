@@ -185,8 +185,9 @@
                 {{-- auto-populated by JS --}}
             </tbody>
             <tfoot>
-                <tr>
-                    <td colspan="7" class="text-end" style="font-size:.72rem;letter-spacing:.4px">TOTAL DELIVERY VALUE</td>
+                <tr class="grand-row">
+                    {{-- 8 columns: #, Product, Avail, Qty, Extra, Unit price, Amount, action --}}
+                    <td colspan="6" class="text-end" style="font-size:.72rem;letter-spacing:.4px">TOTAL DELIVERY VALUE</td>
                     <td class="text-end" id="grandTotal">&#8369;0.00</td>
                     <td></td>
                 </tr>
@@ -238,13 +239,13 @@
                                 <th>Product</th>
                                 <th class="text-center">Warehouse stock</th>
                                 <th class="text-center">Qty to deliver</th>
-                                <th class="text-end">Line value (cost)</th>
+                                <th class="text-end">Line value</th>
                             </tr>
                         </thead>
                         <tbody id="reviewTableBody"></tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="text-end">Total delivery value (cost)</td>
+                                <td colspan="3" class="text-end">Total delivery value</td>
                                 <td class="text-end" id="reviewTotalCost">₱0.00</td>
                             </tr>
                         </tfoot>
@@ -286,6 +287,16 @@ var allProducts = [];
 var rowIndex    = 0;
 var activeRows  = {};
 
+/** Parse numeric input; strips thousands commas and avoids NaN from bad input. */
+function parseMoney(el) {
+    if (!el) return 0;
+    var raw = el.value != null ? el.value : '';
+    var s = String(raw).replace(/,/g, '').replace(/\s/g, '').trim();
+    if (s === '') return 0;
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     allProducts = JSON.parse(document.getElementById('productData').textContent);
 
@@ -296,6 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
     rowIndex = allProducts.length;
 
     updateActiveCount();
+    calcGrand();
 
     // Branch → Customer
     var customerTs = new TomSelect('#customerSelect', {
@@ -390,9 +402,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var errRows = [];
         document.querySelectorAll('.qty-input').forEach(function(inp) {
             var idx   = inp.dataset.idx;
-            var val   = parseFloat(inp.value || 0);
-            var avail = parseFloat(document.getElementById('avail-' + idx).textContent || 0);
-            var extra = parseFloat(document.getElementById('extra-' + idx).value || 0);
+            var val   = parseMoney(inp);
+            var avail = parseFloat(String(document.getElementById('avail-' + idx).textContent || '0').replace(/,/g, '')) || 0;
+            var extra = parseMoney(document.getElementById('extra-' + idx));
             var row   = document.getElementById('prod-row-' + idx);
             if (val > 0) {
                 hasAny = true;
@@ -430,22 +442,31 @@ document.addEventListener('DOMContentLoaded', function() {
         for (var i = 0; i < rowIndex; i++) {
             var qEl = document.getElementById('qty-' + i);
             if (!qEl) continue;
-            var qty = parseFloat(qEl.value || 0);
+            var qty = parseMoney(qEl);
             if (qty <= 0) continue;
 
             linesWithQty++;
             var p = allProducts[i];
+            if (!p) continue;
             var stock = parseFloat(p.stock_on_hand) || 0;
-            var cost  = parseFloat(p.cost_price) || 0;
-            var lineCost = qty * cost;
-            totalCost += lineCost;
+            var extraEl = document.getElementById('extra-' + i);
+            var priceEl = document.getElementById('price-' + i);
+            var extra = parseMoney(extraEl);
+            var unit  = parseMoney(priceEl);
+            var unitsOut = qty + extra;
+            var lineVal = unitsOut * unit;
+            totalCost += lineVal;
+
+            var qtyDisp = String(qty) + (extra > 0
+                ? ' <span style="font-size:.68rem;color:var(--text-muted)">(+' + extra + ' free)</span>'
+                : '');
 
             var tr = document.createElement('tr');
             tr.innerHTML =
                 '<td><strong>' + escapeHtml(p.name) + '</strong></td>' +
                 '<td class="text-center">' + stock + '</td>' +
-                '<td class="text-center">' + qty + '</td>' +
-                '<td class="text-end">\u20B1' + lineCost.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>';
+                '<td class="text-center">' + qtyDisp + '</td>' +
+                '<td class="text-end">\u20B1' + lineVal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>';
             tbody.appendChild(tr);
         }
 
@@ -537,8 +558,8 @@ function renderRow(product, idx) {
 }
 
 function onQtyInput(idx, avail) {
-    var val   = parseFloat(document.getElementById('qty-' + idx).value || 0);
-    var extra = parseFloat(document.getElementById('extra-' + idx).value || 0);
+    var val   = parseMoney(document.getElementById('qty-' + idx));
+    var extra = parseMoney(document.getElementById('extra-' + idx));
     var row   = document.getElementById('prod-row-' + idx);
     var badge = document.getElementById('avail-' + idx);
 
@@ -557,9 +578,10 @@ function onQtyInput(idx, avail) {
 }
 
 function calcRow(idx) {
-    var qty   = parseFloat(document.getElementById('qty-' + idx).value || 0);
-    var price = parseFloat(document.getElementById('price-' + idx).value || 0);
-    var total = qty * price;
+    var qty   = parseMoney(document.getElementById('qty-' + idx));
+    var extra = parseMoney(document.getElementById('extra-' + idx));
+    var price = parseMoney(document.getElementById('price-' + idx));
+    var total = qty > 0 ? (qty + extra) * price : 0;
     var cell  = document.getElementById('row-total-' + idx);
     cell.textContent = '\u20B1' + total.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
     cell.className   = 'row-total' + (total > 0 ? ' has-val' : '');
@@ -570,8 +592,11 @@ function calcGrand() {
     var grand = 0;
     for (var i = 0; i < rowIndex; i++) {
         var qEl = document.getElementById('qty-' + i);
+        var eEl = document.getElementById('extra-' + i);
         var pEl = document.getElementById('price-' + i);
-        if (qEl && pEl) grand += (parseFloat(qEl.value || 0) * parseFloat(pEl.value || 0));
+        if (!qEl || !pEl) continue;
+        var q = parseMoney(qEl);
+        if (q > 0) grand += (q + parseMoney(eEl)) * parseMoney(pEl);
     }
     document.getElementById('grandTotal').textContent =
         '\u20B1' + grand.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});

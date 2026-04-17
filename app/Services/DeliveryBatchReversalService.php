@@ -35,19 +35,22 @@ class DeliveryBatchReversalService
                     ->lockForUpdate()
                     ->first();
 
-                if (! $inventory || (float) $inventory->quantity < $regularQty - 0.0001) {
-                    throw new \RuntimeException(
-                        'Cannot complete this undo: '.$product->name.' no longer has enough quantity at this area to match the original delivery. '
-                        .'That usually means stock left the area after delivery — for example returns to the main warehouse, bad-order returns, recorded sales that reduced area stock, or manual area adjustments. '
-                        .'Restore or align area inventory for this product (or reverse those movements first), then try again.'
-                    );
-                }
-
-                $newBranchQty = round((float) $inventory->quantity - $regularQty, 2);
-                if ($newBranchQty <= 0.0001) {
-                    $inventory->delete();
+                if ($inventory) {
+                    $newBranchQty = round((float) $inventory->quantity - $regularQty, 2);
+                    if (abs($newBranchQty) < 0.0001) {
+                        $inventory->delete();
+                    } else {
+                        $inventory->update(['quantity' => $newBranchQty]);
+                    }
                 } else {
-                    $inventory->update(['quantity' => $newBranchQty]);
+                    // No row at area (e.g. data drift) — record a negative balance so the undo still completes.
+                    BranchInventory::create([
+                        'branch_id' => $branchId,
+                        'finished_product_id' => $productId,
+                        'quantity' => round(-$regularQty, 2),
+                        'batch_number' => null,
+                        'expiration_date' => null,
+                    ]);
                 }
             }
 

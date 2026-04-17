@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
             'sale_items', 'sales', 'stock_movements',
             'production_mix_ingredients', 'production_mixes',
             'branch_inventory', 'expenses', 'bank_deposits',
-            'finished_products', 'raw_materials', 'branches', 'users',
+            'finished_products', 'raw_materials', 'branch_customers', 'branches', 'users',
             'product_alerts', 'finished_product_restocks', 'raw_material_usages',
         ] as $table) {
             try {
@@ -75,18 +75,30 @@ class DatabaseSeeder extends Seeder
 
         $branchIds = [];
         foreach ($branchDefs as $b) {
-            $customersJson = json_encode(array_map(fn ($n) => ['name' => $n, 'phone' => null], $b['customers']));
             DB::table('branches')->insert([
                 'id' => $b['id'],
                 'name' => $b['name'],
                 'code' => $b['code'],
                 'address' => null,
-                'customers' => $customersJson,
                 'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
             $branchIds[$b['code']] = $b['id'];
+
+            foreach (array_values($b['customers']) as $i => $customerName) {
+                DB::table('branch_customers')->insert([
+                    'branch_id' => $b['id'],
+                    'name' => $customerName,
+                    'phone' => null,
+                    'email' => null,
+                    'address' => null,
+                    'notes' => null,
+                    'sort_order' => $i,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
         }
 
         $pan = $branchIds['PAN'];

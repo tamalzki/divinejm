@@ -95,15 +95,6 @@
     .type-mfg { background: var(--s-success-bg); color: var(--s-success-text); }
     .type-con { background: var(--s-info-bg); color: var(--s-info-text); }
 
-    .status-dot { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 600; }
-    .status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .status-ready::before  { background: var(--s-success-text); }
-    .status-ready          { color: var(--s-success-text); }
-    .status-mix::before    { background: var(--s-warning-text); }
-    .status-mix            { color: var(--s-warning-text); }
-    .status-consign::before { background: var(--accent); }
-    .status-consign         { color: var(--accent); }
-
     .act-btn {
         display: inline-flex; align-items: center; gap: .25rem;
         padding: .22rem .55rem; border-radius: 5px;
@@ -113,11 +104,12 @@
         transition: filter .15s;
     }
     .act-btn:hover { filter: brightness(.88); }
-    .act-mix      { background: var(--accent); color: #fff; }
+    .act-legacy   { background: #92400e; color: #fff; }
     .act-complete { background: var(--s-warning-text); color: #fff; }
     .act-view     { background: var(--accent); color: #fff; }
     .act-edit     { background: #7a6030; color: #fff; }
     .act-barcode  { background: var(--brand-deep); color: #fff; }
+    .act-barcode-icon { padding: .22rem .45rem; min-width: 2rem; justify-content: center; }
     .act-delete   { background: var(--s-danger-text); color: #fff; }
 
     .fp-footer {
@@ -204,7 +196,7 @@
 <div class="fp-header">
     <div>
         <h4><i class="bi bi-basket-fill me-2" style="color:var(--accent)"></i>Finished Products</h4>
-        <p>Manage products and production batches</p>
+        <p>Manage products, stock, and production entry points</p>
     </div>
     <a href="{{ route('finished-products.create') }}" class="btn-add-product">
         <i class="bi bi-plus-lg"></i>Add New Product
@@ -218,7 +210,7 @@
     </div>
     <div class="fp-stat">
         <i class="bi bi-clock-history fp-stat-icon"></i>
-        <div><span class="fp-stat-label">Ongoing MIX</span><span class="fp-stat-value" style="color:var(--s-warning-text)">{{ $pendingMixes ?? 0 }}</span></div>
+        <div><span class="fp-stat-label">Legacy batch open</span><span class="fp-stat-value" style="color:var(--s-warning-text)">{{ $pendingMixes ?? 0 }}</span></div>
     </div>
     <div class="fp-stat">
         <i class="bi bi-exclamation-triangle fp-stat-icon"></i>
@@ -226,7 +218,7 @@
     </div>
     <div class="fp-stat">
         <i class="bi bi-check-circle fp-stat-icon"></i>
-        <div><span class="fp-stat-label">Completed Today</span><span class="fp-stat-value" style="color:var(--s-success-text)">{{ $completedToday ?? 0 }}</span></div>
+        <div><span class="fp-stat-label">Legacy completed today</span><span class="fp-stat-value" style="color:var(--s-success-text)">{{ $completedToday ?? 0 }}</span></div>
     </div>
 </div>
 
@@ -287,8 +279,7 @@
                     <th>Type</th>
                     <th class="text-end">Stock</th>
                     <th class="text-end">Min Stock</th>
-                    <th class="text-center">Status</th>
-                    <th class="text-center">Last Production</th>
+                    <th class="text-center">Last legacy batch</th>
                     <th class="text-center">Actions</th>
                 </tr>
             </thead>
@@ -326,17 +317,6 @@
                     <td class="text-end" style="color:var(--text-muted)">
                         {{ number_format($product->minimum_stock, 0) }}
                     </td>
-                    <td class="text-center">
-                        @if($isManufactured)
-                            @if($pendingMix)
-                                <span class="status-dot status-mix">Ongoing MIX</span>
-                            @else
-                                <span class="status-dot status-ready">Ready</span>
-                            @endif
-                        @else
-                            <span class="status-dot status-consign">Consigned</span>
-                        @endif
-                    </td>
                     <td class="text-center" style="font-size:.75rem">
                         @if($lastCompletedMix)
                             <span style="color:var(--s-success-text);font-weight:600">
@@ -347,16 +327,10 @@
                         @endif
                     </td>
                     <td class="text-center" style="white-space:nowrap">
-                        @if($isManufactured)
-                            @if($pendingMix)
-                            <a href="{{ route('production-mixes.show', $pendingMix) }}" class="act-btn act-complete">
-                                <i class="bi bi-check-circle"></i> Complete MIX
+                        @if($isManufactured && $pendingMix)
+                            <a href="{{ route('production-mixes.show', $pendingMix) }}" class="act-btn act-legacy" title="Old Production Mix record">
+                                <i class="bi bi-hourglass-split"></i> Legacy
                             </a>
-                            @else
-                            <a href="{{ route('production-mixes.create', $product->id) }}" class="act-btn act-mix">
-                                <i class="bi bi-plus-circle"></i> New MIX
-                            </a>
-                            @endif
                         @endif
                         <button type="button" class="act-btn act-adjust" style="margin-left:.2rem"
                                 onclick="openAdjustModal({{ $product->id }}, '{{ addslashes($product->name) }}', {{ $product->stock_on_hand }})">
@@ -369,9 +343,11 @@
                             <i class="bi bi-pencil-square"></i> Edit
                         </a>
                         @if($product->barcode)
-                        <button type="button" class="act-btn act-barcode" style="margin-left:.2rem"
+                        <button type="button" class="act-btn act-barcode act-barcode-icon" style="margin-left:.2rem"
+                                title="Download barcode PNG"
+                                aria-label="Download barcode PNG"
                                 onclick="downloadBarcode('{{ $product->barcode }}', '{{ addslashes($product->name) }}')">
-                            <i class="bi bi-upc-scan"></i> Barcode
+                            <i class="bi bi-upc-scan"></i>
                         </button>
                         @endif
                         <button type="button" class="act-btn act-delete" style="margin-left:.2rem"
@@ -382,7 +358,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7">
+                    <td colspan="6">
                         <div class="empty-state">
                             <i class="bi bi-{{ request('search') ? 'search' : 'inbox' }}"></i>
                             <p>

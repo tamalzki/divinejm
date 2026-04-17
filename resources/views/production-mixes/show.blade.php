@@ -1,5 +1,5 @@
 @extends('layouts.sidebar')
-@section('page-title', 'Production Batch #' . $mix->id)
+@section('page-title', 'Legacy mix · Batch #' . $mix->id)
 @section('content')
 
 <style>
@@ -49,8 +49,8 @@
 {{-- Header --}}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center gap-2">
-        <a href="{{ route('production-mixes.index') }}" class="dj-back">
-            <i class="bi bi-arrow-left"></i> Batches
+        <a href="{{ route('daily-production.index') }}" class="dj-back">
+            <i class="bi bi-arrow-left"></i> Daily Production
         </a>
         <div>
             <h5 class="fw-bold mb-0" style="font-size:.9rem">

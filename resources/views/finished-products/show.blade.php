@@ -69,27 +69,19 @@
         text-align: center; padding: 1.25rem 1rem;
     }
     .mix-action p { font-size: .8rem; color: var(--text-muted); margin-bottom: .75rem; }
-    .btn-new-mix {
+    .btn-bc-download {
         display: inline-flex; align-items: center; gap: .35rem;
         padding: .42rem 1.1rem;
         background: var(--accent); color: #fff;
         border-radius: 6px; font-size: .82rem; font-weight: 700;
+        border: none; cursor: pointer;
         text-decoration: none !important; transition: background .15s;
     }
-    .btn-new-mix:hover { background: var(--accent-hover); color: #fff; }
+    .btn-bc-download:hover { background: var(--accent-hover); color: #fff; }
 
     .ongoing-mix-info { padding: .85rem 1rem; }
     .ongoing-mix-info .batch-row { font-size: .8rem; color: var(--text-secondary); margin-bottom: .3rem; }
     .ongoing-mix-info .batch-row strong { color: var(--text-primary); }
-    .btn-go-mix {
-        display: inline-flex; align-items: center; gap: .35rem;
-        padding: .38rem .9rem; margin-top: .5rem;
-        background: var(--s-warning-bg); color: var(--s-warning-text);
-        border: 1px solid #f5dcb0; border-radius: 6px;
-        font-size: .78rem; font-weight: 700;
-        text-decoration: none !important; transition: filter .15s;
-    }
-    .btn-go-mix:hover { filter: brightness(.93); color: var(--s-warning-text); }
 
     /* History table */
     .hist-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
@@ -270,7 +262,7 @@
                         <svg id="bc-svg"></svg>
                         <div class="bc-name">{{ $finishedProduct->name }}</div>
                     </div>
-                    <button class="btn-new-mix" onclick="bcDownload()" style="background:var(--brand-deep)">
+                    <button type="button" class="btn-bc-download" onclick="bcDownload()" style="background:var(--brand-deep)">
                         <i class="bi bi-download"></i> Download PNG
                     </button>
                 </div>
@@ -278,37 +270,27 @@
         </div>
         @endif
 
-        {{-- Production Action --}}
+        {{-- Production entry points (Daily Production + Packers) --}}
         <div class="{{ $finishedProduct->barcode ? 'col-md-6' : 'col-md-12' }}">
             @if($finishedProduct->product_type === 'manufactured')
                 @php $pendingMix = $finishedProduct->pendingMixes->first(); @endphp
                 <div class="show-card">
                     <div class="show-card-header">
-                        <i class="bi bi-gear-wide-connected"></i>
+                        <i class="bi bi-clipboard2-data"></i>
                         <span>Production</span>
-                        @if(!$pendingMix)
-                            <span class="ms-auto status-pill status-completed">Ready</span>
-                        @else
-                            <span class="ms-auto status-pill status-pending">Ongoing MIX</span>
+                        <span class="ms-auto status-pill status-completed">Daily + Packers</span>
+                    </div>
+                    <div class="mix-action">
+                        <p style="font-size:.8rem;margin-bottom:.75rem;color:var(--text-secondary)">
+                            Use <strong>Daily Production</strong> (raw materials) and <strong>Packers Report</strong> from the sidebar — grids include all products.
+                        </p>
+                        @if($pendingMix)
+                        <div class="mt-3 pt-2 border-top" style="font-size:.74rem;color:var(--text-muted)">
+                            <strong class="text-warning">Legacy batch open:</strong> {{ $pendingMix->batch_number }} —
+                            <a href="{{ route('production-mixes.show', $pendingMix) }}" style="color:var(--accent)">Open legacy record</a>
+                        </div>
                         @endif
                     </div>
-                    @if(!$pendingMix)
-                    <div class="mix-action">
-                        <p>Start a new production batch for this product.</p>
-                        <a href="{{ route('production-mixes.create', $finishedProduct->id) }}" class="btn-new-mix">
-                            <i class="bi bi-plus-circle"></i> Create New MIX
-                        </a>
-                    </div>
-                    @else
-                    <div class="ongoing-mix-info">
-                        <div class="batch-row"><strong>Batch:</strong> {{ $pendingMix->batch_number }}</div>
-                        <div class="batch-row"><strong>Expected Output:</strong> {{ number_format($pendingMix->expected_output, 0) }} units</div>
-                        <div class="batch-row" style="font-size:.75rem;color:var(--text-muted)">Complete this MIX before starting a new one.</div>
-                        <a href="{{ route('production-mixes.show', $pendingMix) }}" class="btn-go-mix">
-                            <i class="bi bi-arrow-right-circle"></i> Go to MIX
-                        </a>
-                    </div>
-                    @endif
                 </div>
             @else
                 <div class="show-card">
@@ -322,12 +304,12 @@
 
     </div>
 
-    {{-- Production History — always show for manufactured --}}
+    {{-- Legacy Production Mix history (read-only archive) --}}
     @if($finishedProduct->product_type === 'manufactured')
     <div class="show-card mt-3">
         <div class="show-card-header">
             <i class="bi bi-clock-history"></i>
-            <span>Production Batch History</span>
+            <span>Legacy mix batch history</span>
             @if($finishedProduct->productionMixes?->count() > 0)
             <span class="ms-auto" style="font-size:.7rem;color:var(--text-muted)">
                 {{ $finishedProduct->productionMixes->count() }} {{ Str::plural('batch', $finishedProduct->productionMixes->count()) }}
@@ -411,8 +393,9 @@
         @else
         <div style="text-align:center;padding:2rem 1rem;color:var(--text-muted)">
             <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:.5rem;opacity:.35"></i>
-            <p style="font-size:.8rem;margin:0">No production batches yet.
-                <a href="{{ route('production-mixes.create', $finishedProduct->id) }}" style="color:var(--accent)">Create the first MIX</a>.
+            <p style="font-size:.8rem;margin:0">No legacy mix batches. Use
+                <a href="{{ route('daily-production.create') }}" style="color:var(--accent)">Daily Production</a>
+                and <a href="{{ route('packer-packs.create') }}" style="color:var(--accent)">Packers Report</a>.
             </p>
         </div>
         @endif

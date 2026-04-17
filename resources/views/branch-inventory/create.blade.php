@@ -108,7 +108,7 @@
         <h5 class="fw-bold mb-0" style="font-size:.9rem">
             <i class="bi bi-truck me-1" style="color:var(--accent)"></i>Deliver to Customer
         </h5>
-        <span style="font-size:.65rem;color:var(--text-muted)">Quantity defaults to 0. Only lines with quantity &gt; 0 are delivered after you confirm in the review step.</span>
+        <span style="font-size:.65rem;color:var(--text-muted)">Quantity defaults to 0. Only lines with quantity &gt; 0 are delivered after you confirm in the review step. Deliveries may proceed even if warehouse stock goes negative (overage is highlighted).</span>
     </div>
 </div>
 
@@ -399,27 +399,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         var hasAny  = false;
-        var errRows = [];
         document.querySelectorAll('.qty-input').forEach(function(inp) {
-            var idx   = inp.dataset.idx;
             var val   = parseMoney(inp);
-            var avail = parseFloat(String(document.getElementById('avail-' + idx).textContent || '0').replace(/,/g, '')) || 0;
-            var extra = parseMoney(document.getElementById('extra-' + idx));
-            var row   = document.getElementById('prod-row-' + idx);
             if (val > 0) {
                 hasAny = true;
-                if (avail > 0 && (val + extra) > avail) {
-                    errRows.push(row.querySelector('.prod-name').textContent.trim());
-                }
             }
         });
 
         if (!hasAny) {
             showToast('Enter a quantity greater than zero for at least one product.', 'danger');
-            return false;
-        }
-        if (errRows.length > 0) {
-            showToast('Quantity exceeds warehouse stock for: ' + errRows.join(', '), 'danger');
             return false;
         }
         return true;
@@ -539,7 +527,7 @@ function renderRow(product, idx) {
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input extra-input" id="extra-' + idx + '" ' +
-                'name="items[' + idx + '][extra_quantity]" step="1" min="0" value="0" oninput="calcRow(' + idx + ')">' +
+                'name="items[' + idx + '][extra_quantity]" step="1" min="0" value="0" oninput="onQtyInput(' + idx + ',' + avail + '); calcRow(' + idx + ')">' +
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input price-input" id="price-' + idx + '" ' +
@@ -570,7 +558,8 @@ function onQtyInput(idx, avail) {
         delete activeRows[idx];
     }
 
-    badge.className = 'avail-badge' + ((val + extra) > avail && avail > 0 ? ' warn' : (avail === 0 ? ' zero' : ''));
+    var over = (val + extra) > avail;
+    badge.className = 'avail-badge' + (over ? ' warn' : (avail === 0 ? ' zero' : ''));
 
     updateActiveCount();
     calcRow(idx);

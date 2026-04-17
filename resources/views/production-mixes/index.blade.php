@@ -141,7 +141,7 @@
         <h5 class="fw-bold mb-0" style="font-size:.95rem">
             <i class="bi bi-gear-wide-connected me-2" style="color:var(--accent)"></i>Production Batches
         </h5>
-        <p class="mb-0" style="font-size:.72rem;color:var(--text-muted)">Track and manage all production runs</p>
+        <p class="mb-0" style="font-size:.72rem;color:var(--text-muted)">Ingredient-level batches (raw materials only). Finished stock is added via <a href="{{ route('packer-packs.index') }}" style="color:var(--accent)">Packers Report</a>; daily mix in <a href="{{ route('daily-production.index') }}" style="color:var(--accent)">Daily Production</a>.</p>
     </div>
     <a href="{{ route('production-mixes.create') }}" class="btn-new-batch">
         <i class="bi bi-plus-lg"></i> New Batch

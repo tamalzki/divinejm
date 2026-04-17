@@ -91,7 +91,7 @@
                     </div>
                     <div class="col-6">
                         <div class="border rounded p-3 text-center bg-light">
-                            <div class="display-6 fw-bold text-primary">{{ count($branch->customers ?? []) }}</div>
+                            <div class="display-6 fw-bold text-primary">{{ $branch->branchCustomers->count() }}</div>
                             <small class="text-muted">Customers</small>
                         </div>
                     </div>
@@ -120,14 +120,13 @@
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-people me-2"></i>Customers ({{ count($branch->customers ?? []) }})</span>
+                <span><i class="bi bi-people me-2"></i>Customers ({{ $branch->branchCustomers->count() }})</span>
                 <a href="{{ route('branches.edit', $branch) }}" class="btn btn-sm btn-light">
                     <i class="bi bi-pencil me-1"></i>Manage Customers
                 </a>
             </div>
             <div class="card-body">
-                @php $customers = $branch->customers ?? []; @endphp
-                @if(count($customers) > 0)
+                @if($branch->branchCustomers->isNotEmpty())
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
@@ -138,16 +137,16 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($customers as $i => $customer)
+                                @foreach($branch->branchCustomers as $i => $customer)
                                 <tr>
                                     <td class="text-muted">{{ $i + 1 }}</td>
                                     <td>
                                         <i class="bi bi-person-circle text-primary me-2"></i>
-                                        {{ $customer['name'] ?? '-' }}
+                                        {{ $customer->name }}
                                     </td>
                                     <td>
-                                        @if(!empty($customer['phone']))
-                                            <i class="bi bi-telephone text-muted me-1"></i>{{ $customer['phone'] }}
+                                        @if(!empty($customer->phone))
+                                            <i class="bi bi-telephone text-muted me-1"></i>{{ $customer->phone }}
                                         @else
                                             <span class="text-muted fst-italic">No phone</span>
                                         @endif

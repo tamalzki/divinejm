@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class BranchCustomer extends Model
 {
+    protected $table = 'branch_customers';
+
     protected $fillable = [
         'branch_id',
         'name',
@@ -13,16 +15,11 @@ class BranchCustomer extends Model
         'email',
         'address',
         'notes',
+        'sort_order',
     ];
 
-    // Relationships
     public function branch()
     {
         return $this->belongsTo(Branch::class);
-    }
-
-    public function sales()
-    {
-        return $this->hasMany(Sale::class, 'branch_customer_id');
     }
 }

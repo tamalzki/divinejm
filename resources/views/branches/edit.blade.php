@@ -75,7 +75,11 @@
                 <div id="customersContainer" class="border rounded p-3 bg-light">
                     <div id="customersList">
                         @php
-                            $existingCustomers = old('customers', $branch->customers ?? []);
+                            $defaultCustomers = $branch->branchCustomers
+                                ->map(fn ($c) => ['name' => $c->name, 'phone' => $c->phone ?? ''])
+                                ->values()
+                                ->all();
+                            $existingCustomers = old('customers', $defaultCustomers);
                         @endphp
                         @if(empty($existingCustomers))
                             <p class="text-muted text-center mb-0" id="emptyMessage">No customers added yet. Click "Add Customer" to add one.</p>

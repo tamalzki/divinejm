@@ -44,16 +44,16 @@
                         </td>
                         <td>
                             @php
-                                $customers = $branch->customers ?? [];
-                                $total     = count($customers);
-                                $preview   = array_slice($customers, 0, 3);
+                                $custCollection = $branch->branchCustomers;
+                                $total = $custCollection->count();
+                                $preview = $custCollection->take(3);
                             @endphp
                             @if($total > 0)
                                 <div class="d-flex flex-column gap-1">
                                     @foreach($preview as $customer)
                                         <small>
                                             <i class="bi bi-person-circle text-primary me-1"></i>
-                                            {{ $customer['name'] ?? $customer }}
+                                            {{ $customer->name }}
                                         </small>
                                     @endforeach
                                     @if($total > 3)

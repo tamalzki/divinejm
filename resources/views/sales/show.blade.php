@@ -138,7 +138,7 @@ function confirmDestroySaleForm(form) {
     if (form.querySelector('input[name="orphan_delete"]:checked')) {
         return confirm('ORPHAN / TEST DELETE — DR# ' + dr + '\n\nThis removes the DR from sales only. Warehouse and area stock will NOT be changed.\n\nOnly use if this DR never had a matching “Deliver Products” record (or you accept that inventory stays as-is).\n\nContinue?');
     }
-    return confirm('Delete DR# ' + dr + '?\n\n• Removes this DR and all sold / BO / payment data stored on it\n• Restores main warehouse stock, production batches, and area inventory using the original delivery movements\n\nIf area stock is lower than this delivery (e.g. after returns), deletion may fail until inventory matches.\n\nThis cannot be undone. Continue?');
+    return confirm('Delete DR# ' + dr + '?\n\n• Removes this DR and all sold / BO / payment data stored on it\n• Restores main warehouse stock, production batches, and area inventory using the original delivery movements\n\nIf area stock is lower than this delivery, area balances may go negative until you correct inventory.\n\nThis cannot be undone. Continue?');
 }
 document.getElementById('searchInput').addEventListener('input', function() {
     var q = this.value.toLowerCase().trim();

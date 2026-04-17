@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Branch extends Model
 {
@@ -11,12 +12,10 @@ class Branch extends Model
         'code',
         'address',
         'phone',
-        'customers',
         'is_active',
     ];
 
     protected $casts = [
-        'customers' => 'array',
         'is_active' => 'boolean',
     ];
 
@@ -30,50 +29,72 @@ class Branch extends Model
         return $this->hasMany(Sale::class);
     }
 
-    // Helper to get customers from JSON - UPDATED TO HANDLE OBJECTS
-    public function getCustomersListAttribute()
+    public function branchCustomers(): HasMany
     {
-        $customers = $this->customers;
-
-        // If customers is a string, decode it
-        if (is_string($customers)) {
-            $customers = json_decode($customers, true) ?? [];
-        }
-
-        // If it's not an array, return empty array
-        if (! is_array($customers)) {
-            return [];
-        }
-
-        // Extract customer names if they're objects
-        $customerNames = array_map(function ($customer) {
-            // If customer is an array with a 'name' field
-            if (is_array($customer) && isset($customer['name'])) {
-                return $customer['name'];
-            }
-            // If customer is an object with a 'name' property
-            elseif (is_object($customer) && isset($customer->name)) {
-                return $customer->name;
-            }
-
-            // Otherwise assume it's already a string
-            return $customer;
-        }, $customers);
-
-        // Return unique customer names
-        return array_values(array_unique($customerNames));
+        return $this->hasMany(BranchCustomer::class)->orderBy('sort_order')->orderBy('id');
     }
 
-    // Helper to add customer - UPDATED TO SAVE AS STRING ARRAY
-    public function addCustomer($customerName)
+    /**
+     * Customer names for dropdowns (unique, stable order by sort_order).
+     */
+    public function getCustomersListAttribute(): array
     {
-        $customers = $this->customers_list;
-
-        if (! in_array($customerName, $customers)) {
-            $customers[] = $customerName;
-            // Save as simple string array (not objects)
-            $this->customers = $customers;
-            $this->save();
+        if ($this->relationLoaded('branchCustomers')) {
+            return $this->branchCustomers->pluck('name')->unique()->values()->all();
         }
+
+        if ($this->branchCustomers()->exists()) {
+            return $this->branchCustomers()->pluck('name')->unique()->values()->all();
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<int, array{name?: string, phone?: string}>  $rows
+     */
+    public function syncCustomersFromForm(array $rows): void
+    {
+        $this->branchCustomers()->delete();
+
+        foreach (array_values($rows) as $i => $row) {
+            $name = isset($row['name']) ? trim((string) $row['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $phoneRaw = $row['phone'] ?? null;
+            $phone = $phoneRaw !== null && $phoneRaw !== '' ? trim((string) $phoneRaw) : null;
+
+            $this->branchCustomers()->create([
+                'name' => $name,
+                'phone' => $phone ?: null,
+                'sort_order' => $i,
+            ]);
+        }
+
+        $this->unsetRelation('branchCustomers');
+    }
+
+    public function addCustomer(string $customerName): void
+    {
+        $name = trim($customerName);
+        if ($name === '') {
+            return;
+        }
+
+        if ($this->branchCustomers()->where('name', $name)->exists()) {
+            return;
+        }
+
+        $nextOrder = (int) $this->branchCustomers()->max('sort_order') + 1;
+
+        $this->branchCustomers()->create([
+            'name' => $name,
+            'phone' => null,
+            'sort_order' => $nextOrder,
+        ]);
+
+        $this->unsetRelation('branchCustomers');
     }
 }

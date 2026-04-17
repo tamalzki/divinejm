@@ -9,12 +9,30 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable('sales')) {
+        if (! Schema::hasTable('sales')) {
+            return;
+        }
 
-            $connection = Schema::getConnection();
-            $database = $connection->getDatabaseName();
+        $driver = Schema::getConnection()->getDriverName();
 
-            $indexExists = DB::select("
+        if ($driver === 'sqlite') {
+            $indexNames = collect(DB::select("PRAGMA index_list('sales')"))
+                ->pluck('name')
+                ->map(fn ($n) => (string) $n)
+                ->all();
+
+            if (in_array('sales_invoice_number_unique', $indexNames, true)) {
+                Schema::table('sales', function (Blueprint $table) {
+                    $table->dropUnique('sales_invoice_number_unique');
+                });
+            }
+
+            return;
+        }
+
+        $database = Schema::getConnection()->getDatabaseName();
+
+        $indexExists = DB::select("
             SELECT COUNT(1) as count
             FROM information_schema.statistics
             WHERE table_schema = ?
@@ -22,11 +40,10 @@ return new class extends Migration
               AND index_name = 'sales_invoice_number_unique'
         ", [$database]);
 
-            if ($indexExists[0]->count > 0) {
-                Schema::table('sales', function (Blueprint $table) {
-                    $table->dropUnique('sales_invoice_number_unique');
-                });
-            }
+        if ($indexExists[0]->count > 0) {
+            Schema::table('sales', function (Blueprint $table) {
+                $table->dropUnique('sales_invoice_number_unique');
+            });
         }
     }
 

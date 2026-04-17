@@ -327,12 +327,12 @@
         <span class="kpi-sub">units deployed &nbsp;·&nbsp; &#8369;{{ number_format($branchValue/1000, 1) }}K</span>
     </div>
     <div class="kpi-tile {{ $productionStats['rejection_rate'] > 10 ? 't-red' : 't-green' }}">
-        <span class="kpi-label">Production (7d)</span>
+        <span class="kpi-label">Legacy mix output (7d)</span>
         <span class="kpi-value {{ $productionStats['rejection_rate'] > 10 ? 'c-red' : 'c-green' }}">
             {{ number_format($productionStats['total_output']) }}
         </span>
         <span class="kpi-sub">
-            {{ $productionStats['batches_completed'] }} batches
+            {{ $productionStats['batches_completed'] }} completed batches
             &nbsp;·&nbsp; {{ number_format($productionStats['rejection_rate'], 1) }}% reject
         </span>
     </div>
@@ -398,9 +398,12 @@
             </div>
             @endforeach
         </div>
-        <div class="crit-foot">
-            <a href="{{ route('production-mixes.create') }}" class="btn-sm-amber">
-                <i class="bi bi-plus-lg me-1"></i>New Production Batch
+        <div class="crit-foot" style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center">
+            <a href="{{ route('daily-production.create') }}" class="btn-sm-amber">
+                <i class="bi bi-clipboard2-data me-1"></i>Daily Production
+            </a>
+            <a href="{{ route('packer-packs.create') }}" class="btn-sm-amber" style="background:var(--brand-deep)">
+                <i class="bi bi-box-seam me-1"></i>Packers Report
             </a>
         </div>
     </div>
@@ -483,8 +486,8 @@
 {{-- ══ PRODUCTION PERFORMANCE ══ --}}
 <div class="sec-card" style="margin-bottom:.75rem">
     <div class="sec-head">
-        <span><i class="bi bi-gear-wide-connected me-1"></i> Production Performance</span>
-        <span style="font-size:.62rem;opacity:.55;text-transform:none;letter-spacing:0">Last 7 Days</span>
+        <span><i class="bi bi-gear-wide-connected me-1"></i> Legacy production mix</span>
+        <span style="font-size:.62rem;opacity:.55;text-transform:none;letter-spacing:0">Last 7 days</span>
     </div>
     <div style="padding:.65rem .85rem">
         <div class="prod-strip">

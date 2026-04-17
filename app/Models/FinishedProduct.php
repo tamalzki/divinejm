@@ -216,9 +216,6 @@ class FinishedProduct extends Model
 
     public function deployToBranch($quantity)
     {
-        if ($quantity > $this->stock_on_hand) {
-            throw new \Exception("Insufficient stock. Available: {$this->stock_on_hand}");
-        }
         $this->decrement('stock_on_hand', $quantity);
         $this->increment('stock_out', $quantity);
     }
@@ -234,9 +231,6 @@ class FinishedProduct extends Model
 
     public function sellStock($quantity)
     {
-        if ($quantity > $this->stock_on_hand) {
-            throw new \Exception("Insufficient stock for sale. Available: {$this->stock_on_hand}");
-        }
         $this->decrement('stock_on_hand', $quantity);
     }
 

@@ -19,6 +19,7 @@ class ProductionMix extends Model
         'mix_date',
         'notes',
         'user_id',
+        'increments_finished_stock',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class ProductionMix extends Model
         'actual_output' => 'decimal:2',
         'rejected_quantity' => 'decimal:2',  // NEW
         'multiplier' => 'integer',            // NEW
+        'increments_finished_stock' => 'boolean',
         'expiration_date' => 'date',
         'mix_date' => 'date',
     ];

@@ -113,7 +113,10 @@ class BranchInventoryController extends Controller
     // ──────────────────────────────────────────────────────────────────
     public function createDelivery()
     {
-        $branches = Branch::where('is_active', true)->orderBy('name')->get();
+        $branches = Branch::with(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
 
         // ONE stock card per product — total available.
         // FIFO batch resolution happens on backend at storeDelivery time.
@@ -144,7 +147,10 @@ class BranchInventoryController extends Controller
     // ──────────────────────────────────────────────────────────────────
     public function create(Branch $branch)
     {
-        $branches = Branch::where('is_active', true)->orderBy('name')->get();
+        $branches = Branch::with(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
         $products = FinishedProduct::orderBy('name')->get();
 
         return view('branch-inventory.create', compact('branch', 'branches', 'products'));
@@ -242,9 +248,7 @@ class BranchInventoryController extends Controller
                 $totalQty = $regularQty + $extraQty;
                 $unitPrice = (float) ($itemData['unit_price'] ?? $product->selling_price ?? 0);
 
-                if ($totalQty > $product->stock_on_hand) {
-                    throw new \Exception("Insufficient stock for {$product->name}! Only {$product->stock_on_hand} units available.");
-                }
+                // Allow warehouse stock_on_hand to go negative when needed for sales/deliveries.
 
                 // ── FIFO: drain oldest batches first (earliest mix_date / lowest id) ──
                 $remainingQty = $totalQty;
@@ -406,32 +410,38 @@ class BranchInventoryController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $branchInventory = BranchInventory::findOrFail($validated['branch_inventory_id']);
-
-        if ($validated['quantity'] > $branchInventory->quantity) {
-            return back()->withInput()->with('error', "Insufficient stock at area! Only {$branchInventory->quantity} units available.");
-        }
-
         try {
             DB::beginTransaction();
 
-            $product = $branchInventory->finishedProduct;
+            $branchInventory = BranchInventory::whereKey($validated['branch_inventory_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ((int) $branchInventory->branch_id !== (int) $branch->id) {
+                abort(403);
+            }
+
+            $qty = (float) $validated['quantity'];
+            $product = FinishedProduct::lockForUpdate()->findOrFail($branchInventory->finished_product_id);
             $batchNumber = $branchInventory->batch_number;
             $expirationDate = $branchInventory->expiration_date;
 
-            if ($validated['quantity'] >= $branchInventory->quantity) {
+            // Allow area quantity to go negative when return exceeds recorded on-hand (same idea as warehouse over-delivery).
+            $newBranchQty = round((float) $branchInventory->quantity - $qty, 2);
+            if (abs($newBranchQty) < 0.0001) {
                 $branchInventory->delete();
             } else {
-                $branchInventory->decrement('quantity', $validated['quantity']);
+                $branchInventory->quantity = $newBranchQty;
+                $branchInventory->save();
             }
 
-            $product->increment('stock_on_hand', $validated['quantity']);
-            $product->decrement('stock_out', $validated['quantity']);
+            $product->increment('stock_on_hand', $qty);
+            $product->decrement('stock_out', $qty);
 
             if ($batchNumber) {
                 $mix = ProductionMix::where('batch_number', $batchNumber)->first();
                 if ($mix) {
-                    $mix->increment('actual_output', $validated['quantity']);
+                    $mix->increment('actual_output', $qty);
                 }
             }
 
@@ -439,7 +449,7 @@ class BranchInventoryController extends Controller
                 'finished_product_id' => $product->id,
                 'branch_id' => $branch->id,
                 'movement_type' => 'return_bo',
-                'quantity' => $validated['quantity'],
+                'quantity' => $qty,
                 'batch_number' => $batchNumber,
                 'expiration_date' => $expirationDate,
                 'movement_date' => $validated['movement_date'],
@@ -452,7 +462,7 @@ class BranchInventoryController extends Controller
             $batchInfo = $batchNumber ? " (Batch: {$batchNumber})" : ' (No Batch)';
 
             return redirect()->route('branch-inventory.show', $branch)
-                ->with('success', "Returned {$validated['quantity']} units of {$product->name}{$batchInfo} to warehouse.");
+                ->with('success', "Returned {$qty} units of {$product->name}{$batchInfo} to warehouse.");
 
         } catch (\Exception $e) {
             DB::rollBack();

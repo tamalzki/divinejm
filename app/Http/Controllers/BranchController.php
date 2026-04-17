@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BranchController extends Controller
 {
     public function index()
     {
-        $branches = Branch::withCount('inventory')
+        $branches = Branch::with(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
+            ->withCount(['inventory', 'branchCustomers'])
             ->orderBy('name')
             ->paginate(15);
 
@@ -55,7 +57,15 @@ class BranchController extends Controller
             $validated['customers'] = [];
         }
 
-        Branch::create($validated);
+        $customerRows = $validated['customers'];
+        unset($validated['customers']);
+
+        $branch = DB::transaction(function () use ($validated, $customerRows) {
+            $branch = Branch::create($validated);
+            $branch->syncCustomersFromForm($customerRows);
+
+            return $branch;
+        });
 
         return redirect()->route('branches.index')
             ->with('success', "Area \"{$validated['name']}\" created successfully!");
@@ -63,14 +73,16 @@ class BranchController extends Controller
 
     public function show(Branch $branch)
     {
-        $branch->loadCount('inventory');
+        $branch->load(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
+            ->loadCount('inventory');
 
         return view('branches.show', compact('branch'));
     }
 
     public function edit(Branch $branch)
     {
-        $branch->loadCount('inventory');
+        $branch->load(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
+            ->loadCount('inventory');
 
         return view('branches.edit', compact('branch'));
     }
@@ -109,7 +121,13 @@ class BranchController extends Controller
             $validated['customers'] = [];
         }
 
-        $branch->update($validated);
+        $customerRows = $validated['customers'];
+        unset($validated['customers']);
+
+        DB::transaction(function () use ($branch, $validated, $customerRows) {
+            $branch->update($validated);
+            $branch->syncCustomersFromForm($customerRows);
+        });
 
         return redirect()->route('branches.show', $branch)
             ->with('success', "Area \"{$validated['name']}\" updated successfully!");

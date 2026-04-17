@@ -221,7 +221,7 @@
                 <input type="number" name="actual_output" id="actualQty"
                        class="form-control form-control-sm @error('actual_output') is-invalid @enderror"
                        step="0.01" min="0.01" value="{{ old('actual_output') }}" placeholder="0" required>
-                <div class="field-hint" style="color:var(--accent)">↑ Full output added to stock</div>
+                <div class="field-hint" style="color:var(--text-muted)">For records — add finished stock via <strong>Packers Report</strong></div>
                 @error('actual_output')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 

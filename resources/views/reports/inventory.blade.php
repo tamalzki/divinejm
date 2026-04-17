@@ -118,7 +118,7 @@
         <span class="pill pill-info">{{ $warehouseStock->count() }}</span>
     </button>
     <button class="tab-btn" onclick="switchTab('production', this)">
-        <i class="bi bi-gear"></i> Production Mix
+        <i class="bi bi-gear"></i> Legacy mix batches
         <span class="pill pill-info">{{ $productionMixes->count() }}</span>
     </button>
     <button class="tab-btn" onclick="switchTab('branch', this)">
@@ -366,7 +366,7 @@
     </div>
 </div>
 
-{{-- ── TAB 2: Production Mix ── --}}
+{{-- ── TAB 2: Legacy production mix batches ── --}}
 <div id="tab-production" class="tab-pane">
     @php
         $pmTotalProduced  = $productionMixes->sum('qty_produced');
@@ -411,7 +411,7 @@
                     <td style="font-size:.74rem;color:var(--text-muted)">{{ $mix['notes'] ?: '—' }}</td>
                 </tr>
                 @empty
-                <tr><td colspan="9" class="empty-row">No production mixes in this date range.</td></tr>
+                <tr><td colspan="9" class="empty-row">No legacy mix batches in this date range.</td></tr>
                 @endforelse
                 </tbody>
                 @if($productionMixes->count())

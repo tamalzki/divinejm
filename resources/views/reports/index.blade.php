@@ -50,7 +50,7 @@
     <a href="{{ route('reports.inventory') }}" class="rpt-card t-c">
         <span class="rpt-card-icon"><i class="bi bi-clipboard-data"></i></span>
         <h6>Inventory Report</h6>
-        <p>Warehouse and branch stock, raw materials, production, and movements.</p>
+        <p>Warehouse and branch stock, raw materials, legacy mix batches, and movements.</p>
         <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
     </a>
     <a href="{{ route('reports.expenses') }}" class="rpt-card t-e">
@@ -62,7 +62,7 @@
     <a href="{{ route('reports.production') }}" class="rpt-card t-p">
         <span class="rpt-card-icon"><i class="bi bi-gear-wide-connected"></i></span>
         <h6>Production Report</h6>
-        <p>Production batches, output, rejects, and summary by finished product.</p>
+        <p>Legacy production mix batches, output, rejects, and summary by finished product.</p>
         <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
     </a>
 </div>

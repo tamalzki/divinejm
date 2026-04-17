@@ -4,12 +4,14 @@ use App\Http\Controllers\AccountsReceivableController;
 use App\Http\Controllers\BankDepositController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchInventoryController;
+use App\Http\Controllers\DailyProductionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\FinishedProductController;
 use App\Http\Controllers\InventoryReportController;
+use App\Http\Controllers\PackerReportController;
 use App\Http\Controllers\ProductionMixController;
 use App\Http\Controllers\ProductionReportController;
 use App\Http\Controllers\RawMaterialController;
@@ -124,6 +126,21 @@ Route::middleware(['auth'])->group(function () {
         ->name('branch-inventory.destroy');
     Route::post('/branch-inventory/{branch}/transfer-between-branches', [BranchInventoryController::class, 'transferBetweenBranches'])
         ->name('branch-inventory.transfer-between-branches');
+
+    // Daily production — reports (raw materials only), same flow as Packers
+    Route::get('/daily-production', [DailyProductionController::class, 'index'])->name('daily-production.index');
+    Route::get('/daily-production/create', [DailyProductionController::class, 'create'])->name('daily-production.create');
+    Route::post('/daily-production', [DailyProductionController::class, 'store'])->name('daily-production.store');
+    Route::get('/daily-production/{dailyProductionReport}/sheet', [DailyProductionController::class, 'sheet'])->name('daily-production.sheet');
+    Route::post('/daily-production/{dailyProductionReport}/sheet', [DailyProductionController::class, 'saveSheet'])->name('daily-production.save-sheet');
+    Route::delete('/daily-production/{dailyProductionReport}', [DailyProductionController::class, 'destroy'])->name('daily-production.destroy');
+
+    Route::get('/packer-packs', [PackerReportController::class, 'index'])->name('packer-packs.index');
+    Route::get('/packer-packs/create', [PackerReportController::class, 'create'])->name('packer-packs.create');
+    Route::post('/packer-packs', [PackerReportController::class, 'store'])->name('packer-packs.store');
+    Route::get('/packer-packs/{packerReport}/sheet', [PackerReportController::class, 'sheet'])->name('packer-packs.sheet');
+    Route::post('/packer-packs/{packerReport}/sheet', [PackerReportController::class, 'saveSheet'])->name('packer-packs.save-sheet');
+    Route::delete('/packer-packs/{packerReport}', [PackerReportController::class, 'destroy'])->name('packer-packs.destroy');
 
     // Production Batches (Production Mix)
     Route::get('/production-mixes', [ProductionMixController::class, 'index'])

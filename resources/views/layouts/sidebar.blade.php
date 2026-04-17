@@ -482,8 +482,11 @@
         </a>
 
         <div class="sidebar-section">Production</div>
-        <a href="{{ route('production-mixes.index') }}" class="sidebar-link {{ request()->routeIs('production-mixes.*') ? 'active' : '' }}">
-            <i class="bi bi-gear-wide-connected"></i> Production Mix
+        <a href="{{ route('daily-production.index') }}" class="sidebar-link {{ request()->routeIs('daily-production.*') ? 'active' : '' }}">
+            <i class="bi bi-clipboard2-data"></i> Daily Production
+        </a>
+        <a href="{{ route('packer-packs.index') }}" class="sidebar-link {{ request()->routeIs('packer-packs.*') ? 'active' : '' }}">
+            <i class="bi bi-box-seam"></i> Packers Report
         </a>
 
         <div class="sidebar-section">Distribution</div>

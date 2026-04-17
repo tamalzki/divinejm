@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\BranchCustomer;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleRecordHistory;
@@ -452,10 +453,22 @@ class SaleController extends Controller
     // ──────────────────────────────────────────────────────────────────
     public function getCustomers(Branch $branch)
     {
-        $customers = Sale::where('branch_id', $branch->id)
+        $fromBranch = BranchCustomer::query()
+            ->where('branch_id', $branch->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name');
+
+        $fromSales = Sale::query()
+            ->where('branch_id', $branch->id)
             ->distinct()
-            ->orderBy('customer_name')
             ->pluck('customer_name');
+
+        $customers = $fromBranch
+            ->merge($fromSales)
+            ->unique()
+            ->sort()
+            ->values();
 
         return response()->json(['customers' => $customers]);
     }

@@ -26,7 +26,7 @@ class ExpenseController extends Controller
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
             'expense_date' => 'required|date',
-            'payment_method' => 'required|in:cash,card,bank_transfer',
+            'payment_method' => 'required|in:cash,card,bank_transfer,check,other',
             'notes' => 'nullable|string',
         ]);
 
@@ -53,7 +53,7 @@ class ExpenseController extends Controller
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
             'expense_date' => 'required|date',
-            'payment_method' => 'required|in:cash,card,bank_transfer',
+            'payment_method' => 'required|in:cash,card,bank_transfer,check,other',
             'notes' => 'nullable|string',
         ]);
 

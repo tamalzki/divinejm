@@ -7,11 +7,30 @@ use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $expenses = Expense::orderBy('expense_date', 'desc')->paginate(15);
+        $search = trim((string) $request->input('search', ''));
 
-        return view('expenses.index', compact('expenses'));
+        $expensesQuery = Expense::query();
+
+        if ($search !== '') {
+            $expensesQuery->where(function ($query) use ($search) {
+                $query->where('description', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%")
+                    ->orWhere('payment_method', 'like', "%{$search}%");
+            });
+        }
+
+        $expenses = $expensesQuery
+            ->orderBy('expense_date', 'desc')
+            ->paginate(15)
+            ->withQueryString();
+
+        $monthTotal = Expense::whereBetween('expense_date', [now()->startOfMonth(), now()->endOfMonth()])->sum('amount');
+        $todayTotal = Expense::whereDate('expense_date', now()->toDateString())->sum('amount');
+        $totalRecords = Expense::count();
+
+        return view('expenses.index', compact('expenses', 'search', 'monthTotal', 'todayTotal', 'totalRecords'));
     }
 
     public function create()

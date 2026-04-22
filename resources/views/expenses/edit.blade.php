@@ -26,6 +26,7 @@
                         <option value="utilities" {{ old('category', $expense->category) == 'utilities' ? 'selected' : '' }}>Utilities</option>
                         <option value="salary" {{ old('category', $expense->category) == 'salary' ? 'selected' : '' }}>Salary</option>
                         <option value="rent" {{ old('category', $expense->category) == 'rent' ? 'selected' : '' }}>Rent</option>
+                        <option value="gas_for_oven" {{ old('category', $expense->category) == 'gas_for_oven' ? 'selected' : '' }}>Gas for Oven</option>
                         <option value="transportation" {{ old('category', $expense->category) == 'transportation' ? 'selected' : '' }}>Transportation</option>
                         <option value="marketing" {{ old('category', $expense->category) == 'marketing' ? 'selected' : '' }}>Marketing</option>
                         <option value="maintenance" {{ old('category', $expense->category) == 'maintenance' ? 'selected' : '' }}>Maintenance</option>

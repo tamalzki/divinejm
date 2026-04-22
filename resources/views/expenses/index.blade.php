@@ -27,11 +27,11 @@
                 <tbody>
                     @forelse($expenses as $expense)
                     <tr>
-                        <td><span class="badge bg-secondary">{{ ucfirst($expense->category) }}</span></td>
+                        <td><span class="badge bg-secondary">{{ ucwords(str_replace('_', ' ', $expense->category)) }}</span></td>
                         <td class="fw-bold">{{ $expense->description }}</td>
                         <td class="text-danger fw-bold">₱{{ number_format($expense->amount, 2) }}</td>
                         <td>
-                            <span class="badge bg-info">{{ ucfirst(str_replace('_', ' ', $expense->payment_method)) }}</span>
+                            <span class="badge bg-info">{{ ucwords(str_replace('_', ' ', $expense->payment_method)) }}</span>
                         </td>
                         <td>{{ $expense->expense_date->format('M d, Y') }}</td>
                         <td>

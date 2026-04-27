@@ -14,5 +14,6 @@ return [
         'Liza',
         'Joy',
         'Neneng',
+        'Others',
     ],
 ];

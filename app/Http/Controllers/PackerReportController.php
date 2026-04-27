@@ -6,6 +6,7 @@ use App\Models\DailyProductionEntry;
 use App\Models\FinishedProduct;
 use App\Models\PackerPack;
 use App\Models\PackerReport;
+use App\Models\PackerSessionLog;
 use App\Services\ProductionPackingSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -53,6 +54,8 @@ class PackerReportController extends Controller
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString();
+
+        $reports->load('dailyProductionReport');
 
         return view('packer-packs.index', compact('reports'));
     }
@@ -160,6 +163,11 @@ class PackerReportController extends Controller
                 ->with('error', 'No packer columns available. Add config/packers.php names or restore packer data.');
         }
 
+        // Production-linked mode: show the combined daily production + packer grid
+        if ($packerReport->daily_production_report_id) {
+            return $this->productionLinkedSheet($packerReport, $packerNames);
+        }
+
         $products = FinishedProduct::orderBy('name')->get();
 
         $packs = $packerReport->packs()->get();
@@ -185,6 +193,42 @@ class PackerReportController extends Controller
         ]);
     }
 
+    protected function productionLinkedSheet(PackerReport $packerReport, array $packerNames): \Illuminate\View\View
+    {
+        $dailyReport = $packerReport->dailyProductionReport()->with('entries.finishedProduct')->first();
+
+        // Build entries keyed by finished_product_id
+        $entriesByProduct = collect();
+        if ($dailyReport) {
+            $entriesByProduct = $dailyReport->entries->keyBy('finished_product_id');
+        }
+
+        // Products in THIS production only (ordered by name)
+        $productIds = $entriesByProduct->keys()->all();
+        $products = FinishedProduct::whereIn('id', $productIds)->orderBy('name')->get();
+
+        // Matrix is always empty (zeros) — user enters NEW incremental quantities each session
+        $matrix = [];
+        foreach ($products as $p) {
+            $matrix[$p->id] = array_fill_keys($packerNames, '');
+        }
+
+        // Session history for this report
+        $sessionLogs = $packerReport->sessionLogs()->with('savedBy')->get();
+
+        return view('packer-packs.production-grid', [
+            'report'           => $packerReport,
+            'dailyReport'      => $dailyReport,
+            'products'         => $products,
+            'entriesByProduct' => $entriesByProduct,
+            'packerNames'      => $packerNames,
+            'matrix'           => $matrix,
+            'sessionLogs'      => $sessionLogs,
+            'defaultPackDate'  => $packerReport->pack_date->format('Y-m-d'),
+            'defaultExpirationDate' => $packerReport->expiration_date?->format('Y-m-d') ?? $packerReport->pack_date->copy()->addDays(2)->format('Y-m-d'),
+        ]);
+    }
+
     public function saveSheet(Request $request, PackerReport $packerReport)
     {
         $packerNames = $this->packerColumnNames($packerReport);
@@ -205,6 +249,11 @@ class PackerReportController extends Controller
             'expiration_date.required' => 'Expiration date is required.',
             'expiration_date.after_or_equal' => 'Expiration must be on or after the pack date.',
         ]);
+
+        // Production-linked: additive mode — each save increments existing packs
+        if ($packerReport->daily_production_report_id) {
+            return $this->saveSheetAdditive($request, $packerReport, $packerNames);
+        }
 
         $packDate = Carbon::parse($request->pack_date)->format('Y-m-d');
         $expirationDate = Carbon::parse($request->expiration_date)->format('Y-m-d');
@@ -238,11 +287,36 @@ class PackerReportController extends Controller
                 $this->productionPackingSyncService->sync($affectedProductIds);
             }
 
+            // Append a session log snapshot so history is preserved
+            if ($normalized !== []) {
+                $products = FinishedProduct::whereIn('id', array_unique(array_map(fn ($r) => $r['finished_product_id'], $normalized)))->pluck('name', 'id');
+                $snapshot = array_map(fn ($r) => [
+                    'finished_product_id' => $r['finished_product_id'],
+                    'product_name'        => $products[$r['finished_product_id']] ?? '—',
+                    'packer_name'         => $r['packer_name'],
+                    'quantity'            => $r['quantity'],
+                ], $normalized);
+
+                PackerSessionLog::create([
+                    'packer_report_id' => $packerReport->id,
+                    'snapshot'         => $snapshot,
+                    'saved_by'         => Auth::id(),
+                    'notes'            => $request->input('notes'),
+                ]);
+            }
+
             DB::commit();
 
             $msg = $normalized === []
                 ? 'Report updated — quantities cleared. Stock was adjusted back.'
                 : 'Report updated. '.count($normalized).' cell(s) saved; inventory and daily production balances adjusted.';
+
+            // Redirect back to the production-linked sheet if applicable
+            if ($packerReport->daily_production_report_id) {
+                return redirect()
+                    ->route('packer-packs.sheet', $packerReport)
+                    ->with('success', $msg);
+            }
 
             return redirect()
                 ->route('packer-packs.index')
@@ -254,6 +328,112 @@ class PackerReportController extends Controller
             return back()
                 ->withInput()
                 ->with('error', 'Could not save the packers sheet.');
+        }
+    }
+
+    /**
+     * Additive save for production-linked packer sheets.
+     * Each save increments existing packs (not replaces) and logs a snapshot.
+     */
+    protected function saveSheetAdditive(Request $request, PackerReport $packerReport, array $packerNames): \Illuminate\Http\RedirectResponse
+    {
+        $packDate       = Carbon::parse($request->pack_date)->format('Y-m-d');
+        $expirationDate = Carbon::parse($request->expiration_date)->format('Y-m-d');
+        $cells          = $request->input('cells', []);
+
+        // Only products belonging to this day's daily production
+        $dailyReport    = $packerReport->dailyProductionReport()->with('entries')->first();
+        $productIds     = $dailyReport ? $dailyReport->entries->pluck('finished_product_id')->all() : [];
+        $products       = FinishedProduct::whereIn('id', $productIds)->get()->keyBy('id');
+
+        $normalized = $this->normalizeCellQuantities($cells, $products, $packerNames);
+
+        if ($normalized === []) {
+            return redirect()
+                ->route('packer-packs.sheet', $packerReport)
+                ->with('error', 'No quantities entered. Please fill in at least one packer cell before saving.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $packerReport->update([
+                'pack_date'       => $packDate,
+                'expiration_date' => $expirationDate,
+            ]);
+
+            $affectedProductIds = [];
+
+            foreach ($normalized as $row) {
+                $pid         = (int) $row['finished_product_id'];
+                $packerName  = $row['packer_name'];
+                $increment   = (float) $row['quantity'];
+
+                // Increment or create the pack row
+                $existingPack = PackerPack::where('packer_report_id', $packerReport->id)
+                    ->where('finished_product_id', $pid)
+                    ->where('packer_name', $packerName)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existingPack) {
+                    $existingPack->quantity = round((float) $existingPack->quantity + $increment, 2);
+                    $existingPack->save();
+                } else {
+                    PackerPack::create([
+                        'packer_report_id'    => $packerReport->id,
+                        'finished_product_id' => $pid,
+                        'packer_name'         => $packerName,
+                        'quantity'            => $increment,
+                        'user_id'             => Auth::id(),
+                    ]);
+                }
+
+                // Apply increment directly to finished-product stock
+                $product = FinishedProduct::whereKey($pid)->lockForUpdate()->first();
+                if ($product) {
+                    $product->stock_on_hand = round((float) $product->stock_on_hand + $increment, 4);
+                    $product->save();
+                }
+
+                $affectedProductIds[] = $pid;
+            }
+
+            $affectedProductIds = array_values(array_unique($affectedProductIds));
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
+
+            // Log this session snapshot (records increments, not totals)
+            $productNames = FinishedProduct::whereIn('id', $affectedProductIds)->pluck('name', 'id');
+            $snapshot = array_map(fn ($r) => [
+                'finished_product_id' => $r['finished_product_id'],
+                'product_name'        => $productNames[$r['finished_product_id']] ?? '—',
+                'packer_name'         => $r['packer_name'],
+                'quantity'            => $r['quantity'],
+            ], $normalized);
+
+            PackerSessionLog::create([
+                'packer_report_id' => $packerReport->id,
+                'snapshot'         => $snapshot,
+                'saved_by'         => Auth::id(),
+                'notes'            => $request->input('notes'),
+            ]);
+
+            DB::commit();
+
+            $totalQty = array_sum(array_column($normalized, 'quantity'));
+
+            return redirect()
+                ->route('packer-packs.sheet', $packerReport)
+                ->with('success', 'Packing updated — '.number_format($totalQty).' packs added across '.count($normalized).' cell(s). History logged.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            report($e);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Could not save packing update.');
         }
     }
 

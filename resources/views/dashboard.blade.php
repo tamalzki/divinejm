@@ -124,6 +124,19 @@
     }
     .dash-quick a:hover { background:var(--accent-faint); border-color:var(--accent); color:var(--accent); }
 
+    .unpack-strip {
+        display:flex; flex-wrap:wrap; align-items:center; gap:.5rem .75rem;
+        padding:.5rem .85rem; margin-bottom:.75rem; border-radius:var(--radius);
+        border:1px solid #fcd34d; background:linear-gradient(90deg,#fffbeb,#fff7ed);
+        font-size:.74rem; color:#92400e;
+    }
+    .unpack-strip strong { color:#78350f; }
+    .unpack-strip .strip-actions { margin-left:auto; display:flex; flex-wrap:wrap; gap:.35rem; }
+    .unpack-strip a { font-size:.68rem; font-weight:700; color:#b45309; text-decoration:none; }
+    .unpack-strip a:hover { text-decoration:underline; }
+    .unpack-strip.alert-stale { border-color:#fca5a5; background:linear-gradient(90deg,#fef2f2,#fff1f2); color:#9b1c1c; }
+    .unpack-strip.alert-stale strong { color:#7f1d1d; }
+
     @media (max-width: 992px) {
         .kpi-grid-4 { grid-template-columns:repeat(2,1fr); }
     }
@@ -145,8 +158,26 @@
     </div>
 </div>
 
+@if($packingUnpackedProductCount > 0)
+<div class="unpack-strip {{ $packingOver24hCount > 0 ? 'alert-stale' : '' }} no-print">
+    <i class="bi bi-box-seam" style="font-size:1rem;opacity:.7"></i>
+    <span>
+        <strong>{{ $packingUnpackedProductCount }} product{{ $packingUnpackedProductCount !== 1 ? 's' : '' }}</strong>
+        still have unpacked daily production (not yet fully packed to stock).
+        @if($packingOver24hCount > 0)
+            <strong class="ms-1">{{ $packingOver24hCount }}</strong> of them open for <strong>over 24 hours</strong> — please prioritize packing.
+        @endif
+    </span>
+    <span class="strip-actions">
+        <a href="{{ route('daily-production.index') }}"><i class="bi bi-clipboard2-data me-1"></i>Daily Production</a>
+        <span style="opacity:.4">·</span>
+        <a href="{{ route('packer-packs.index') }}"><i class="bi bi-people-fill me-1"></i>Packers</a>
+    </span>
+</div>
+@endif
+
 {{-- ══ CRITICAL ALERTS BANNER ══ --}}
-@if($overdueReceivables->count() > 0 || $outOfStockProducts->count() > 0 || $expiringProducts->count() > 0 || $recentBadOrders->count() > 0)
+@if($overdueReceivables->count() > 0 || $outOfStockProducts->count() > 0 || $expiringProducts->count() > 0 || $recentBadOrders->count() > 0 || $packingUnpackedProductCount > 0)
 <div class="alert-banner" id="alertBanner">
     <div class="alert-banner-head">
         <div class="alert-banner-title">
@@ -176,6 +207,15 @@
         @if($recentBadOrders->count() > 0)
         <div class="alert-chip" onclick="toggleAlert('al-bo')">
             <i class="bi bi-x-circle"></i> {{ $recentBadOrders->sum('total_bo') }} Bad Orders
+        </div>
+        @endif
+        @if($packingUnpackedProductCount > 0)
+        <div class="alert-chip" onclick="toggleAlert('al-unpacked')">
+            <i class="bi bi-box-seam"></i>
+            {{ $packingUnpackedProductCount }} product{{ $packingUnpackedProductCount !== 1 ? 's' : '' }} with unpacked production
+            @if($packingOver24hCount > 0)
+                <span style="margin-left:.2rem;font-weight:800">· {{ $packingOver24hCount }} over 24h</span>
+            @endif
         </div>
         @endif
     </div>
@@ -225,6 +265,49 @@
             <span class="pill pill-amber">{{ $p->days_until_expiry }}d left</span>
         </div>
         @endforeach
+    </div>
+    @endif
+
+    @if($packingUnpackedProductCount > 0)
+    <div class="alert-detail" id="al-unpacked">
+        <p class="mb-2" style="font-size:.72rem;color:var(--text-secondary)">
+            From Daily Production — items still waiting to be packed into finished stock. Open the linked Packers report from <strong>Daily Production</strong>.
+        </p>
+        @if($packingOver24hCount > 0)
+        <p class="mb-2" style="font-size:.72rem;font-weight:700;color:#9b1c1c">
+            <i class="bi bi-alarm-fill me-1"></i>{{ $packingOver24hCount }} line(s) open for more than 24 hours since production day.
+        </p>
+        @endif
+        <table class="dt" style="font-size:.71rem">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="tr">Remaining</th>
+                    <th class="tc">Oldest production</th>
+                    <th class="tc">Hours open</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($packingQueue as $row)
+                <tr>
+                    <td style="font-weight:600">{{ $row->product_name }}</td>
+                    <td class="tr" style="font-weight:700;color:var(--accent)">{{ number_format($row->remaining_display, 0) }} {{ $row->remaining_unit }}</td>
+                    <td class="tc">{{ $row->oldest_production_date->format('M j, Y') }}</td>
+                    <td class="tc">
+                        @if($row->is_over_24h)
+                            <span class="pill pill-red">{{ (int) $row->hours_open }}h</span>
+                        @else
+                            <span class="pill pill-amber">{{ (int) $row->hours_open }}h</span>
+                        @endif
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        <div class="mt-2">
+            <a href="{{ route('daily-production.index') }}" class="btn-sm-amber" style="display:inline-block"><i class="bi bi-clipboard2-data me-1"></i>Daily Production</a>
+            <a href="{{ route('packer-packs.index') }}" class="btn-sm-blue ms-1" style="display:inline-block"><i class="bi bi-people-fill me-1"></i>Packers Report</a>
+        </div>
     </div>
     @endif
 
@@ -407,7 +490,7 @@
             <a href="{{ route('daily-production.create') }}" class="btn-sm-amber">
                 <i class="bi bi-clipboard2-data me-1"></i>Daily Production
             </a>
-            <a href="{{ route('packer-packs.create') }}" class="btn-sm-amber" style="background:var(--brand-deep)">
+            <a href="{{ route('packer-packs.index') }}" class="btn-sm-amber" style="background:var(--brand-deep)">
                 <i class="bi bi-box-seam me-1"></i>Packers Report
             </a>
         </div>
@@ -424,8 +507,8 @@
         <span style="font-size:.62rem;opacity:.7;text-transform:none;letter-spacing:0">Compare production date vs latest pack date</span>
     </div>
     <div style="padding:.55rem .85rem; border-bottom:1px solid var(--border); background:var(--bg-page); display:flex; flex-wrap:wrap; gap:.45rem; align-items:center;">
-        <span class="pill pill-red">{{ $packingOverdueCount }} overdue</span>
-        <span class="pill pill-amber">{{ $packingDueTodayCount }} due today</span>
+        <span class="pill pill-red">{{ $packingOver24hCount }} open &gt;24h</span>
+        <span class="pill pill-amber">{{ $packingDueTodayCount }} from today</span>
         <span class="pill pill-blue">{{ number_format($packingTotalPcs, 0) }} pcs remaining</span>
         <span class="pill pill-purple">{{ number_format($packingTotalGrams, 0) }} g remaining</span>
     </div>
@@ -438,6 +521,7 @@
                     <th class="tr">Remaining</th>
                     <th class="tc">Oldest production</th>
                     <th class="tc">Latest pack</th>
+                    <th class="tc">Open</th>
                     <th class="tc">Status</th>
                 </tr>
             </thead>
@@ -450,7 +534,7 @@
                     </td>
                     <td class="tc">
                         {{ $row->oldest_production_date->format('M j, Y') }}
-                        <div style="font-size:.62rem;color:var(--text-muted)">{{ $row->days_waiting }}d waiting</div>
+                        <div style="font-size:.62rem;color:var(--text-muted)">{{ $row->days_waiting }}d since prod. day</div>
                     </td>
                     <td class="tc">
                         @if($row->last_pack_date)
@@ -459,13 +543,14 @@
                             <span style="color:var(--text-muted)">No pack yet</span>
                         @endif
                     </td>
+                    <td class="tc" style="font-variant-numeric:tabular-nums;font-weight:600">{{ (int) $row->hours_open }}h</td>
                     <td class="tc">
-                        @if($row->is_overdue)
-                            <span class="queue-badge overdue"><i class="bi bi-exclamation-triangle-fill"></i>Overdue</span>
+                        @if($row->is_over_24h)
+                            <span class="queue-badge overdue" title="Unpacked for more than 24 hours"><i class="bi bi-alarm-fill"></i>&gt;24h</span>
                         @elseif($row->is_due_today)
-                            <span class="queue-badge today"><i class="bi bi-calendar-check"></i>Due today</span>
+                            <span class="queue-badge today"><i class="bi bi-calendar-check"></i>Today</span>
                         @else
-                            <span class="queue-badge waiting"><i class="bi bi-hourglass-split"></i>Queued</span>
+                            <span class="queue-badge waiting"><i class="bi bi-hourglass-split"></i>&lt;24h</span>
                         @endif
                     </td>
                 </tr>
@@ -480,7 +565,7 @@
         <a href="{{ route('daily-production.index') }}" class="btn-sm-amber">
             <i class="bi bi-clipboard2-data me-1"></i>Daily Production
         </a>
-        <a href="{{ route('packer-packs.create') }}" class="btn-sm-blue">
+        <a href="{{ route('packer-packs.index') }}" class="btn-sm-blue">
             <i class="bi bi-box-seam me-1"></i>Packers Report
         </a>
     </div>

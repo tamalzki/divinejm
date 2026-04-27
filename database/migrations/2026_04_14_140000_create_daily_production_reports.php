@@ -51,7 +51,9 @@ return new class extends Migration
             throw new \RuntimeException('daily_production_entries has rows without daily_production_report_id after backfill.');
         }
 
-        DB::statement('ALTER TABLE daily_production_entries MODIFY daily_production_report_id BIGINT UNSIGNED NOT NULL');
+        if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE daily_production_entries MODIFY daily_production_report_id BIGINT UNSIGNED NOT NULL');
+        }
 
         Schema::table('daily_production_entries', function (Blueprint $table) {
             $table->unique(['daily_production_report_id', 'finished_product_id'], 'dp_entries_report_product_uq');

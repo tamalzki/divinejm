@@ -32,6 +32,12 @@
 
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); font-size:.82rem; }
     .stat-chip { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; color:var(--text-muted); }
+    .summary-bar { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+    .sum-tile { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:.7rem .9rem; }
+    .sum-tile-label { font-size:.62rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); display:block; margin-bottom:.2rem; }
+    .sum-tile-value { font-size:.95rem; font-weight:700; color:var(--text-primary); }
+    .sum-tile-value.red { color:var(--s-danger-text); }
+    .sum-tile-value.green { color:var(--s-success-text); }
 </style>
 
 {{-- Page header --}}
@@ -45,6 +51,29 @@
     <div class="dj-search-wrap">
         <i class="bi bi-search dj-search-icon"></i>
         <input type="text" id="searchInput" class="dj-search-input" placeholder="Search customer, DR#..." autocomplete="off" value="{{ $search ?? '' }}">
+    </div>
+</div>
+
+<div class="summary-bar">
+    <div class="sum-tile">
+        <span class="sum-tile-label">Total Sales</span>
+        <span class="sum-tile-value green">&#8369;{{ number_format($summary['total_sales'] ?? 0, 2) }}</span>
+    </div>
+    <div class="sum-tile">
+        <span class="sum-tile-label">Receivable Balance</span>
+        <span class="sum-tile-value red">&#8369;{{ number_format($summary['total_balance'] ?? 0, 2) }}</span>
+    </div>
+    <div class="sum-tile">
+        <span class="sum-tile-label">Total DRs</span>
+        <span class="sum-tile-value">{{ number_format($summary['total_drs'] ?? 0) }}</span>
+    </div>
+    <div class="sum-tile">
+        <span class="sum-tile-label">Customers</span>
+        <span class="sum-tile-value">{{ number_format($summary['total_customers'] ?? 0) }}</span>
+    </div>
+    <div class="sum-tile">
+        <span class="sum-tile-label">Qty Sold</span>
+        <span class="sum-tile-value">{{ number_format($summary['total_sold_qty'] ?? 0, 2) }}</span>
     </div>
 </div>
 

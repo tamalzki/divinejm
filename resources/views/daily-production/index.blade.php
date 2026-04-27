@@ -7,7 +7,7 @@
     .dp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden; }
     .dp-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
     .dp-table thead th {
-        background: var(--brand-deep); color: rgba(255,255,255,.88);
+        background: #1e4d8c; color: rgba(255,255,255,.92);
         font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
         padding: .5rem .65rem; white-space: nowrap; border: none;
     }
@@ -24,6 +24,13 @@
         padding: .22rem .55rem; background: var(--accent); color: #fff;
         border-radius: 5px; font-size: .72rem; font-weight: 600; text-decoration: none !important;
     }
+    .btn-packer {
+        display: inline-flex; align-items: center; gap: .2rem;
+        padding: .22rem .55rem; background: #16a34a; color: #fff;
+        border-radius: 5px; font-size: .72rem; font-weight: 600; text-decoration: none !important;
+    }
+    .btn-packer:hover { background: #15803d; color: #fff; }
+    .unpacked-warn { display:inline-block; padding:.08rem .4rem; border-radius:20px; font-size:.62rem; font-weight:700; background:#fef9c3; color:#92400e; }
     .btn-del {
         padding: .22rem .45rem; font-size: .7rem; border-radius: 5px;
         background: var(--s-danger-bg); color: var(--s-danger-text);
@@ -104,6 +111,14 @@
                         </td>
                         <td class="text-end text-nowrap">
                             <a href="{{ route('daily-production.sheet', $r) }}" class="btn-open">Update</a>
+                            @if($r->packerReport)
+                                <a href="{{ route('packer-packs.sheet', $r->packerReport) }}" class="btn-packer ms-1">
+                                    <i class="bi bi-people-fill"></i> Packers
+                                    @if($totUnpacked > 0)
+                                        <span class="unpacked-warn ms-1">{{ number_format($totUnpacked,0) }} left</span>
+                                    @endif
+                                </a>
+                            @endif
                             <button type="button" class="btn-del ms-1" onclick="confirmDel({{ $r->id }})">Delete</button>
                         </td>
                     </tr>

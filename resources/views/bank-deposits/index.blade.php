@@ -39,6 +39,12 @@
     .pill-cheque  { background:#ede9fe; color:#5b21b6; }
     .pill-bank    { background:#cffafe; color:#155e75; }
     .pill-other   { background:var(--s-warning-bg); color:var(--s-warning-text); }
+    .pill-check-dep { background:#f3e8ff; color:#7c3aed; }
+    .pill-cash-dep  { background:#dcfce7; color:#15622e; }
+
+    .check-exp-card { background:var(--bg-card); border:2px solid #ddd6fe; border-radius:var(--radius); overflow:hidden; margin-bottom:1rem; }
+    .check-exp-header { padding:.55rem 1rem; background:#f5f3ff; border-bottom:1px solid #ddd6fe; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+    .check-exp-title { font-size:.78rem; font-weight:700; color:#5b21b6; display:flex; align-items:center; gap:.4rem; }
 
     .btn-new { display:inline-flex; align-items:center; gap:.3rem; font-size:.78rem; font-weight:600; padding:.32rem .9rem; border-radius:5px; background:var(--accent); color:#fff; border:none; text-decoration:none; }
     .btn-new:hover { background:var(--accent-hover); color:#fff; }
@@ -103,6 +109,53 @@
     </div>
 </div>
 
+{{-- Check Expenses Panel --}}
+@if($checkExpenses->count())
+<div class="check-exp-card">
+    <div class="check-exp-header">
+        <span class="check-exp-title">
+            <i class="bi bi-file-earmark-check"></i> Check Expenses to Deposit
+        </span>
+        <span style="font-size:.72rem;color:#7c3aed;font-weight:700">
+            Total: &#8369;{{ number_format($totalCheckExpenses, 2) }}
+        </span>
+    </div>
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th class="text-center">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach($checkExpenses as $exp)
+            <tr>
+                <td style="font-size:.77rem;color:var(--text-secondary);white-space:nowrap">
+                    {{ $exp->expense_date->format('M d, Y') }}
+                </td>
+                <td>{{ ucwords(str_replace('_', ' ', $exp->category)) }}</td>
+                <td style="font-weight:600">{{ $exp->description }}</td>
+                <td class="text-end" style="font-weight:700;color:#7c3aed">
+                    &#8369;{{ number_format($exp->amount, 2) }}
+                </td>
+                <td class="text-center">
+                    <a href="{{ route('bank-deposits.create') }}?type=check_deposit&expense_id={{ $exp->id }}"
+                       class="btn-edit" style="border-color:#7c3aed;color:#7c3aed">
+                        <i class="bi bi-bank"></i> Deposit
+                    </a>
+                </td>
+            </tr>
+            @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
 {{-- Deposits table --}}
 <div class="dj-card">
     <div class="dj-card-header">
@@ -118,8 +171,9 @@
             <thead>
                 <tr>
                     <th>Date</th>
+                    <th>Type</th>
                     <th>Bank</th>
-                    <th>Notes</th>
+                    <th>Source / Notes</th>
                     <th class="text-end">Amount</th>
                     <th class="text-center">Actions</th>
                 </tr>
@@ -130,8 +184,24 @@
                 <td style="white-space:nowrap;font-size:.77rem;color:var(--text-secondary)">
                     {{ $deposit->deposit_date->format('M d, Y') }}
                 </td>
+                <td>
+                    @if($deposit->deposit_type === 'check_deposit')
+                        <span class="pill pill-check-dep"><i class="bi bi-file-earmark-text me-1"></i>Check</span>
+                    @else
+                        <span class="pill pill-cash-dep"><i class="bi bi-cash me-1"></i>Cash</span>
+                    @endif
+                </td>
                 <td style="font-weight:600">{{ $deposit->bank_name }}</td>
-                <td style="font-size:.76rem;color:var(--text-muted)">{{ $deposit->notes ?? '—' }}</td>
+                <td style="font-size:.76rem;color:var(--text-muted)">
+                    @if($deposit->expense)
+                        <span style="color:var(--text-primary);font-weight:600">{{ $deposit->expense->description }}</span>
+                        <span class="ms-1" style="color:var(--text-muted)">· {{ $deposit->expense->expense_date->format('M d, Y') }}</span>
+                    @elseif($deposit->source_type === 'sales')
+                        <span>Cash from sales</span>
+                    @else
+                        {{ $deposit->notes ?? '—' }}
+                    @endif
+                </td>
                 <td class="text-end" style="font-weight:700;color:var(--s-success-text)">
                     &#8369;{{ number_format($deposit->amount, 2) }}
                 </td>
@@ -152,13 +222,13 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="5" class="empty-state">No deposits recorded yet.</td></tr>
+            <tr><td colspan="6" class="empty-state">No deposits recorded yet.</td></tr>
             @endforelse
             </tbody>
             @if($deposits->count())
             <tfoot>
                 <tr>
-                    <td colspan="3" class="text-end">Total Deposited</td>
+                    <td colspan="4" class="text-end">Total Deposited</td>
                     <td class="text-end">&#8369;{{ number_format($totalDeposited, 2) }}</td>
                     <td></td>
                 </tr>

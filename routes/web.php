@@ -5,16 +5,20 @@ use App\Http\Controllers\BankDepositController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchInventoryController;
 use App\Http\Controllers\DailyProductionController;
+use App\Http\Controllers\DailyProductionReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeliveryReportController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\FinishedProductController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\PackerReportController;
+use App\Http\Controllers\PerformanceReportController;
 use App\Http\Controllers\ProductionMixController;
 use App\Http\Controllers\ProductionReportController;
 use App\Http\Controllers\RawMaterialController;
+use App\Http\Controllers\RawMaterialCostingReportController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
@@ -94,6 +98,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/production', [ProductionReportController::class, 'index'])->name('reports.production');
     Route::get('/reports/inventory', [InventoryReportController::class, 'index'])->name('reports.inventory');
     Route::get('/reports/sales', [SalesReportController::class, 'index'])->name('reports.sales');
+    Route::get('/reports/performance', [PerformanceReportController::class, 'index'])->name('reports.performance');
+    Route::get('/reports/daily-production', [DailyProductionReportController::class, 'index'])->name('reports.daily-production');
+    Route::get('/reports/raw-material-costing', [RawMaterialCostingReportController::class, 'index'])->name('reports.raw-material-costing');
+    Route::get('/reports/delivery', [DeliveryReportController::class, 'index'])->name('reports.delivery');
 
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])
         ->name('financial-reports.index');

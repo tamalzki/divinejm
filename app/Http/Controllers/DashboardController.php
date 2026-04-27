@@ -299,14 +299,19 @@ class DashboardController extends Controller
                 $row->oldest_production_date = $productionDate;
                 $row->last_pack_date = $lastPackDate;
                 $row->days_waiting = $productionDate->diffInDays($today);
-                $row->is_overdue = $productionDate->lt($today);
                 $row->is_due_today = $productionDate->isSameDay($today);
+                // Production date is a calendar day; "open >24h" = at least 24h since start of that day
+                $row->hours_open = $productionDate->copy()->startOfDay()->diffInHours(Carbon::now());
+                $row->is_over_24h = $row->hours_open >= 24;
+                $row->is_overdue = $row->is_over_24h;
 
                 return $row;
             });
 
-        $packingOverdueCount = $packingQueue->where('is_overdue', true)->count();
+        $packingUnpackedProductCount = $packingQueue->count();
+        $packingOver24hCount = $packingQueue->where('is_over_24h', true)->count();
         $packingDueTodayCount = $packingQueue->where('is_due_today', true)->count();
+        $packingOverdueCount = $packingOver24hCount;
         $packingTotalPcs = $packingQueue->where('remaining_unit', 'pcs')->sum('remaining_display');
         $packingTotalGrams = $packingQueue->where('remaining_unit', 'g')->sum('remaining_display');
 
@@ -334,7 +339,8 @@ class DashboardController extends Controller
             'recentSales',
             // Packing queue
             'packingQueue', 'packingOverdueCount', 'packingDueTodayCount',
-            'packingTotalPcs', 'packingTotalGrams'
+            'packingTotalPcs', 'packingTotalGrams',
+            'packingUnpackedProductCount', 'packingOver24hCount',
         ));
     }
 

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PackerReport extends Model
 {
     protected $fillable = [
+        'daily_production_report_id',
         'pack_date',
         'expiration_date',
         'user_id',
@@ -26,5 +27,15 @@ class PackerReport extends Model
     public function packs()
     {
         return $this->hasMany(PackerPack::class);
+    }
+
+    public function dailyProductionReport()
+    {
+        return $this->belongsTo(DailyProductionReport::class);
+    }
+
+    public function sessionLogs()
+    {
+        return $this->hasMany(PackerSessionLog::class)->orderByDesc('created_at');
     }
 }

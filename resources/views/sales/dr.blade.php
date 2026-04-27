@@ -51,6 +51,7 @@
     .field-label span { color:var(--s-danger-text); }
     .field-input { padding:.32rem .6rem; font-size:.80rem; border:1px solid var(--border); border-radius:5px; background:var(--bg-card); color:var(--text-primary); width:100%; }
     .field-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
+    .field-input:disabled { background:var(--bg-page); color:var(--text-muted); cursor:not-allowed; opacity:1; }
     .field-input.is-error { border-color:var(--s-danger-text) !important; background:var(--s-danger-bg); }
     .field-select { padding:.32rem .6rem; font-size:.80rem; border:1px solid var(--border); border-radius:5px; background:var(--bg-card); color:var(--text-primary); width:100%; }
     .field-select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
@@ -147,15 +148,11 @@
             </div>
         </div>
     </div>
-    <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0 d-flex flex-column align-items-end gap-1"
+    <form method="POST" action="{{ route('sales.destroy', $sale->id) }}" class="flex-shrink-0"
           data-dr="{{ $sale->dr_number }}"
           onsubmit="return confirmDestroyDrForm(this);">
         @csrf
         @method('DELETE')
-        <label class="form-check m-0" style="font-size:.62rem;line-height:1.25;max-width:11rem;text-align:right;cursor:pointer">
-            <input type="checkbox" name="orphan_delete" value="1" class="form-check-input" style="float:none;margin:0 .25rem 0 0;vertical-align:middle">
-            <span class="form-check-label">Test/orphan DR — skip inventory undo</span>
-        </label>
         <button type="submit" class="btn-del-dr-h"><i class="bi bi-trash"></i> Delete DR</button>
     </form>
 </div>
@@ -346,7 +343,9 @@
             <div class="pay-grid">
                 <div class="field-group">
                     <label class="field-label">Amount Received <span>*</span></label>
-                    <input type="number" name="amount_paid" id="amountPaid" class="field-input"
+                    <input type="hidden" name="amount_paid" id="amountPaidHidden"
+                           value="{{ old('amount_paid', $sale->amount_paid > 0 ? number_format($sale->amount_paid, 2, '.', '') : '') }}">
+                    <input type="number" id="amountPaid" class="field-input"
                            value="{{ old('amount_paid', $sale->amount_paid > 0 ? number_format($sale->amount_paid, 2, '.', '') : '') }}" step="0.01" min="0" placeholder="0.00">
                     <span class="field-error" id="amountPaidError">Please enter the amount received.</span>
                 </div>
@@ -448,10 +447,7 @@
 <script>
 function confirmDestroyDrForm(form) {
     var dr = form.getAttribute('data-dr') || '';
-    if (form.querySelector('input[name="orphan_delete"]:checked')) {
-        return confirm('ORPHAN / TEST DELETE — DR# ' + dr + '\n\nRemoves this DR from sales only. Warehouse and area stock will NOT be changed.\n\nOnly use if this DR never had a matching delivery in the system.\n\nContinue?');
-    }
-    return confirm('Delete this DR entirely?\n\n• Removes this DR and all sold / BO / payment / less data on it\n• Restores main warehouse, batches, and area stock from delivery movements\n\nContinue only if area still holds enough stock for this delivery, or deletion may error.\n\nContinue?');
+    return confirm('Delete DR# ' + dr + '?\n\nThis will remove this DR and restore warehouse and area stock.\n\nThis cannot be undone. Continue?');
 }
 function recalcRow(itemId, unitPrice) {
     var sold     = parseFloat(document.getElementById('sold-' + itemId).value) || 0;
@@ -484,6 +480,7 @@ function recalcGrandTotal() {
     var total    = Math.max(0, subtotal - less);
     var gtEl     = document.getElementById('grandTotal');
     if (gtEl) gtEl.textContent = '\u20B1' + fmtNum(total);
+    syncAmountPaidMode();
 }
 
 function onTrackingChange(itemId, unitPrice) {
@@ -517,7 +514,26 @@ function togglePaymentFields() {
     var status   = selected ? selected.value : '';
     var payBlock = document.getElementById('paymentInfoBlock');
     if (payBlock) payBlock.style.display = (status === 'to_be_collected' || status === '') ? 'none' : '';
+    syncAmountPaidMode();
     clearErrors();
+}
+
+function syncAmountPaidMode() {
+    var selected = document.querySelector('input[name="payment_status_override"]:checked');
+    var status = selected ? selected.value : '';
+    var amountPaid = document.getElementById('amountPaid');
+    var amountPaidHidden = document.getElementById('amountPaidHidden');
+    var grandTotalText = (document.getElementById('grandTotal') || { textContent: '' }).textContent || '';
+    var grandTotal = parseFloat(grandTotalText.replace(/[^\d.]/g, '')) || 0;
+
+    if (status === 'paid') {
+        amountPaid.value = grandTotal.toFixed(2);
+        amountPaid.disabled = true;
+    } else {
+        amountPaid.disabled = false;
+    }
+
+    amountPaidHidden.value = amountPaid.value || '0';
 }
 
 function clearErrors() {
@@ -538,6 +554,7 @@ function submitForm() {
         errors.push('Payment status is required.');
     }
     var status = selected ? selected.value : '';
+    syncAmountPaidMode();
     if (status === 'paid' || status === 'partial') {
         var ap = document.getElementById('amountPaid');
         var pm = document.getElementById('paymentMode');
@@ -577,6 +594,13 @@ document.addEventListener('DOMContentLoaded', function() {
         el.addEventListener('input', function() { this.classList.remove('is-error'); });
         el.addEventListener('change', function() { this.classList.remove('is-error'); });
     });
+    var amountPaid = document.getElementById('amountPaid');
+    if (amountPaid) {
+        amountPaid.addEventListener('input', function() {
+            var hidden = document.getElementById('amountPaidHidden');
+            if (hidden) hidden.value = amountPaid.value || '0';
+        });
+    }
     recalcGrandTotal();
 });
 

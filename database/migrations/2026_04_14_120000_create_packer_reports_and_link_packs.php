@@ -54,7 +54,10 @@ return new class extends Migration
             throw new \RuntimeException('packer_packs has rows without packer_report_id after backfill.');
         }
 
-        DB::statement('ALTER TABLE packer_packs MODIFY packer_report_id BIGINT UNSIGNED NOT NULL');
+        // MySQL-specific; SQLite tests use :memory: and do not support MODIFY
+        if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE packer_packs MODIFY packer_report_id BIGINT UNSIGNED NOT NULL');
+        }
 
         Schema::table('packer_packs', function (Blueprint $table) {
             $table->unique(['packer_report_id', 'finished_product_id', 'packer_name'], 'packer_packs_report_product_packer_uq');

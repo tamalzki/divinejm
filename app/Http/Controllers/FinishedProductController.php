@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyProductionEntry;
 use App\Models\FinishedProduct;
 use App\Models\ProductRecipe;
 use App\Models\RawMaterial;
@@ -30,6 +31,22 @@ class FinishedProductController extends Controller
         }
 
         $products = $query->paginate(15)->withQueryString();
+
+        $ids = $products->pluck('id')->all();
+        $unpackedByProduct = $ids === []
+            ? collect()
+            : DailyProductionEntry::query()
+                ->whereIn('finished_product_id', $ids)
+                ->where('unpacked', '>', 0)
+                ->groupBy('finished_product_id')
+                ->selectRaw('finished_product_id, SUM(unpacked) as dp_unpacked_sum')
+                ->pluck('dp_unpacked_sum', 'finished_product_id');
+
+        $products->setCollection($products->getCollection()->map(function (FinishedProduct $p) use ($unpackedByProduct) {
+            $p->setAttribute('dp_unpacked_total', (float) ($unpackedByProduct[$p->id] ?? 0));
+
+            return $p;
+        }));
 
         $pendingMixes = \App\Models\ProductionMix::where('status', 'pending')->count();
         $lowStockCount = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')->count();

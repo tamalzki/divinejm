@@ -25,4 +25,9 @@ class DailyProductionReport extends Model
     {
         return $this->hasMany(DailyProductionEntry::class);
     }
+
+    public function packerReport()
+    {
+        return $this->hasOne(PackerReport::class);
+    }
 }

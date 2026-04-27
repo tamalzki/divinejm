@@ -88,6 +88,8 @@
     .qty-ok    { color: var(--s-success-text); }
     .qty-low   { color: var(--s-warning-text); }
     .qty-empty { color: var(--s-danger-text); }
+    .cell-unpacked-dp { font-weight: 700; font-variant-numeric: tabular-nums; font-size: .82rem; color: var(--text-muted); }
+    .cell-unpacked-dp.has-open { color: #b45309; }
 
     mark { background: #fef3b0; color: var(--text-primary); border-radius: 2px; padding: 0 1px; font-style: normal; }
 
@@ -278,6 +280,7 @@
                     <th>Product</th>
                     <th>Type</th>
                     <th class="text-end">Stock</th>
+                    <th class="text-end" title="Pieces still to pack from Daily Production">Unpacked (DP)</th>
                     <th class="text-end">Min Stock</th>
                     <th class="text-center">Last legacy batch</th>
                     <th class="text-center">Actions</th>
@@ -291,6 +294,7 @@
                     $isManufactured = $product->product_type === 'manufactured';
                     $isLow   = $product->stock_on_hand > 0 && $product->stock_on_hand <= $product->minimum_stock;
                     $isEmpty = $product->stock_on_hand == 0;
+                    $dpUnpacked = (float) ($product->dp_unpacked_total ?? 0);
                     $rowClass = $isEmpty ? 'row-danger' : ($isLow ? 'row-warning' : '');
                     $search = request('search');
                 @endphp
@@ -312,6 +316,11 @@
                     <td class="text-end">
                         <span class="cell-qty {{ $isEmpty ? 'qty-empty' : ($isLow ? 'qty-low' : 'qty-ok') }}">
                             {{ number_format($product->stock_on_hand, 0) }}
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <span class="cell-unpacked-dp {{ $dpUnpacked > 0 ? 'has-open' : '' }}" title="Sum of unpacked qty across daily production entries">
+                            {{ $dpUnpacked > 0 ? number_format($dpUnpacked, 0) : '—' }}
                         </span>
                     </td>
                     <td class="text-end" style="color:var(--text-muted)">
@@ -358,7 +367,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="empty-state">
                             <i class="bi bi-{{ request('search') ? 'search' : 'inbox' }}"></i>
                             <p>

@@ -78,7 +78,21 @@ class SaleController extends Controller
             ];
         })->filter(fn ($a) => $a['customers']->count() > 0)->values();
 
-        return view('sales.index', compact('areaData', 'search'));
+        $filteredSales = $branches->flatMap->sales;
+        $saleIds = $filteredSales->pluck('id');
+        $summarySold = $saleIds->isNotEmpty()
+            ? SaleItem::whereIn('sale_id', $saleIds)->sum('quantity_sold')
+            : 0;
+
+        $summary = [
+            'total_sales' => $filteredSales->sum('total_amount'),
+            'total_balance' => $filteredSales->sum('balance'),
+            'total_drs' => $filteredSales->count(),
+            'total_customers' => $areaData->sum(fn ($area) => $area['customers']->count()),
+            'total_sold_qty' => $summarySold,
+        ];
+
+        return view('sales.index', compact('areaData', 'search', 'summary'));
     }
 
     // ──────────────────────────────────────────────────────────────────

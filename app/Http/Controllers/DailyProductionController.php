@@ -6,6 +6,7 @@ use App\Models\DailyProductionEntry;
 use App\Models\DailyProductionIngredient;
 use App\Models\DailyProductionReport;
 use App\Models\FinishedProduct;
+use App\Models\PackerReport;
 use App\Models\RawMaterial;
 use App\Services\ProductionPackingSyncService;
 use App\Support\RawMaterialUnit;
@@ -67,6 +68,9 @@ class DailyProductionController extends Controller
             ->paginate(25)
             ->withQueryString();
 
+        // Eager-load linked PackerReports so the index can show "Update Packing" buttons
+        $reports->load('packerReport');
+
         return view('daily-production.index', compact('reports'));
     }
 
@@ -111,6 +115,17 @@ class DailyProductionController extends Controller
             if ($newProductIds !== []) {
                 $this->productionPackingSyncService->sync($newProductIds);
             }
+
+            // Auto-create a linked PackerReport for this production date
+            PackerReport::firstOrCreate(
+                ['daily_production_report_id' => $report->id],
+                [
+                    'pack_date' => $productionDate,
+                    'expiration_date' => Carbon::parse($productionDate)->addDays(2)->format('Y-m-d'),
+                    'user_id' => Auth::id(),
+                    'notes' => null,
+                ]
+            );
 
             DB::commit();
 
@@ -181,6 +196,22 @@ class DailyProductionController extends Controller
                 $this->productionPackingSyncService->sync($affectedProductIds);
             }
 
+            // Keep the linked PackerReport's pack_date in sync with production_date
+            $linkedPacker = $dailyProductionReport->packerReport;
+            if ($linkedPacker) {
+                $linkedPacker->update(['pack_date' => $productionDate]);
+            } else {
+                PackerReport::firstOrCreate(
+                    ['daily_production_report_id' => $dailyProductionReport->id],
+                    [
+                        'pack_date' => $productionDate,
+                        'expiration_date' => Carbon::parse($productionDate)->addDays(2)->format('Y-m-d'),
+                        'user_id' => Auth::id(),
+                        'notes' => null,
+                    ]
+                );
+            }
+
             DB::commit();
 
             $msg = $toSave === []
@@ -236,7 +267,7 @@ class DailyProductionController extends Controller
             'production_date' => 'required|date',
             'notes' => 'nullable|string|max:500',
             'lines' => 'required|array',
-            'lines.*.number_of_mix' => 'nullable|integer|min:0|max:999',
+            'lines.*.number_of_mix' => 'nullable|numeric|min:0|max:999',
             'lines.*.standard_yield' => 'nullable|numeric|min:0|max:9999999',
             'lines.*.actual_yield' => 'nullable|numeric|min:0|max:9999999',
             'lines.*.rejects' => 'nullable|numeric|min:0|max:9999999',
@@ -256,10 +287,7 @@ class DailyProductionController extends Controller
 
         foreach ($products as $pid => $product) {
             $row = $lines[$pid] ?? [];
-            $mix = (int) ($row['number_of_mix'] ?? 0);
-            if ($mix < 0) {
-                $mix = 0;
-            }
+            $mix = $this->parseNonNegativeDecimal($row['number_of_mix'] ?? null);
             $std = $this->parseNonNegativeDecimal($row['standard_yield'] ?? null);
             $act = $this->parseNonNegativeDecimal($row['actual_yield'] ?? null);
             $rejects = $this->parseNonNegativeDecimal($row['rejects'] ?? null);
@@ -270,8 +298,8 @@ class DailyProductionController extends Controller
                 continue;
             }
 
-            if ($mix < 1) {
-                $errors[] = "{$product->name}: # of mix is required (at least 1) when entering a row.";
+            if ($mix <= 0) {
+                $errors[] = "{$product->name}: # of mix is required (greater than 0) when entering a row.";
 
                 continue;
             }
@@ -283,7 +311,7 @@ class DailyProductionController extends Controller
             }
 
             $toSave[$pid] = [
-                'number_of_mix' => $mix,
+                'number_of_mix' => round($mix, 2),
                 'standard_yield' => $std,
                 'actual_yield' => $act,
                 'rejects' => $rejects,
@@ -386,7 +414,7 @@ class DailyProductionController extends Controller
     /**
      * @return array<int, array{raw_material_id:int, quantity_used:float, input_quantity:float, input_unit:string}>
      */
-    protected function ingredientLinesFromRecipe(FinishedProduct $product, int $numberOfMix): array
+    protected function ingredientLinesFromRecipe(FinishedProduct $product, float $numberOfMix): array
     {
         $lines = [];
 

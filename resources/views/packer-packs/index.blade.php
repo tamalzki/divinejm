@@ -7,7 +7,7 @@
     .pk-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden; }
     .pk-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
     .pk-table thead th {
-        background: var(--brand-deep); color: rgba(255,255,255,.88);
+        background: #166534; color: rgba(255,255,255,.92);
         font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
         padding: .5rem .65rem; white-space: nowrap; border: none;
     }
@@ -38,6 +38,8 @@
     .pk-meta { font-size: .68rem; line-height: 1.35; color: var(--text-secondary); }
     .pk-meta .by { color: var(--text-muted); font-size: .65rem; }
     .pm-search-wide { width: 200px; min-width: 160px; }
+    .dp-link-pill { display:inline-flex; align-items:center; gap:.25rem; padding:.1rem .4rem; border-radius:20px; font-size:.62rem; font-weight:700; background:color-mix(in srgb,var(--accent) 12%,transparent); color:var(--accent); text-decoration:none; }
+    .dp-link-pill:hover { background:color-mix(in srgb,var(--accent) 22%,transparent); }
     .dj-modal-overlay { display: none; position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,.45); align-items: center; justify-content: center; }
     .dj-modal-overlay.show { display: flex; }
     .dj-modal { background: var(--bg-card); border-radius: 10px; padding: 1.5rem; width: 400px; max-width: 95vw; }
@@ -50,9 +52,9 @@
         <h5 class="fw-bold mb-0" style="font-size:.95rem">
             <i class="bi bi-box-seam me-2" style="color:var(--accent)"></i>Packers Report
         </h5>
-        <p class="mb-0" style="font-size:.72rem;color:var(--text-muted)">Each line is one saved report. Use <strong>Update</strong> to edit the grid; new reports return here after you save.</p>
+        <p class="mb-0" style="font-size:.72rem;color:var(--text-muted)">Packer reports are automatically created when a Daily Production is saved. Click <strong>Update</strong> to fill in packer quantities.</p>
     </div>
-    <a href="{{ route('packer-packs.create') }}" class="btn-new"><i class="bi bi-plus-lg"></i> Add packers report</a>
+    <a href="{{ route('daily-production.index') }}" class="btn-new"><i class="bi bi-clipboard2-data me-1"></i> Go to Daily Production</a>
 </div>
 
 {{-- session success / error: partials.flash in layout --}}
@@ -71,6 +73,7 @@
             <thead>
                 <tr>
                     <th>Pack date</th>
+                    <th>Source</th>
                     <th class="text-end">Products</th>
                     <th class="text-end">Total packs</th>
                     <th>Expires</th>
@@ -110,6 +113,16 @@
                     @endphp
                     <tr>
                         <td class="fw-semibold">{{ $r->pack_date->format('M j, Y') }}</td>
+                        <td>
+                            @if($r->daily_production_report_id)
+                                <a href="{{ route('packer-packs.sheet', $r) }}" class="dp-link-pill">
+                                    <i class="bi bi-clipboard2-data"></i>
+                                    DP #{{ $r->daily_production_report_id }}
+                                </a>
+                            @else
+                                <span class="text-muted" style="font-size:.68rem">Manual</span>
+                            @endif
+                        </td>
                         <td class="text-end">{{ $prodCount }}</td>
                         <td class="text-end">{{ number_format($totalPacks, 0) }}</td>
                         <td>
@@ -139,9 +152,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted" style="font-size:.82rem">
-                            No packers reports yet.
-                            <a href="{{ route('packer-packs.create') }}" style="color:var(--accent)">Add packers report</a>
+                        <td colspan="8" class="text-center py-4 text-muted" style="font-size:.82rem">
+                            No packers reports yet. Packer reports are auto-created when you save a Daily Production.
+                            <a href="{{ route('daily-production.index') }}" style="color:var(--accent)">Go to Daily Production</a>
                         </td>
                     </tr>
                 @endforelse

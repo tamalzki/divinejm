@@ -20,6 +20,10 @@
     .rpt-card.t-c::before { background:#0891b2; }
     .rpt-card.t-e::before { background:#dc2626; }
     .rpt-card.t-p::before { background:#7c3aed; }
+    .rpt-card.t-y::before { background:#f59e0b; }
+    .rpt-card.t-teal::before { background:#0d9488; }
+    .rpt-card.t-orange::before { background:#ea580c; }
+    .rpt-card.t-truck::before { background:#0891b2; }
     .rpt-card:hover {
         border-color:var(--accent); box-shadow:0 4px 14px rgba(59,91,219,.12); transform:translateY(-1px);
     }
@@ -63,6 +67,30 @@
         <span class="rpt-card-icon"><i class="bi bi-gear-wide-connected"></i></span>
         <h6>Production Report</h6>
         <p>Legacy production mix batches, output, rejects, and summary by finished product.</p>
+        <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
+    </a>
+    <a href="{{ route('reports.performance') }}" class="rpt-card t-y">
+        <span class="rpt-card-icon"><i class="bi bi-trophy"></i></span>
+        <h6>Performance Report</h6>
+        <p>Packer performance leaderboard — total packs per packer, by product, and session detail.</p>
+        <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
+    </a>
+    <a href="{{ route('reports.daily-production') }}" class="rpt-card t-teal">
+        <span class="rpt-card-icon"><i class="bi bi-clipboard2-data"></i></span>
+        <h6>Daily Production Report</h6>
+        <p>Per-day production breakdown: yield, packed, unpacked, rejects, and product summaries.</p>
+        <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
+    </a>
+    <a href="{{ route('reports.raw-material-costing') }}" class="rpt-card t-orange">
+        <span class="rpt-card-icon"><i class="bi bi-currency-exchange"></i></span>
+        <h6>Raw Material Costing</h6>
+        <p>Unit price change history, cost increases and decreases, and current inventory valuations.</p>
+        <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
+    </a>
+    <a href="{{ route('reports.delivery') }}" class="rpt-card t-truck">
+        <span class="rpt-card-icon"><i class="bi bi-truck"></i></span>
+        <h6>Delivery Report</h6>
+        <p>All product deliveries by DR number, branch, quantity, and batch — filtered by date and area.</p>
         <span class="rpt-card-arrow">Open <i class="bi bi-chevron-right"></i></span>
     </a>
 </div>

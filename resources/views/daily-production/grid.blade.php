@@ -140,12 +140,12 @@
                             @endif
                         </td>
                         <td class="text-center">
-                            <input type="text" inputmode="numeric" pattern="[0-9]*" name="lines[{{ $p->id }}][number_of_mix]" class="form-control form-control-sm text-center mix-grid-cell mix-num-int"
-                                   placeholder="—" maxlength="3"
+                            <input type="text" inputmode="decimal" name="lines[{{ $p->id }}][number_of_mix]" class="form-control form-control-sm text-center mix-grid-cell mix-num-dec"
+                                   placeholder="—"
                                    data-row="{{ $rowIdx }}" data-col="0"
                                    autocomplete="off"
                                    @disabled($p->recipes->isEmpty())
-                                   value="{{ old($pfx.'.number_of_mix', $e?->number_of_mix) }}">
+                                   value="{{ old($pfx.'.number_of_mix', $e?->number_of_mix ? (float)$e->number_of_mix : '') }}">
                         </td>
                         <td>
                             <input type="text" inputmode="decimal" name="lines[{{ $p->id }}][standard_yield]" class="form-control form-control-sm text-end mix-grid-cell mix-yield-std mix-num-dec"
@@ -350,7 +350,7 @@
         var pctEl = table.querySelector('[data-var-pct-row="' + rowIdx + '"]');
         if (!span) return;
 
-        var mixVal = mixInp ? parseInt0(mixInp.value) : 0;
+        var mixVal = mixInp ? parseFloat0(mixInp.value) : 0;
         var stdRaw = stdInp ? stdInp.value : '';
         var actRaw = actInp ? actInp.value : '';
         var bothBlank = (stdRaw === '' || stdRaw == null) && (actRaw === '' || actRaw == null);
@@ -361,7 +361,7 @@
             pctEl.style.display = 'none';
         }
 
-        if (bothBlank && mixVal === 0) {
+        if (bothBlank && mixVal === 0.0) {
             span.textContent = '—';
             span.classList.add('empty');
             return;
@@ -456,15 +456,15 @@
                 if (tr.getAttribute('data-has-recipe') !== '1') return;
                 var name = tr.getAttribute('data-product-name') || '';
                 var inp = rowInputs(tr);
-                var mix = inp.mix ? parseInt0(inp.mix.value) : 0;
+                var mix = inp.mix ? parseFloat0(inp.mix.value) : 0;
                 var std = inp.std ? parseFloat0(inp.std.value) : 0;
                 var act = inp.act ? parseFloat0(inp.act.value) : 0;
                 var rej = inp.rej ? parseFloat0(inp.rej.value) : 0;
                 var unfinished = inp.unfinished ? String(inp.unfinished.value || '').trim() : '';
                 var hasNumbers = mix > 0 || std > 0 || act > 0 || rej > 0 || unfinished !== '';
                 if (!hasNumbers) return;
-                if (mix < 1) {
-                    errors.push(name + ': # of mix is required (at least 1) when entering a row.');
+                if (mix <= 0) {
+                    errors.push(name + ': # of mix is required (greater than 0) when entering a row.');
                     return;
                 }
                 lines.push({

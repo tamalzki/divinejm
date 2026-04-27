@@ -77,7 +77,7 @@
             Update daily production <span class="text-muted fw-normal" style="font-size:.82rem">#{{ $report->id }}</span>
         @endif
     </h5>
-    <p class="hint mb-0">Raw materials deduct as <strong>recipe × # of mix</strong> per filled row. Empty numeric fields are saved as <strong>0</strong>. Deductions apply even if on-hand goes <strong>negative</strong> (e.g. production ahead of recorded stock). You will confirm product lines and quantities before the report is saved. Saving replaces all lines on this report and returns to the index.</p>
+    <p class="hint mb-0">Raw materials deduct as <strong>recipe × # of mix</strong> per filled row. Empty numeric fields are saved as <strong>0</strong>. Packed and remaining are computed from Packers Report (standard pcs per pack, FIFO by production date) and are read-only here.</p>
 </div>
 
 {{-- session / validation: partials.flash in layout --}}
@@ -116,7 +116,8 @@
                     <th class="text-end" title="Actual minus standard">Variance</th>
                     <th class="text-end">Rejects</th>
                     <th style="text-align:left">Unfinished</th>
-                    <th class="text-end">Unpacked</th>
+                    <th class="text-end">Packed</th>
+                    <th class="text-end">Remaining</th>
                 </tr>
             </thead>
             <tbody>
@@ -128,6 +129,8 @@
                         $actOld = old($pfx.'.actual_yield', $e?->actual_yield);
                         $hasVar = $stdOld !== null && $stdOld !== '' && is_numeric($stdOld) && $actOld !== null && $actOld !== '' && is_numeric($actOld);
                         $varNum = $hasVar ? (float) $actOld - (float) $stdOld : null;
+                        $packedOld = old($pfx.'.packed_quantity', $e?->packed_quantity);
+                        $unpackedOld = old($pfx.'.unpacked', $e?->unpacked);
                     @endphp
                     <tr data-product-name="{{ $p->name }}" data-has-recipe="{{ $p->recipes->isEmpty() ? '0' : '1' }}" @class(['mix-row-no-recipe' => $p->recipes->isEmpty()]) title="{{ $p->recipes->isEmpty() ? 'Add a recipe for this product to enter production.' : '' }}">
                         <td class="pname">
@@ -187,12 +190,14 @@
                                    value="{{ old($pfx.'.unfinished', $e?->unfinished) }}">
                         </td>
                         <td>
-                            <input type="text" inputmode="decimal" name="lines[{{ $p->id }}][unpacked]" class="form-control form-control-sm text-end mix-grid-cell mix-num-dec"
-                                   placeholder="—"
-                                   data-row="{{ $rowIdx }}" data-col="5"
-                                   autocomplete="off"
-                                   @disabled($p->recipes->isEmpty())
-                                   value="{{ old($pfx.'.unpacked', $e?->unpacked) }}">
+                            <input type="text" class="form-control form-control-sm text-end"
+                                   readonly tabindex="-1"
+                                   value="{{ $packedOld === null || $packedOld === '' ? '0' : number_format((float) $packedOld, 2, '.', '') }}">
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm text-end"
+                                   readonly tabindex="-1"
+                                   value="{{ $unpackedOld === null || $unpackedOld === '' ? '0' : number_format((float) $unpackedOld, 2, '.', '') }}">
                         </td>
                     </tr>
                 @endforeach
@@ -218,7 +223,7 @@
                 <h6 class="modal-title">Delete report #{{ $report->id }}?</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body py-2">Raw material deductions for this report will be restored.</div>
+            <div class="modal-body py-2">Raw material deductions will be restored. Packed/remaining balances will be recomputed.</div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form action="{{ route('daily-production.destroy', $report) }}" method="POST" class="d-inline">
@@ -400,7 +405,7 @@
             r += 1;
         }
         var c = col + 1;
-        if (c > 5) return;
+        if (c > 4) return;
         for (r = 0; r < numRows; r += 1) {
             var el2 = table.querySelector('.mix-grid-cell[data-row="' + r + '"][data-col="' + c + '"]');
             if (el2 && !el2.disabled) {
@@ -441,7 +446,6 @@
                 act: tr.querySelector('.mix-grid-cell[data-col="2"]'),
                 rej: tr.querySelector('.mix-grid-cell[data-col="3"]'),
                 unfinished: tr.querySelector('.mix-grid-cell[data-col="4"]'),
-                unp: tr.querySelector('.mix-grid-cell[data-col="5"]'),
             };
         }
 
@@ -456,9 +460,8 @@
                 var std = inp.std ? parseFloat0(inp.std.value) : 0;
                 var act = inp.act ? parseFloat0(inp.act.value) : 0;
                 var rej = inp.rej ? parseFloat0(inp.rej.value) : 0;
-                var unp = inp.unp ? parseFloat0(inp.unp.value) : 0;
                 var unfinished = inp.unfinished ? String(inp.unfinished.value || '').trim() : '';
-                var hasNumbers = mix > 0 || std > 0 || act > 0 || rej > 0 || unp > 0 || unfinished !== '';
+                var hasNumbers = mix > 0 || std > 0 || act > 0 || rej > 0 || unfinished !== '';
                 if (!hasNumbers) return;
                 if (mix < 1) {
                     errors.push(name + ': # of mix is required (at least 1) when entering a row.');
@@ -471,7 +474,6 @@
                     act: act,
                     rej: rej,
                     unfinished: unfinished,
-                    unp: unp,
                 });
             });
             return { errors: errors, lines: lines };
@@ -529,7 +531,7 @@
                 tbl.className = 'table table-sm table-bordered mb-0';
                 tbl.style.fontSize = '.74rem';
                 var thead = document.createElement('thead');
-                thead.innerHTML = '<tr><th>Product</th><th class="text-end">Mix</th><th class="text-end">Std yield</th><th class="text-end">Actual</th><th class="text-end">Rejects</th><th>Unfinished</th><th class="text-end">Unpacked</th></tr>';
+                thead.innerHTML = '<tr><th>Product</th><th class="text-end">Mix</th><th class="text-end">Std yield</th><th class="text-end">Actual</th><th class="text-end">Rejects</th><th>Unfinished</th></tr>';
                 tbl.appendChild(thead);
                 var tb = document.createElement('tbody');
                 lines.forEach(function (L) {
@@ -539,8 +541,7 @@
                         + '<td class="text-end">' + formatQty(L.std) + '</td>'
                         + '<td class="text-end">' + formatQty(L.act) + '</td>'
                         + '<td class="text-end">' + formatQty(L.rej) + '</td>'
-                        + '<td>' + escapeHtml(L.unfinished || '—') + '</td>'
-                        + '<td class="text-end">' + formatQty(L.unp) + '</td>';
+                        + '<td>' + escapeHtml(L.unfinished || '—') + '</td>';
                     tb.appendChild(tr);
                 });
                 tbl.appendChild(tb);

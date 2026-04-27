@@ -33,6 +33,8 @@
     .pm-search-wide { width: 200px; min-width: 160px; }
     .pk-meta { font-size: .68rem; line-height: 1.35; color: var(--text-secondary); }
     .pk-meta .by { color: var(--text-muted); font-size: .65rem; }
+    .dp-packed-col { color: var(--s-success-text); font-weight: 700; }
+    .dp-remaining-col { color: var(--text-secondary); font-weight: 600; }
     .dj-modal-overlay { display: none; position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,.45); align-items: center; justify-content: center; }
     .dj-modal-overlay.show { display: flex; }
     .dj-modal { background: var(--bg-card); border-radius: 10px; padding: 1.5rem; width: 400px; max-width: 95vw; }
@@ -68,6 +70,8 @@
                     <th>Production date</th>
                     <th class="text-end">Lines</th>
                     <th class="text-end">Σ Actual yield</th>
+                    <th class="text-end">Packed</th>
+                    <th class="text-end">Remaining</th>
                     <th>Updated</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -79,11 +83,15 @@
                         $showUpdatedRel = $r->created_at && $ua && $ua->gt($r->created_at);
                         $lines = (int) ($r->lines_count ?? 0);
                         $totAct = (float) ($r->total_actual_yield ?? 0);
+                        $totPacked = (float) ($r->total_packed_quantity ?? 0);
+                        $totUnpacked = (float) ($r->total_unpacked_quantity ?? 0);
                     @endphp
                     <tr>
                         <td class="fw-semibold">{{ $r->production_date->format('M j, Y') }}</td>
                         <td class="text-end">{{ $lines }}</td>
                         <td class="text-end">{{ number_format($totAct, 0) }}</td>
+                        <td class="text-end dp-packed-col">{{ number_format($totPacked, 0) }}</td>
+                        <td class="text-end dp-remaining-col">{{ number_format($totUnpacked, 0) }}</td>
                         <td class="pk-meta">
                             @if($ua)
                                 <div>{{ $ua->format('M j, Y') }} <span class="text-muted">{{ $ua->format('g:i A') }}</span></div>
@@ -101,7 +109,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-muted" style="font-size:.82rem">
+                        <td colspan="7" class="text-center py-4 text-muted" style="font-size:.82rem">
                             No reports yet.
                             <a href="{{ route('daily-production.create') }}" style="color:var(--accent)">Add daily production</a>
                         </td>

@@ -99,6 +99,7 @@
     .crit-foot { padding:.4rem .85rem; background:var(--bg-page); border-top:1px solid var(--border); }
     .btn-sm-red   { font-size:.70rem; font-weight:600; padding:.22rem .65rem; border-radius:4px; background:#dc2626; color:#fff; border:none; cursor:pointer; text-decoration:none; display:inline-block; }
     .btn-sm-amber { font-size:.70rem; font-weight:600; padding:.22rem .65rem; border-radius:4px; background:#b45309; color:#fff; border:none; cursor:pointer; text-decoration:none; display:inline-block; }
+    .btn-sm-blue { font-size:.70rem; font-weight:600; padding:.22rem .65rem; border-radius:4px; background:#0369a1; color:#fff; border:none; cursor:pointer; text-decoration:none; display:inline-block; }
 
     /* ── Scrollable section body ── */
     .sec-scroll-body { max-height:320px; overflow-y:auto; padding:.5rem .75rem; }
@@ -109,6 +110,10 @@
     .empty-sm i { font-size:1.5rem; display:block; opacity:.22; margin-bottom:.3rem; }
     .empty-sm.ok { color:#16a34a; }
     .empty-sm.ok i { opacity:.35; }
+    .queue-badge { display:inline-flex; align-items:center; gap:.2rem; padding:.05rem .32rem; border-radius:3px; font-size:.62rem; font-weight:700; }
+    .queue-badge.overdue { background:#fee2e2; color:#9b1c1c; }
+    .queue-badge.today { background:#ffedd5; color:#9a3412; }
+    .queue-badge.waiting { background:var(--s-info-bg); color:var(--s-info-text); }
 
     /* ── Quick links (reports) ── */
     .dash-quick { display:flex; flex-wrap:wrap; gap:.35rem; justify-content:flex-end; align-items:center; }
@@ -411,6 +416,75 @@
 
 </div>
 @endif
+
+{{-- ══ PACKING QUEUE (daily production remaining) ══ --}}
+<div class="sec-card" style="margin-bottom:.75rem">
+    <div class="sec-head amber-head">
+        <span><i class="bi bi-box-seam me-1"></i> Packing Queue — Daily Production Remaining</span>
+        <span style="font-size:.62rem;opacity:.7;text-transform:none;letter-spacing:0">Compare production date vs latest pack date</span>
+    </div>
+    <div style="padding:.55rem .85rem; border-bottom:1px solid var(--border); background:var(--bg-page); display:flex; flex-wrap:wrap; gap:.45rem; align-items:center;">
+        <span class="pill pill-red">{{ $packingOverdueCount }} overdue</span>
+        <span class="pill pill-amber">{{ $packingDueTodayCount }} due today</span>
+        <span class="pill pill-blue">{{ number_format($packingTotalPcs, 0) }} pcs remaining</span>
+        <span class="pill pill-purple">{{ number_format($packingTotalGrams, 0) }} g remaining</span>
+    </div>
+    <div class="sec-scroll">
+        @if($packingQueue->count() > 0)
+        <table class="dt">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="tr">Remaining</th>
+                    <th class="tc">Oldest production</th>
+                    <th class="tc">Latest pack</th>
+                    <th class="tc">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($packingQueue as $row)
+                <tr>
+                    <td style="font-weight:600">{{ $row->product_name }}</td>
+                    <td class="tr" style="font-weight:700;color:var(--accent)">
+                        {{ number_format($row->remaining_display, 0) }} {{ $row->remaining_unit }}
+                    </td>
+                    <td class="tc">
+                        {{ $row->oldest_production_date->format('M j, Y') }}
+                        <div style="font-size:.62rem;color:var(--text-muted)">{{ $row->days_waiting }}d waiting</div>
+                    </td>
+                    <td class="tc">
+                        @if($row->last_pack_date)
+                            {{ $row->last_pack_date->format('M j, Y') }}
+                        @else
+                            <span style="color:var(--text-muted)">No pack yet</span>
+                        @endif
+                    </td>
+                    <td class="tc">
+                        @if($row->is_overdue)
+                            <span class="queue-badge overdue"><i class="bi bi-exclamation-triangle-fill"></i>Overdue</span>
+                        @elseif($row->is_due_today)
+                            <span class="queue-badge today"><i class="bi bi-calendar-check"></i>Due today</span>
+                        @else
+                            <span class="queue-badge waiting"><i class="bi bi-hourglass-split"></i>Queued</span>
+                        @endif
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @else
+        <div class="empty-sm ok"><i class="bi bi-check-circle"></i>All current production is already packed.</div>
+        @endif
+    </div>
+    <div class="crit-foot" style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center">
+        <a href="{{ route('daily-production.index') }}" class="btn-sm-amber">
+            <i class="bi bi-clipboard2-data me-1"></i>Daily Production
+        </a>
+        <a href="{{ route('packer-packs.create') }}" class="btn-sm-blue">
+            <i class="bi bi-box-seam me-1"></i>Packers Report
+        </a>
+    </div>
+</div>
 
 {{-- ══ TOP SELLERS + TOP CUSTOMERS ══ --}}
 <div class="kpi-grid-2">

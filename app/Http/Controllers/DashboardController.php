@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\DailyProductionEntry;
 use App\Models\Expense;
 use App\Models\FinishedProduct;
+use App\Models\PackerPack;
 use App\Models\ProductionMix;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -258,6 +260,56 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
+        // ══════════════════════════════════════════════════════
+        // PACKING QUEUE (daily production remaining)
+        // ══════════════════════════════════════════════════════
+        $lastPackDates = PackerPack::query()
+            ->join('packer_reports', 'packer_reports.id', '=', 'packer_packs.packer_report_id')
+            ->selectRaw('packer_packs.finished_product_id, MAX(packer_reports.pack_date) as last_pack_date')
+            ->groupBy('packer_packs.finished_product_id');
+
+        $packingQueue = DailyProductionEntry::query()
+            ->join('daily_production_reports', 'daily_production_reports.id', '=', 'daily_production_entries.daily_production_report_id')
+            ->join('finished_products', 'finished_products.id', '=', 'daily_production_entries.finished_product_id')
+            ->leftJoinSub($lastPackDates, 'last_pack', function ($join) {
+                $join->on('last_pack.finished_product_id', '=', 'daily_production_entries.finished_product_id');
+            })
+            ->where('daily_production_entries.unpacked', '>', 0)
+            ->whereDate('daily_production_reports.production_date', '<=', $today)
+            ->selectRaw('
+                daily_production_entries.finished_product_id,
+                finished_products.name as product_name,
+                MIN(daily_production_reports.production_date) as oldest_production_date,
+                SUM(daily_production_entries.unpacked) as remaining_pieces,
+                SUM(daily_production_entries.packed_quantity) as packed_pieces,
+                MAX(last_pack.last_pack_date) as last_pack_date
+            ')
+            ->groupBy('daily_production_entries.finished_product_id', 'finished_products.name')
+            ->orderBy('oldest_production_date')
+            ->orderByDesc('remaining_pieces')
+            ->limit(12)
+            ->get()
+            ->map(function ($row) use ($today) {
+                $meta = $this->remainingDisplayMeta((string) $row->product_name);
+                $displayRemaining = round((float) $row->remaining_pieces * $meta['multiplier'], 2);
+                $productionDate = Carbon::parse((string) $row->oldest_production_date);
+                $lastPackDate = $row->last_pack_date ? Carbon::parse((string) $row->last_pack_date) : null;
+                $row->remaining_display = $displayRemaining;
+                $row->remaining_unit = $meta['unit'];
+                $row->oldest_production_date = $productionDate;
+                $row->last_pack_date = $lastPackDate;
+                $row->days_waiting = $productionDate->diffInDays($today);
+                $row->is_overdue = $productionDate->lt($today);
+                $row->is_due_today = $productionDate->isSameDay($today);
+
+                return $row;
+            });
+
+        $packingOverdueCount = $packingQueue->where('is_overdue', true)->count();
+        $packingDueTodayCount = $packingQueue->where('is_due_today', true)->count();
+        $packingTotalPcs = $packingQueue->where('remaining_unit', 'pcs')->sum('remaining_display');
+        $packingTotalGrams = $packingQueue->where('remaining_unit', 'g')->sum('remaining_display');
+
         return view('dashboard', compact(
             // Sales KPIs
             'todaySales', 'todayCollected', 'salesGrowth',
@@ -279,7 +331,44 @@ class DashboardController extends Controller
             // Top lists
             'topSellingProducts', 'topCustomers', 'branchSales',
             // Feed
-            'recentSales'
+            'recentSales',
+            // Packing queue
+            'packingQueue', 'packingOverdueCount', 'packingDueTodayCount',
+            'packingTotalPcs', 'packingTotalGrams'
         ));
+    }
+
+    /**
+     * @return array{unit:string, multiplier:float}
+     */
+    private function remainingDisplayMeta(string $productName): array
+    {
+        $name = strtolower(trim($productName));
+        $rules = config('pack_standards.rules', []);
+
+        foreach ($rules as $rule) {
+            $keywords = array_values(array_filter($rule['keywords'] ?? [], fn ($k) => is_string($k) && trim($k) !== ''));
+            if ($keywords === []) {
+                continue;
+            }
+            $matches = true;
+            foreach ($keywords as $keyword) {
+                if (! str_contains($name, strtolower($keyword))) {
+                    $matches = false;
+                    break;
+                }
+            }
+            if ($matches) {
+                $unit = strtolower((string) ($rule['remaining_unit'] ?? 'pcs'));
+                $multiplier = (float) ($rule['remaining_multiplier'] ?? 1);
+
+                return [
+                    'unit' => $unit === 'g' ? 'g' : 'pcs',
+                    'multiplier' => $multiplier > 0 ? $multiplier : 1,
+                ];
+            }
+        }
+
+        return ['unit' => 'pcs', 'multiplier' => 1];
     }
 }

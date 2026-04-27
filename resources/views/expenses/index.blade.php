@@ -67,6 +67,7 @@
                         <th>Description</th>
                         <th>Amount</th>
                         <th>Payment Method</th>
+                        <th>Notes</th>
                         <th>Date</th>
                         <th>Actions</th>
                     </tr>
@@ -80,6 +81,7 @@
                         <td>
                             <span class="badge bg-info">{{ ucwords(str_replace('_', ' ', $expense->payment_method)) }}</span>
                         </td>
+                        <td>{{ $expense->notes ? $expense->notes : '—' }}</td>
                         <td>{{ $expense->expense_date->format('M d, Y') }}</td>
                         <td>
                             <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-warning me-1">
@@ -96,7 +98,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="7" class="text-center text-muted py-4">
                             <i class="bi bi-inbox display-4 d-block mb-3"></i>
                             No expenses recorded yet. Add your first expense!
                         </td>

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyProductionEntry;
 use App\Models\FinishedProduct;
 use App\Models\PackerPack;
 use App\Models\PackerReport;
+use App\Services\ProductionPackingSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class PackerReportController extends Controller
 {
+    public function __construct(protected ProductionPackingSyncService $productionPackingSyncService) {}
+
     public function index(Request $request)
     {
         $query = PackerReport::query()
@@ -77,6 +81,7 @@ class PackerReportController extends Controller
             'products' => $products,
             'packerNames' => $packerNames,
             'matrix' => $matrix,
+            'remainingByProduct' => $this->overallRemainingByProduct($products),
             'defaultPackDate' => $defaultPack,
             'defaultExpirationDate' => $defaultExpiration,
         ]);
@@ -121,10 +126,17 @@ class PackerReportController extends Controller
             ]);
 
             $this->applyNormalizedPacks($report, $normalized);
+            $affectedProductIds = array_values(array_unique(array_map(
+                fn ($row) => (int) $row['finished_product_id'],
+                $normalized
+            )));
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
 
             DB::commit();
 
-            $msg = 'Packers report created.'.(count($normalized) > 0 ? ' '.count($normalized).' cell(s); inventory updated.' : '');
+            $msg = 'Packers report created.'.(count($normalized) > 0 ? ' '.count($normalized).' cell(s); inventory and daily production balances updated.' : '');
 
             return redirect()
                 ->route('packer-packs.index')
@@ -167,6 +179,7 @@ class PackerReportController extends Controller
             'products' => $products,
             'packerNames' => $packerNames,
             'matrix' => $matrix,
+            'remainingByProduct' => $this->overallRemainingByProduct($products),
             'defaultPackDate' => $packerReport->pack_date->format('Y-m-d'),
             'defaultExpirationDate' => $packerReport->expiration_date?->format('Y-m-d') ?? $packerReport->pack_date->copy()->addDays(2)->format('Y-m-d'),
         ]);
@@ -202,6 +215,10 @@ class PackerReportController extends Controller
 
         try {
             DB::beginTransaction();
+            $affectedProductIds = $packerReport->packs()
+                ->pluck('finished_product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
             $this->revertReportPacksFromStock($packerReport);
             $packerReport->packs()->delete();
@@ -213,12 +230,19 @@ class PackerReportController extends Controller
             ]);
 
             $this->applyNormalizedPacks($packerReport, $normalized);
+            $affectedProductIds = array_values(array_unique(array_merge(
+                $affectedProductIds,
+                array_map(fn ($row) => (int) $row['finished_product_id'], $normalized)
+            )));
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
 
             DB::commit();
 
             $msg = $normalized === []
                 ? 'Report updated — quantities cleared. Stock was adjusted back.'
-                : 'Report updated. '.count($normalized).' cell(s) saved; inventory adjusted.';
+                : 'Report updated. '.count($normalized).' cell(s) saved; inventory and daily production balances adjusted.';
 
             return redirect()
                 ->route('packer-packs.index')
@@ -237,16 +261,23 @@ class PackerReportController extends Controller
     {
         try {
             DB::beginTransaction();
+            $affectedProductIds = $packerReport->packs()
+                ->pluck('finished_product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
             $this->revertReportPacksFromStock($packerReport);
             $packerReport->packs()->delete();
             $packerReport->delete();
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
 
             DB::commit();
 
             return redirect()
                 ->route('packer-packs.index')
-                ->with('success', 'Packers report deleted and stock restored.');
+                ->with('success', 'Packers report deleted, stock restored, and daily production balances re-synced.');
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);
@@ -356,5 +387,69 @@ class PackerReportController extends Controller
                 $product->save();
             }
         }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\FinishedProduct>  $products
+     * @return array<int, array{value:float, unit:string}>
+     */
+    protected function overallRemainingByProduct($products): array
+    {
+        $totals = DailyProductionEntry::query()
+            ->whereIn('finished_product_id', $products->pluck('id')->all())
+            ->selectRaw('finished_product_id, COALESCE(SUM(unpacked), 0) as unpacked_total')
+            ->groupBy('finished_product_id')
+            ->pluck('unpacked_total', 'finished_product_id');
+
+        $out = [];
+        foreach ($products as $product) {
+            $unpackedPieces = (float) ($totals[$product->id] ?? 0);
+            $meta = $this->remainingDisplayMeta((string) $product->name);
+            $out[$product->id] = [
+                'value' => round($unpackedPieces * $meta['multiplier'], 2),
+                'unit' => $meta['unit'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{unit:string, multiplier:float}
+     */
+    protected function remainingDisplayMeta(string $productName): array
+    {
+        $name = strtolower(trim($productName));
+        $rules = config('pack_standards.rules', []);
+
+        foreach ($rules as $rule) {
+            $keywords = array_values(array_filter($rule['keywords'] ?? [], fn ($k) => is_string($k) && trim($k) !== ''));
+            if ($keywords === []) {
+                continue;
+            }
+
+            $matches = true;
+            foreach ($keywords as $keyword) {
+                if (! str_contains($name, strtolower($keyword))) {
+                    $matches = false;
+                    break;
+                }
+            }
+
+            if ($matches) {
+                $unit = strtolower((string) ($rule['remaining_unit'] ?? 'pcs'));
+                $multiplier = (float) ($rule['remaining_multiplier'] ?? 1);
+                if ($multiplier <= 0) {
+                    $multiplier = 1;
+                }
+
+                return [
+                    'unit' => $unit === 'g' ? 'g' : 'pcs',
+                    'multiplier' => $multiplier,
+                ];
+            }
+        }
+
+        return ['unit' => 'pcs', 'multiplier' => 1];
     }
 }

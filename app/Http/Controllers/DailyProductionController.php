@@ -7,6 +7,7 @@ use App\Models\DailyProductionIngredient;
 use App\Models\DailyProductionReport;
 use App\Models\FinishedProduct;
 use App\Models\RawMaterial;
+use App\Services\ProductionPackingSyncService;
 use App\Support\RawMaterialUnit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 
 class DailyProductionController extends Controller
 {
+    public function __construct(protected ProductionPackingSyncService $productionPackingSyncService) {}
+
     public function index(Request $request)
     {
         $query = DailyProductionReport::query()
@@ -29,6 +32,16 @@ class DailyProductionController extends Controller
                 DailyProductionEntry::selectRaw('COALESCE(SUM(actual_yield), 0)')
                     ->whereColumn('daily_production_report_id', 'daily_production_reports.id'),
                 'total_actual_yield'
+            )
+            ->selectSub(
+                DailyProductionEntry::selectRaw('COALESCE(SUM(packed_quantity), 0)')
+                    ->whereColumn('daily_production_report_id', 'daily_production_reports.id'),
+                'total_packed_quantity'
+            )
+            ->selectSub(
+                DailyProductionEntry::selectRaw('COALESCE(SUM(unpacked), 0)')
+                    ->whereColumn('daily_production_report_id', 'daily_production_reports.id'),
+                'total_unpacked_quantity'
             );
 
         if ($request->filled('from')) {
@@ -94,12 +107,16 @@ class DailyProductionController extends Controller
             ]);
 
             $this->persistLines($report, $toSave, $products);
+            $newProductIds = array_map('intval', array_keys($toSave));
+            if ($newProductIds !== []) {
+                $this->productionPackingSyncService->sync($newProductIds);
+            }
 
             DB::commit();
 
             $msg = $toSave === []
                 ? 'Daily production report created (no product lines).'
-                : 'Daily production saved. Raw materials deducted for '.count($toSave).' product line(s).';
+                : 'Daily production saved. Raw materials deducted for '.count($toSave).' product line(s); packed/remaining re-synced.';
 
             return redirect()
                 ->route('daily-production.index')
@@ -145,6 +162,11 @@ class DailyProductionController extends Controller
         try {
             DB::beginTransaction();
 
+            $affectedProductIds = $dailyProductionReport->entries()
+                ->pluck('finished_product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
             $this->revertReportIngredients($dailyProductionReport);
             $dailyProductionReport->entries()->delete();
 
@@ -154,12 +176,16 @@ class DailyProductionController extends Controller
             ]);
 
             $this->persistLines($dailyProductionReport, $toSave, $products);
+            $affectedProductIds = array_values(array_unique(array_merge($affectedProductIds, array_map('intval', array_keys($toSave)))));
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
 
             DB::commit();
 
             $msg = $toSave === []
                 ? 'Report updated — lines cleared. Raw materials restored.'
-                : 'Report updated. Raw materials adjusted for '.count($toSave).' product line(s).';
+                : 'Report updated. Raw materials adjusted for '.count($toSave).' product line(s); packed/remaining re-synced.';
 
             return redirect()
                 ->route('daily-production.index')
@@ -178,14 +204,21 @@ class DailyProductionController extends Controller
     {
         try {
             DB::beginTransaction();
+            $affectedProductIds = $dailyProductionReport->entries()
+                ->pluck('finished_product_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
             $this->revertReportIngredients($dailyProductionReport);
             $dailyProductionReport->entries()->delete();
             $dailyProductionReport->delete();
+            if ($affectedProductIds !== []) {
+                $this->productionPackingSyncService->sync($affectedProductIds);
+            }
             DB::commit();
 
             return redirect()
                 ->route('daily-production.index')
-                ->with('success', 'Daily production report deleted. Raw materials restored.');
+                ->with('success', 'Daily production report deleted. Raw materials restored and packed/remaining re-synced.');
         } catch (\Exception $e) {
             DB::rollBack();
             report($e);
@@ -208,7 +241,6 @@ class DailyProductionController extends Controller
             'lines.*.actual_yield' => 'nullable|numeric|min:0|max:9999999',
             'lines.*.rejects' => 'nullable|numeric|min:0|max:9999999',
             'lines.*.unfinished' => 'nullable|string|max:500',
-            'lines.*.unpacked' => 'nullable|numeric|min:0|max:9999999',
         ]);
 
         $productionDate = Carbon::parse($request->production_date)->format('Y-m-d');
@@ -232,9 +264,7 @@ class DailyProductionController extends Controller
             $act = $this->parseNonNegativeDecimal($row['actual_yield'] ?? null);
             $rejects = $this->parseNonNegativeDecimal($row['rejects'] ?? null);
             $unfinished = isset($row['unfinished']) ? trim((string) $row['unfinished']) : '';
-            $unpacked = $this->parseNonNegativeDecimal($row['unpacked'] ?? null);
-
-            $hasNumbers = ($mix > 0) || $std > 0 || $act > 0 || $rejects > 0 || $unpacked > 0 || $unfinished !== '';
+            $hasNumbers = ($mix > 0) || $std > 0 || $act > 0 || $rejects > 0 || $unfinished !== '';
 
             if (! $hasNumbers) {
                 continue;
@@ -258,7 +288,6 @@ class DailyProductionController extends Controller
                 'actual_yield' => $act,
                 'rejects' => $rejects,
                 'unfinished' => $unfinished !== '' ? $unfinished : null,
-                'unpacked' => $unpacked,
             ];
         }
 
@@ -323,8 +352,9 @@ class DailyProductionController extends Controller
                 'standard_yield' => $payload['standard_yield'],
                 'actual_yield' => $payload['actual_yield'],
                 'rejects' => $payload['rejects'],
+                'packed_quantity' => 0,
                 'unfinished' => $payload['unfinished'],
-                'unpacked' => $payload['unpacked'],
+                'unpacked' => 0,
                 'notes' => null,
                 'user_id' => Auth::id(),
             ]);

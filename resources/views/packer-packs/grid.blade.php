@@ -67,6 +67,20 @@
         border-left: 2px solid color-mix(in srgb, var(--accent) 28%, var(--border));
         white-space: nowrap; min-width: 3.25rem;
     }
+    .pk-edit .remaining-cell {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        min-width: 6rem;
+        color: var(--text-secondary);
+        background: color-mix(in srgb, var(--accent-light) 18%, transparent);
+        border-left: 2px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+    }
+    .pk-edit .remaining-cell .remaining-val { font-weight: 700; color: var(--text-primary); }
+    .pk-edit .remaining-cell .remaining-unit { font-size: .64rem; text-transform: lowercase; color: var(--text-muted); margin-left: .2rem; }
+    .pk-edit thead th.remaining-th {
+        background: color-mix(in srgb, var(--brand-deep) 88%, var(--accent));
+        border-left: 2px solid rgba(255,255,255,.2);
+    }
     .pk-edit thead th.row-total-th {
         background: color-mix(in srgb, var(--brand-deep) 92%, var(--accent));
         border-left: 2px solid rgba(255,255,255,.2);
@@ -92,7 +106,7 @@
             Update packers report <span class="text-muted fw-normal" style="font-size:.82rem">#{{ $report->id }}</span>
         @endif
     </h5>
-    <p class="hint mb-0">Blank cells = <strong>0</strong>. Confirm product × packer quantities before save; amounts apply to finished-product stock. Shortcuts are in the note above the grid.</p>
+    <p class="hint mb-0">Blank cells = <strong>0</strong>. Confirm product × packer quantities before save; amounts apply to finished-product stock and auto-sync daily production packed/remaining balances. Remaining column shows overall remaining quantity from Daily Production (pcs or g).</p>
 </div>
 
 {{-- session / validation messages: partials.flash in layout --}}
@@ -133,10 +147,14 @@
                         <th class="text-end">{{ strtoupper($name) }}</th>
                     @endforeach
                     <th class="text-end row-total-th">Total</th>
+                    <th class="text-end remaining-th">DP remaining</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($products as $rowIdx => $p)
+                    @php
+                        $rem = $remainingByProduct[$p->id] ?? ['value' => 0, 'unit' => 'pcs'];
+                    @endphp
                     <tr data-product-name="{{ $p->name }}">
                         <td class="pname">{{ $p->name }}</td>
                         @foreach($packerNames as $colIdx => $name)
@@ -153,6 +171,10 @@
                         @endforeach
                         <td class="row-total-cell">
                             <span class="row-total" data-row="{{ $rowIdx }}" title="Sum of all packers for this product">0</span>
+                        </td>
+                        <td class="remaining-cell" title="Overall remaining quantity from Daily Production">
+                            <span class="remaining-val">{{ number_format((float) $rem['value'], 0) }}</span>
+                            <span class="remaining-unit">{{ $rem['unit'] }}</span>
                         </td>
                     </tr>
                 @endforeach
@@ -371,7 +393,7 @@
             invNote.className = 'mb-2';
             invNote.style.fontSize = '.74rem';
             invNote.style.lineHeight = '1.45';
-            invNote.innerHTML = 'Each row is <strong>total packs for that product</strong> (all packers combined). Those totals <strong>increase stock on hand</strong> (same as on product / inventory views).';
+            invNote.innerHTML = 'Each row is <strong>total packs for that product</strong> (all packers combined). Those totals <strong>increase stock on hand</strong> and <strong>deduct daily production remaining pieces</strong> using standard pcs-per-pack and production-date FIFO.';
             saveModalBody.appendChild(invNote);
 
             if (lines.length === 0) {

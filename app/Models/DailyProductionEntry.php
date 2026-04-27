@@ -13,6 +13,7 @@ class DailyProductionEntry extends Model
         'standard_yield',
         'actual_yield',
         'rejects',
+        'packed_quantity',
         'unfinished',
         'unpacked',
         'user_id',
@@ -24,6 +25,7 @@ class DailyProductionEntry extends Model
         'standard_yield' => 'decimal:2',
         'actual_yield' => 'decimal:2',
         'rejects' => 'decimal:2',
+        'packed_quantity' => 'decimal:2',
         'unpacked' => 'decimal:2',
     ];
 

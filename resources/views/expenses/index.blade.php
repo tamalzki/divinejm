@@ -63,26 +63,26 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Category</th>
+                        <th>Date</th>
                         <th>Description</th>
                         <th>Amount</th>
                         <th>Payment Method</th>
+                        <th>Category</th>
                         <th>Notes</th>
-                        <th>Date</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($expenses as $expense)
                     <tr>
-                        <td><span class="badge bg-secondary">{{ ucwords(str_replace('_', ' ', $expense->category)) }}</span></td>
+                        <td>{{ $expense->expense_date->format('M d, Y') }}</td>
                         <td class="fw-bold">{{ $expense->description }}</td>
                         <td class="text-danger fw-bold">₱{{ number_format($expense->amount, 2) }}</td>
                         <td>
                             <span class="badge bg-info">{{ ucwords(str_replace('_', ' ', $expense->payment_method)) }}</span>
                         </td>
+                        <td>{{ ucwords(str_replace('_', ' ', $expense->category)) }}</td>
                         <td>{{ $expense->notes ? $expense->notes : '—' }}</td>
-                        <td>{{ $expense->expense_date->format('M d, Y') }}</td>
                         <td>
                             <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-warning me-1">
                                 <i class="bi bi-pencil me-1"></i>Edit

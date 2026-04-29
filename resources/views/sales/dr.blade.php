@@ -143,7 +143,7 @@
                 @elseif($sale->payment_status === 'partial')
                     <span class="pill pill-warning">Partial</span>
                 @else
-                    <span class="pill pill-danger">To Collect</span>
+                    <span class="pill pill-danger">For Collection</span>
                 @endif
             </div>
         </div>
@@ -527,8 +527,11 @@ function syncAmountPaidMode() {
     var grandTotal = parseFloat(grandTotalText.replace(/[^\d.]/g, '')) || 0;
 
     if (status === 'paid') {
-        amountPaid.value = grandTotal.toFixed(2);
-        amountPaid.disabled = true;
+        // Auto-fill with total if field is empty or zero, but keep editable
+        if (!amountPaid.value || parseFloat(amountPaid.value) === 0) {
+            amountPaid.value = grandTotal.toFixed(2);
+        }
+        amountPaid.disabled = false;
     } else {
         amountPaid.disabled = false;
     }
@@ -559,11 +562,28 @@ function submitForm() {
         var ap = document.getElementById('amountPaid');
         var pm = document.getElementById('paymentMode');
         var pd = document.getElementById('paymentDate');
-        if (!ap.value || parseFloat(ap.value) < 0) {
+        var grandTotalText = (document.getElementById('grandTotal') || { textContent: '' }).textContent || '';
+        var grandTotalVal = parseFloat(grandTotalText.replace(/[^\d.]/g, '')) || 0;
+        var apVal = parseFloat(ap.value) || 0;
+
+        if (!ap.value || apVal <= 0) {
             ap.classList.add('is-error');
+            document.getElementById('amountPaidError').textContent = 'Please enter the amount received.';
             document.getElementById('amountPaidError').classList.add('show');
-            errors.push('Amount received is required.');
+            errors.push('Please enter the amount received.');
+        } else if (status === 'paid' && apVal < grandTotalVal) {
+            // Amount is less than total — suggest switching to Partial Payment
+            var doSwitch = confirm(
+                'The amount received (\u20B1' + apVal.toFixed(2) + ') is less than the Total Collectible (\u20B1' + grandTotalVal.toFixed(2) + ').\n\n' +
+                'Would you like to update the payment status to "Partial Payment" instead?'
+            );
+            if (doSwitch) {
+                document.getElementById('s-partial').checked = true;
+                togglePaymentFields();
+            }
+            return;
         }
+
         if (!pm.value) {
             pm.classList.add('is-error');
             document.getElementById('paymentModeError').classList.add('show');

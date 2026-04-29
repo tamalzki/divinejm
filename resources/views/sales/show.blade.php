@@ -71,7 +71,8 @@
                     <th>DR #</th>
                     <th>Date</th>
                     <th class="text-center">Products</th>
-                    <th class="text-end">Total</th>
+                    <th class="text-end">Total Collection</th>
+                    <th class="text-end">Collected Amount</th>
                     <th class="text-end">Balance</th>
                     <th>Payment</th>
                     <th class="text-center">Actions</th>
@@ -90,6 +91,9 @@
                     <span class="pill pill-info">{{ $sale->items->count() }} {{ Str::plural('item', $sale->items->count()) }}</span>
                 </td>
                 <td class="text-end" style="font-weight:600">&#8369;{{ number_format($sale->total_amount, 2) }}</td>
+                <td class="text-end" style="font-weight:600;color:var(--s-success-text)">
+                    &#8369;{{ number_format($sale->amount_paid, 2) }}
+                </td>
                 <td class="text-end">
                     <span class="{{ $sale->balance > 0 ? 'balance-red' : 'balance-green' }}">
                         &#8369;{{ number_format($sale->balance, 2) }}
@@ -99,9 +103,9 @@
                     @if($sale->payment_status === 'paid')
                         <span class="pill pill-success">Paid</span>
                     @elseif($sale->payment_status === 'partial')
-                        <span class="pill pill-warning">Partial</span>
+                        <span class="pill pill-warning">Partial &middot; &#8369;{{ number_format($sale->balance, 2) }} due</span>
                     @else
-                        <span class="pill pill-danger">To Collect</span>
+                        <span class="pill pill-danger">For Collection</span>
                     @endif
                 </td>
                 <td class="text-center" onclick="event.stopPropagation()">
@@ -121,9 +125,20 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="7" class="empty-state">No DRs found for this customer.</td></tr>
+            <tr><td colspan="8" class="empty-state">No DRs found for this customer.</td></tr>
             @endforelse
             </tbody>
+            @if($sales->isNotEmpty())
+            <tfoot>
+                <tr style="background:var(--bg-page);font-size:.78rem;font-weight:700;border-top:2px solid var(--border)">
+                    <td colspan="3" class="text-end" style="padding:.52rem .9rem;color:var(--text-muted)">Totals</td>
+                    <td class="text-end" style="padding:.52rem .9rem">&#8369;{{ number_format($sales->sum('total_amount'), 2) }}</td>
+                    <td class="text-end" style="padding:.52rem .9rem;color:var(--s-success-text)">&#8369;{{ number_format($sales->sum('amount_paid'), 2) }}</td>
+                    <td class="text-end" style="padding:.52rem .9rem;color:var(--s-danger-text)">&#8369;{{ number_format($sales->sum('balance'), 2) }}</td>
+                    <td colspan="2" style="padding:.52rem .9rem"></td>
+                </tr>
+            </tfoot>
+            @endif
         </table>
     </div>
 </div>
@@ -132,6 +147,7 @@
 function confirmDestroySaleForm(form) {
     var dr = form.getAttribute('data-dr') || '';
     return confirm('Delete DR# ' + dr + '?\n\nThis will remove this DR and restore warehouse and area stock.\n\nThis cannot be undone. Continue?');
+}
 document.getElementById('searchInput').addEventListener('input', function() {
     var q = this.value.toLowerCase().trim();
     document.querySelectorAll('.dr-row').forEach(function(row) {

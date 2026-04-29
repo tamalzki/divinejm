@@ -80,6 +80,12 @@
             </thead>
             <tbody id="drTableBody">
             @forelse($sales as $sale)
+            @php
+                // For unrecorded DRs (total_amount = 0), show face value based on deployed qty × price
+                $displayTotal = $sale->total_amount > 0
+                    ? $sale->total_amount
+                    : $sale->items->sum(fn($i) => $i->quantity_deployed * $i->unit_price);
+            @endphp
             <tr class="dr-row" onclick="window.location='{{ route('sales.dr', $sale->id) }}'" data-dr="{{ strtolower($sale->dr_number) }}">
                 <td>
                     <span style="font-weight:700;color:var(--accent)">{{ $sale->dr_number }}</span>
@@ -90,7 +96,7 @@
                 <td class="text-center">
                     <span class="pill pill-info">{{ $sale->items->count() }} {{ Str::plural('item', $sale->items->count()) }}</span>
                 </td>
-                <td class="text-end" style="font-weight:600">&#8369;{{ number_format($sale->total_amount, 2) }}</td>
+                <td class="text-end" style="font-weight:600">&#8369;{{ number_format($displayTotal, 2) }}</td>
                 <td class="text-end" style="font-weight:600;color:var(--s-success-text)">
                     &#8369;{{ number_format($sale->amount_paid, 2) }}
                 </td>
@@ -129,10 +135,17 @@
             @endforelse
             </tbody>
             @if($sales->isNotEmpty())
+            @php
+                $grandTotalCollection = $sales->sum(function($s) {
+                    return $s->total_amount > 0
+                        ? $s->total_amount
+                        : $s->items->sum(fn($i) => $i->quantity_deployed * $i->unit_price);
+                });
+            @endphp
             <tfoot>
                 <tr style="background:var(--bg-page);font-size:.78rem;font-weight:700;border-top:2px solid var(--border)">
                     <td colspan="3" class="text-end" style="padding:.52rem .9rem;color:var(--text-muted)">Totals</td>
-                    <td class="text-end" style="padding:.52rem .9rem">&#8369;{{ number_format($sales->sum('total_amount'), 2) }}</td>
+                    <td class="text-end" style="padding:.52rem .9rem">&#8369;{{ number_format($grandTotalCollection, 2) }}</td>
                     <td class="text-end" style="padding:.52rem .9rem;color:var(--s-success-text)">&#8369;{{ number_format($sales->sum('amount_paid'), 2) }}</td>
                     <td class="text-end" style="padding:.52rem .9rem;color:var(--s-danger-text)">&#8369;{{ number_format($sales->sum('balance'), 2) }}</td>
                     <td colspan="2" style="padding:.52rem .9rem"></td>

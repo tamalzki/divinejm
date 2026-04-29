@@ -507,6 +507,12 @@ function soldOutAll() {
         if (bo) bo.value = 0;
         recalcRow(itemId, price);
     });
+    // Auto-select Money Received when all items are marked sold
+    var paidRadio = document.getElementById('s-paid');
+    if (paidRadio && !paidRadio.checked) {
+        paidRadio.checked = true;
+        togglePaymentFields();
+    }
 }
 
 function togglePaymentFields() {

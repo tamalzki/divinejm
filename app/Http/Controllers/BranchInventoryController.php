@@ -55,10 +55,18 @@ class BranchInventoryController extends Controller
         $userIds = $rawDeliveries->pluck('user_id')->unique();
         $users = \App\Models\User::whereIn('id', $userIds)->pluck('name', 'id');
 
-        $deliveries = $rawDeliveries->through(function ($row) use ($branches, $users) {
+        // Compute DR face-value totals (deployed qty × unit price) from sale items
+        $drNumbers = $rawDeliveries->pluck('dr_number')->unique()->filter()->values();
+        $drTotals = SaleItem::join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->whereIn('sales.dr_number', $drNumbers)
+            ->select('sales.dr_number', DB::raw('SUM(sale_items.quantity_deployed * sale_items.unit_price) as deployed_total'))
+            ->groupBy('sales.dr_number')
+            ->pluck('deployed_total', 'dr_number');
+
+        $deliveries = $rawDeliveries->through(function ($row) use ($branches, $users, $drTotals) {
             $row->branch_name = $branches[$row->branch_id] ?? '—';
             $row->recorded_by = $users[$row->user_id] ?? '—';
-            $row->total_value = 0; // no unit_price column — omit or extend later
+            $row->total_value = (float) ($drTotals[$row->dr_number] ?? 0);
             // Parse customer from notes: stored as "Customer: John | notes..."
             if ($row->notes && str_contains($row->notes, 'Customer:')) {
                 preg_match('/Customer:\s*([^|]+)/', $row->notes, $m);

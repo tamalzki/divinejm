@@ -47,8 +47,10 @@ class Sale extends Model
             // Calculate balance
             $sale->balance = $sale->total_amount - $sale->amount_paid;
 
-            // Auto-update payment status
-            if ($sale->amount_paid >= $sale->total_amount) {
+            // Auto-update payment status — only upgrade to paid when there is
+            // a positive total; a brand-new DR with total=0 and paid=0 should
+            // remain "for collection" until sales are recorded.
+            if ($sale->total_amount > 0 && $sale->amount_paid >= $sale->total_amount) {
                 $sale->payment_status = 'paid';
             } elseif ($sale->amount_paid > 0) {
                 $sale->payment_status = 'partial';

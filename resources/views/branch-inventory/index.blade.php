@@ -71,6 +71,7 @@
                     <th>Flow</th>
                     <th>Products</th>
                     <th class="text-end">Total Qty</th>
+                    <th class="text-end">Total Amount</th>
                     <th>By</th>
                     <th class="text-center">Actions</th>
                 </tr>
@@ -98,6 +99,13 @@
                     <span class="prod-badge">{{ $delivery->product_count }} {{ Str::plural('product', $delivery->product_count) }}</span>
                 </td>
                 <td class="text-end" style="font-size:.80rem">{{ number_format($delivery->total_qty, 2) }}</td>
+                <td class="text-end" style="font-size:.80rem;font-weight:600;color:var(--s-success-text)">
+                    @if($delivery->total_value > 0)
+                        &#8369;{{ number_format($delivery->total_value, 2) }}
+                    @else
+                        <span style="color:var(--text-muted)">—</span>
+                    @endif
+                </td>
                 <td style="font-size:.76rem;color:var(--text-secondary)">{{ $delivery->recorded_by }}</td>
                 <td class="text-center">
                     <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
@@ -121,7 +129,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="7">
+                <td colspan="8">
                     <div class="empty-state">
                         <i class="bi bi-truck"></i>
                         <p>No deliveries yet.</p>

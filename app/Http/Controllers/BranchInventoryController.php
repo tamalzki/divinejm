@@ -63,23 +63,26 @@ class BranchInventoryController extends Controller
             ->groupBy('sales.dr_number')
             ->pluck('deployed_total', 'dr_number');
 
-        $deliveries = $rawDeliveries->through(function ($row) use ($branches, $users, $drTotals) {
+        $saleIdsByKey = $this->bulkResolveSaleIdsForDeliveryRows($rawDeliveries->items());
+
+        $deliveries = $rawDeliveries->through(function ($row) use ($branches, $users, $drTotals, $saleIdsByKey) {
             $row->branch_name = $branches[$row->branch_id] ?? '—';
             $row->recorded_by = $users[$row->user_id] ?? '—';
             $row->total_value = (float) ($drTotals[$row->dr_number] ?? 0);
-            // Parse customer from notes: stored as "Customer: John | notes..."
-            if ($row->notes && str_contains($row->notes, 'Customer:')) {
-                preg_match('/Customer:\s*([^|]+)/', $row->notes, $m);
-                $row->customer_name = trim($m[1] ?? '—');
-            } else {
-                $row->customer_name = '—';
-            }
+            $custParsed = $this->parseCustomerNameFromMovementNotes($row->notes ?? null);
+            $row->customer_name = $custParsed ?? '—';
             // Parse delivered_by from notes
             if ($row->notes && str_contains($row->notes, 'Delivered By:')) {
                 preg_match('/Delivered By:\s*([^|]+)/', $row->notes, $dm);
                 $row->delivered_by = trim($dm[1] ?? '—');
             } else {
                 $row->delivered_by = '—';
+            }
+
+            $row->sale_id = null;
+            if ($custParsed !== null) {
+                $key = static::deliverySaleMapKey((int) $row->branch_id, (string) $row->dr_number, $custParsed);
+                $row->sale_id = $saleIdsByKey[$key] ?? null;
             }
 
             return $row;
@@ -181,8 +184,11 @@ class BranchInventoryController extends Controller
         $first = $movements->first();
         $branch = $first->branch;
         $totalQty = $movements->where('movement_type', 'transfer_out')->sum('quantity');
+        $custParsed = $this->parseCustomerNameFromMovementNotes($first->notes);
+        $customerName = $custParsed ?? '—';
+        $saleRecord = $this->saleForDelivery($branch->id, $drNumber, $custParsed);
 
-        return view('branch-inventory.show-delivery', compact('movements', 'first', 'branch', 'drNumber', 'totalQty'));
+        return view('branch-inventory.show-delivery', compact('movements', 'first', 'branch', 'drNumber', 'totalQty', 'customerName', 'saleRecord'));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -396,8 +402,13 @@ class BranchInventoryController extends Controller
 
             DB::commit();
 
-            return redirect()->route('branch-inventory.index')
-                ->with('success', 'Delivered to '.$validated['customer_name'].' — DR#'.$validated['dr_number'].': '.implode(', ', $deployedItems));
+            return redirect()->route('branch-inventory.show-delivery', $validated['dr_number'])
+                ->with(
+                    'success',
+                    'Delivery confirmed — '.$validated['customer_name'].' · DR# '.$validated['dr_number'].' — '
+                    .implode(', ', $deployedItems)
+                )
+                ->with('delivery_just_saved', true);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -718,5 +729,65 @@ class BranchInventoryController extends Controller
         }
 
         return null;
+    }
+
+    private static function deliverySaleMapKey(int $branchId, string $drNumber, string $customerName): string
+    {
+        return $branchId.'|'.$drNumber.'|'.$customerName;
+    }
+
+    /** @param  iterable<int|string, mixed>  $items */
+    private function bulkResolveSaleIdsForDeliveryRows(iterable $items): array
+    {
+        $tuplesByKey = [];
+
+        foreach ($items as $row) {
+            $cust = $this->parseCustomerNameFromMovementNotes($row->notes ?? null);
+            if ($cust === null) {
+                continue;
+            }
+
+            $tuplesByKey[self::deliverySaleMapKey((int) $row->branch_id, (string) $row->dr_number, $cust)] = [
+                'b' => (int) $row->branch_id,
+                'd' => (string) $row->dr_number,
+                'c' => $cust,
+            ];
+        }
+
+        $list = array_values($tuplesByKey);
+
+        if ($list === []) {
+            return [];
+        }
+
+        $query = Sale::query()->select(['id', 'branch_id', 'dr_number', 'customer_name']);
+
+        foreach ($list as $i => $tuple) {
+            $method = $i === 0 ? 'where' : 'orWhere';
+            $query->$method(function ($q) use ($tuple) {
+                $q->where('branch_id', $tuple['b'])
+                    ->where('dr_number', $tuple['d'])
+                    ->where('customer_name', $tuple['c']);
+            });
+        }
+
+        $map = [];
+
+        foreach ($query->get() as $sale) {
+            $map[self::deliverySaleMapKey((int) $sale->branch_id, (string) $sale->dr_number, (string) $sale->customer_name)] = $sale->id;
+        }
+
+        return $map;
+    }
+
+    private function saleForDelivery(int $branchId, string $drNumber, ?string $customerName): ?Sale
+    {
+        $query = Sale::where('branch_id', $branchId)->where('dr_number', $drNumber);
+
+        if ($customerName !== null && $customerName !== '') {
+            return $query->where('customer_name', $customerName)->first();
+        }
+
+        return $query->orderByDesc('id')->first();
     }
 }

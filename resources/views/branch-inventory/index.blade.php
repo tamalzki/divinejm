@@ -24,11 +24,23 @@
     .btn-view { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid var(--accent); color:var(--accent) !important; background:transparent; border-radius:5px; font-size:.72rem; font-weight:600; text-decoration:none !important; transition:all .13s; cursor:pointer; }
     .btn-view:hover { background:var(--accent); color:#fff !important; }
 
+    .btn-sales { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid var(--accent); background:var(--accent); color:#fff !important; border-radius:5px; font-size:.72rem; font-weight:700; text-decoration:none !important; transition:all .13s; cursor:pointer; }
+    .btn-sales:hover { background:var(--accent-hover); border-color:var(--accent-hover); color:#fff !important; }
+
     .btn-del { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .55rem; border:1px solid #dc2626; color:#dc2626 !important; background:transparent; border-radius:5px; font-size:.72rem; font-weight:600; text-decoration:none !important; transition:all .13s; cursor:pointer; }
     .btn-del:hover { background:#fef2f2; color:#991b1b !important; border-color:#991b1b; }
 
+    /* Keep Record / View / Delete on one row */
+    .bi-actions-cell { white-space:nowrap; text-align:center; vertical-align:middle; }
+    .bi-actions-row { display:inline-flex; align-items:center; justify-content:center; flex-wrap:nowrap; gap:.35rem; max-width:100%; }
+    .bi-actions-row form { display:inline-flex; margin:0; align-items:center; flex-shrink:0; }
+    .bi-actions-row .btn-sales,
+    .bi-actions-row .btn-view,
+    .bi-actions-row .btn-del { flex-shrink:0; white-space:nowrap; }
+
     .dr-badge { display:inline-block; background:var(--accent-light); color:var(--accent); border-radius:4px; padding:.1rem .45rem; font-size:.72rem; font-weight:700; }
-    .prod-badge { display:inline-block; background:#e2e8f0; color:var(--text-secondary); border-radius:20px; padding:.1rem .55rem; font-size:.71rem; font-weight:600; }
+    .prod-badge { display:inline-flex; align-items:center; background:#e2e8f0; color:var(--text-secondary); border-radius:20px; padding:.12rem .6rem; font-size:.71rem; font-weight:600; white-space:nowrap; }
+    .bi-products-cell { white-space:nowrap; vertical-align:middle; }
     .val-text { font-weight:700; color:var(--s-success-text); }
 
     .bi-footer { display:flex; align-items:center; justify-content:space-between; padding:.5rem .9rem; border-top:1px solid var(--border); background:var(--bg-page); font-size:.72rem; color:var(--text-muted); }
@@ -69,11 +81,11 @@
                     <th style="white-space:nowrap">Date &darr;</th>
                     <th>DR #</th>
                     <th>Flow</th>
-                    <th>Products</th>
+                    <th style="white-space:nowrap">Products</th>
                     <th class="text-end">Total Qty</th>
                     <th class="text-end">Total Amount</th>
                     <th>By</th>
-                    <th class="text-center">Actions</th>
+                    <th class="text-center" style="white-space:nowrap">Actions</th>
                 </tr>
             </thead>
             <tbody id="deliveryTableBody">
@@ -95,7 +107,7 @@
                     <span style="color:var(--text-muted);font-size:.73rem"> &rarr; </span>
                     <strong style="font-size:.80rem;color:var(--text-primary)">{{ $delivery->customer_name }}</strong>
                 </td>
-                <td>
+                <td class="bi-products-cell">
                     <span class="prod-badge">{{ $delivery->product_count }} {{ Str::plural('product', $delivery->product_count) }}</span>
                 </td>
                 <td class="text-end" style="font-size:.80rem">{{ number_format($delivery->total_qty, 2) }}</td>
@@ -107,14 +119,20 @@
                     @endif
                 </td>
                 <td style="font-size:.76rem;color:var(--text-secondary)">{{ $delivery->recorded_by }}</td>
-                <td class="text-center">
-                    <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-center">
+                <td class="text-center bi-actions-cell">
+                    <div class="bi-actions-row">
+                        @if(!empty($delivery->sale_id))
+                        <a href="{{ route('sales.dr', $delivery->sale_id) }}" class="btn-sales"
+                           title="Record sales — {{ $delivery->customer_name }} · DR# {{ $delivery->dr_number }}">
+                            <i class="bi bi-pencil-square"></i> Record Sales
+                        </a>
+                        @endif
                         <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}" class="btn-view">
                             <i class="bi bi-eye"></i> View
                         </a>
                         <form method="POST"
                               action="{{ route('branch-inventory.destroy-delivery-batch') }}"
-                              class="d-inline"
+                              class="bi-action-form"
                               onsubmit="return confirm('Remove this delivery?\n\nDR# {{ $delivery->dr_number }}\n{{ $delivery->branch_name }} → {{ $delivery->customer_name }}\n{{ \Carbon\Carbon::parse($delivery->movement_date)->format('M d, Y') }}\n\nWarehouse stock will be restored and quantities removed from the area. Blocked if this DR has payments or sold/BO quantities.');">
                             @csrf
                             @method('DELETE')

@@ -25,23 +25,58 @@
 
     .dj-back { display:inline-flex; align-items:center; gap:.3rem; font-size:.75rem; color:var(--text-secondary); text-decoration:none; padding:.18rem .5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); transition:background .12s; }
     .dj-back:hover { background:var(--bg-page); color:var(--text-primary); }
+
+    .btn-record-sales-h { display:inline-flex; align-items:center; gap:.32rem; padding:.38rem .9rem; border-radius:6px; border:none; font-size:.80rem; font-weight:700; cursor:pointer; text-decoration:none !important; background:var(--accent); color:#fff !important; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:background .12s; }
+    .btn-record-sales-h:hover { background:var(--accent-hover); color:#fff !important; }
+    .btn-deliveries-h { display:inline-flex; align-items:center; gap:.28rem; padding:.36rem .75rem; border-radius:6px; border:1px solid var(--border); font-size:.78rem; font-weight:600; cursor:pointer; text-decoration:none !important; background:var(--bg-card); color:var(--text-secondary) !important; white-space:nowrap; }
+    .btn-deliveries-h:hover { background:var(--bg-page); color:var(--text-primary) !important; }
+
+    .dj-save-banner { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.75rem 1rem; padding:.95rem 1.1rem; margin-bottom:1rem; border-radius:var(--radius); border:1px solid var(--s-success-text); background:var(--s-success-bg); color:var(--s-success-text); }
+    .dj-save-banner strong { font-size:.84rem; }
+    .dj-save-banner-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+
+    .alert-flash { padding:.62rem .9rem; border-radius:var(--radius); margin-bottom:1rem; font-size:.8rem; font-weight:600; border:1px solid var(--s-success-text); background:var(--s-success-bg); color:var(--s-success-text); }
 </style>
 
-{{-- Parse notes first so $customerName is available everywhere --}}
 @php
-    $customerName = '—';
-    if ($first->notes && str_contains($first->notes, 'Customer:')) {
-        preg_match('/Customer:\s*([^|]+)/', $first->notes, $m);
-        $customerName = trim($m[1] ?? '—');
-    }
     $userNotes = null;
     if ($first->notes && str_contains($first->notes, ' | ')) {
         $userNotes = trim(explode(' | ', $first->notes, 2)[1] ?? null);
     }
 @endphp
 
+@if(session('success') && ! session('delivery_just_saved'))
+    <div class="alert-flash"><i class="bi bi-check-circle-fill me-1"></i>{{ session('success') }}</div>
+@endif
+
+@if(session('delivery_just_saved'))
+    <div class="dj-save-banner">
+        <div style="flex:1;min-width:12rem">
+            <strong>Delivery saved — {{ $customerName }} · DR# {{ $drNumber }}</strong>
+            @if(session('success'))
+                <div style="font-size:.76rem;margin-top:.25rem;opacity:.9">{{ session('success') }}</div>
+            @else
+                <div style="font-size:.76rem;margin-top:.25rem;opacity:.9">
+                    Continue to Record sales below for {{ $customerName }} on DR# {{ $drNumber }} (quantities sold and payment).
+                </div>
+            @endif
+        </div>
+        <div class="dj-save-banner-actions">
+            @if(isset($saleRecord) && $saleRecord)
+                <a href="{{ route('sales.dr', $saleRecord) }}" class="btn-record-sales-h"
+                   title="Open Record sales — {{ $customerName }} · DR# {{ $drNumber }}">
+                    <i class="bi bi-pencil-square"></i> Record sales · {{ Str::limit($customerName, 32) }} · DR# {{ $drNumber }}
+                </a>
+            @endif
+            <a href="{{ route('branch-inventory.index') }}" class="btn-deliveries-h">
+                <i class="bi bi-list-ul"></i> Deliveries list
+            </a>
+        </div>
+    </div>
+@endif
+
 {{-- Header --}}
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <div class="d-flex align-items-center gap-2">
         <a href="{{ route('branch-inventory.index') }}" class="dj-back">
             <i class="bi bi-arrow-left"></i> Deliveries
@@ -59,6 +94,14 @@
                 &rarr; <strong style="color:var(--text-primary)">{{ $customerName }}</strong>
             </span>
         </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        @if(isset($saleRecord) && $saleRecord)
+            <a href="{{ route('sales.dr', $saleRecord) }}" class="btn-record-sales-h"
+               title="Open Record sales — {{ $customerName }} · DR# {{ $drNumber }}">
+                <i class="bi bi-pencil-square"></i> Record sales · {{ Str::limit($customerName, 28) }} · DR# {{ $drNumber }}
+            </a>
+        @endif
     </div>
 </div>
 

@@ -127,6 +127,39 @@ class SalesReportController extends Controller
             });
         }
 
+        // ── Packs sold per product (packs = quantity_sold unit) ───────
+        // Stock is packed in packs; sales deploy/sell from that stock, so
+        // each product's quantity_sold total is the packs sold. Surface it
+        // as a clean per-product summary with how many DRs sold it and the
+        // sales amount it generated, highest sellers first.
+        $revenueByProduct = [];
+        $drCountByProduct = [];
+        foreach ($sales as $sale) {
+            $seenProducts = [];
+            foreach ($sale->items as $item) {
+                $pid = (int) $item->finished_product_id;
+                $revenueByProduct[$pid] = ($revenueByProduct[$pid] ?? 0) + (float) $item->subtotal;
+                if ((float) $item->quantity_sold > 0 && ! isset($seenProducts[$pid])) {
+                    $drCountByProduct[$pid] = ($drCountByProduct[$pid] ?? 0) + 1;
+                    $seenProducts[$pid] = true;
+                }
+            }
+        }
+
+        $packsPerProduct = $products
+            ->map(fn ($fp) => [
+                'id' => $fp->id,
+                'name' => $fp->name,
+                'packs' => (float) ($productTotals[$fp->id] ?? 0),
+                'drs' => (int) ($drCountByProduct[$fp->id] ?? 0),
+                'amount' => (float) ($revenueByProduct[$fp->id] ?? 0),
+            ])
+            ->filter(fn ($p) => $p['packs'] > 0)
+            ->sortByDesc('packs')
+            ->values();
+        $totalPacks = $packsPerProduct->sum('packs');
+        $totalPacksAmount = $packsPerProduct->sum('amount');
+
         // ── Areas for filter dropdown ─────────────────────────────────
         $areas = Branch::orderBy('name')->pluck('name');
 
@@ -134,6 +167,7 @@ class SalesReportController extends Controller
             'rows', 'products', 'subTotals', 'grandTotal',
             'grandLess', 'grandPaid', 'grandBalance',
             'grandTotalItems', 'productTotals',
+            'packsPerProduct', 'totalPacks', 'totalPacksAmount',
             'fromStr', 'toStr', 'period',
             'areas', 'areaFilter', 'statusFilter'
         ));

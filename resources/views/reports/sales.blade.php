@@ -86,6 +86,36 @@
 
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); font-size:.82rem; }
 
+    /* ── Report tabs ── */
+    .rpt-tabs { display:flex; gap:.2rem; margin-bottom:.9rem; border-bottom:1px solid var(--border); }
+    .rpt-tab { font-size:.78rem; font-weight:600; padding:.45rem .95rem; border:none; background:none; color:var(--text-secondary); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; align-items:center; gap:.4rem; }
+    .rpt-tab:hover { color:var(--accent); }
+    .rpt-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .rpt-tab .tab-count { font-size:.6rem; font-weight:700; padding:.05rem .35rem; border-radius:20px; background:var(--accent-faint); color:var(--accent); }
+
+    /* ── Packs sold per product summary ── */
+    .packs-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 1px 4px rgba(0,0,0,.04); margin-bottom:.9rem; overflow:hidden; }
+    .packs-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.5rem .85rem; background:#166534; color:rgba(255,255,255,.95); }
+    .packs-head-title { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; gap:.4rem; }
+    .packs-head-total { font-size:.72rem; font-weight:700; }
+    .packs-head-total small { font-weight:500; opacity:.8; font-size:.6rem; text-transform:uppercase; letter-spacing:.4px; }
+    .packs-table { width:100%; border-collapse:collapse; font-size:.76rem; }
+    .packs-table thead th { background:var(--bg-page); color:var(--text-muted); font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:.4rem .85rem; border-bottom:1px solid var(--border); text-align:left; }
+    .packs-table thead th.num { text-align:right; }
+    .packs-table tbody td { padding:.4rem .85rem; border-bottom:1px solid var(--border); }
+    .packs-table tbody tr:last-child td { border-bottom:none; }
+    .packs-table tbody tr:hover td { background:var(--accent-faint); }
+    .packs-table .pk-name { font-weight:600; color:var(--text-primary); }
+    .packs-table .pk-qty { text-align:right; font-weight:700; color:#166534; white-space:nowrap; }
+    .packs-table .pk-share { text-align:right; color:var(--text-secondary); white-space:nowrap; }
+    .packs-table .pk-drs { text-align:right; color:var(--text-secondary); white-space:nowrap; }
+    .packs-table .pk-amt { text-align:right; font-weight:600; color:var(--text-primary); white-space:nowrap; }
+    .packs-table .bar-cell { width:80px; }
+    .packs-table .bar-track { height:6px; border-radius:3px; background:var(--bg-page); overflow:hidden; }
+    .packs-table .bar-fill { height:100%; background:#166534; border-radius:3px; }
+    .packs-table tfoot td { padding:.45rem .85rem; border-top:2px solid var(--border); font-weight:700; font-size:.74rem; }
+    .packs-table tfoot td.num { text-align:right; color:#166534; }
+
 </style>
 
 @include('reports._back')
@@ -174,7 +204,19 @@
     </div>
 </div>
 
-{{-- Main table --}}
+{{-- Report tabs --}}
+<div class="rpt-tabs no-print">
+    <button type="button" class="rpt-tab active" data-panel="panel-detail">
+        <i class="bi bi-table"></i> Sales Detail
+    </button>
+    <button type="button" class="rpt-tab" data-panel="panel-packs">
+        <i class="bi bi-box-seam"></i> Packs Sold per Product
+        @if($packsPerProduct->count())<span class="tab-count">{{ $packsPerProduct->count() }}</span>@endif
+    </button>
+</div>
+
+{{-- Tab: Sales Detail --}}
+<div class="rpt-panel" id="panel-detail">
 <div class="rpt-wrap print-area">
 
     <div class="rpt-scroll" id="tableWrapper">
@@ -293,6 +335,72 @@
         </table>
     </div>
 </div>
+</div>{{-- /panel-detail --}}
+
+{{-- Tab: Packs Sold per Product --}}
+<div class="rpt-panel" id="panel-packs" style="display:none">
+@if($packsPerProduct->count())
+<div class="packs-card print-area">
+    <div class="packs-head">
+        <span class="packs-head-title">
+            <i class="bi bi-box-seam"></i> Packs Sold per Product
+        </span>
+        <span class="packs-head-total">
+            {{ number_format($totalPacks, 0) }} <small>total packs</small>
+        </span>
+    </div>
+    <div style="overflow-x:auto">
+        <table class="packs-table">
+            <thead>
+                <tr>
+                    <th style="width:36px">#</th>
+                    <th>Product</th>
+                    <th class="num">Packs Sold</th>
+                    <th class="num">% of Packs</th>
+                    <th class="bar-cell"></th>
+                    <th class="num">DRs</th>
+                    <th class="num">Sales Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($packsPerProduct as $i => $p)
+                    @php $share = $totalPacks > 0 ? ($p['packs'] / $totalPacks * 100) : 0; @endphp
+                    <tr>
+                        <td style="color:var(--text-muted);font-size:.68rem">{{ $i + 1 }}</td>
+                        <td class="pk-name">{{ $p['name'] }}</td>
+                        <td class="pk-qty">{{ number_format($p['packs'], 0) }}</td>
+                        <td class="pk-share">{{ number_format($share, 1) }}%</td>
+                        <td class="bar-cell">
+                            <div class="bar-track"><div class="bar-fill" style="width:{{ $totalPacks > 0 ? max(3, $p['packs'] / $packsPerProduct->max('packs') * 100) : 0 }}%"></div></div>
+                        </td>
+                        <td class="pk-drs">{{ number_format($p['drs'], 0) }}</td>
+                        <td class="pk-amt">&#8369;{{ number_format($p['amount'], 0) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td></td>
+                    <td>Total</td>
+                    <td class="num">{{ number_format($totalPacks, 0) }}</td>
+                    <td class="num">100%</td>
+                    <td></td>
+                    <td></td>
+                    <td class="num">&#8369;{{ number_format($totalPacksAmount, 0) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+@else
+<div class="packs-card">
+    <div class="empty-state" style="padding:2.5rem 1rem">
+        <i class="bi bi-box-seam" style="font-size:1.8rem;display:block;opacity:.3;margin-bottom:.5rem"></i>
+        No packs sold for this period.
+    </div>
+</div>
+@endif
+</div>{{-- /panel-packs --}}
 
 {{-- Hidden data for CSV export --}}
 <script id="csvProducts" type="application/json">{!! json_encode($products->map(function($p){ return strtoupper(implode('', array_map(fn($w) => $w[0], array_filter(explode(' ', $p->name))))); })->values()) !!}</script>
@@ -314,6 +422,7 @@
     return $base;
 })->values()) !!}</script>
 <script id="csvProductTotals" type="application/json">{!! json_encode(array_values($productTotals)) !!}</script>
+<script id="csvPacksSummary" type="application/json">{!! json_encode($packsPerProduct->map(fn($p) => [$p['name'], $p['packs'], $p['drs'], $p['amount']])->values()) !!}</script>
 
 <script>
 function downloadCSV() {
@@ -345,6 +454,25 @@ function downloadCSV() {
     grandRow.push(rows.reduce(function(s,r){ return s + (parseFloat(r[r.length-1])||0); }, 0));
     lines.push(grandRow.map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(','));
 
+    // packs sold per product summary
+    var packsSummary = JSON.parse(document.getElementById('csvPacksSummary').textContent);
+    if (packsSummary.length) {
+        lines.push('');
+        lines.push('"PACKS SOLD PER PRODUCT"');
+        lines.push('"PRODUCT","PACKS SOLD","% OF PACKS","DRs","SALES AMOUNT"');
+        var packsTotal = 0, amtTotal = 0;
+        for (var s = 0; s < packsSummary.length; s++) packsTotal += parseFloat(packsSummary[s][1]) || 0;
+        for (var s = 0; s < packsSummary.length; s++) {
+            var packs = parseFloat(packsSummary[s][1]) || 0;
+            var drs   = parseFloat(packsSummary[s][2]) || 0;
+            var amt   = parseFloat(packsSummary[s][3]) || 0;
+            amtTotal += amt;
+            var share = packsTotal > 0 ? (packs / packsTotal * 100).toFixed(1) : '0.0';
+            lines.push('"' + String(packsSummary[s][0]).replace(/"/g,'""') + '","' + packs + '","' + share + '%","' + drs + '","' + amt + '"');
+        }
+        lines.push('"TOTAL","' + packsTotal + '","100%","","' + amtTotal + '"');
+    }
+
     var blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' });
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
@@ -353,6 +481,17 @@ function downloadCSV() {
     a.click();
     URL.revokeObjectURL(url);
 }
+
+// ── Report tab switching ──
+document.querySelectorAll('.rpt-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.rpt-tab').forEach(function(t){ t.classList.remove('active'); });
+        document.querySelectorAll('.rpt-panel').forEach(function(p){ p.style.display = 'none'; });
+        tab.classList.add('active');
+        var panel = document.getElementById(tab.dataset.panel);
+        if (panel) panel.style.display = '';
+    });
+});
 </script>
 
 @endsection

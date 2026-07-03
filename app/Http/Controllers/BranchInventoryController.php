@@ -187,6 +187,7 @@ class BranchInventoryController extends Controller
         $custParsed = $this->parseCustomerNameFromMovementNotes($first->notes);
         $customerName = $custParsed ?? '—';
         $saleRecord = $this->saleForDelivery($branch->id, $drNumber, $custParsed);
+        $saleRecord?->load('items');
 
         return view('branch-inventory.show-delivery', compact('movements', 'first', 'branch', 'drNumber', 'totalQty', 'customerName', 'saleRecord'));
     }

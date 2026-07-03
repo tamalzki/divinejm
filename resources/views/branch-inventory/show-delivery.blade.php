@@ -36,6 +36,36 @@
     .dj-save-banner-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
 
     .alert-flash { padding:.62rem .9rem; border-radius:var(--radius); margin-bottom:1rem; font-size:.8rem; font-weight:600; border:1px solid var(--s-success-text); background:var(--s-success-bg); color:var(--s-success-text); }
+
+    .btn-print-h { display:inline-flex; align-items:center; gap:.28rem; padding:.36rem .75rem; border-radius:6px; border:1px solid var(--border); font-size:.78rem; font-weight:600; cursor:pointer; background:#16a34a; color:#fff !important; white-space:nowrap; }
+    .btn-print-h:hover { background:#128a3e; }
+
+    /* Printable DR — mirrors the paper Deliver Receipt pad; hidden on screen, shown only when printing */
+    .dr-print { display:none; }
+    @media print {
+        .no-print { display:none !important; }
+        .dr-print { display:block; }
+        body * { visibility:hidden; }
+        .dr-print, .dr-print * { visibility:visible; }
+        .dr-print { position:absolute; top:0; left:0; width:100%; }
+    }
+    .dr-print { font-family:Arial, Helvetica, sans-serif; color:#000; max-width:800px; margin:0 auto; padding:.5in; }
+    .dr-print .dr-p-company { font-size:1.35rem; font-weight:800; letter-spacing:.5px; }
+    .dr-print .dr-p-address { font-size:.72rem; margin-top:.15rem; }
+    .dr-print .dr-p-title-row { display:flex; align-items:flex-end; justify-content:space-between; border-bottom:2px solid #000; padding-bottom:.4rem; margin:.6rem 0 .8rem; }
+    .dr-print .dr-p-title { font-size:1.15rem; font-weight:800; letter-spacing:1px; }
+    .dr-print .dr-p-no { font-size:1rem; font-weight:800; }
+    .dr-print .dr-p-meta { font-size:.82rem; display:flex; flex-direction:column; gap:.3rem; margin-bottom:.7rem; }
+    .dr-print .dr-p-meta-row { display:flex; gap:.4rem; border-bottom:1px solid #000; padding-bottom:.15rem; }
+    .dr-print .dr-p-meta-row span:first-child { font-weight:700; white-space:nowrap; }
+    .dr-print .dr-p-table { width:100%; border-collapse:collapse; font-size:.8rem; margin-top:.3rem; }
+    .dr-print .dr-p-table th, .dr-print .dr-p-table td { border:1px solid #000; padding:.3rem .45rem; }
+    .dr-print .dr-p-table th { font-size:.68rem; text-transform:uppercase; text-align:left; }
+    .dr-print .dr-p-table td.tr, .dr-print .dr-p-table th.tr { text-align:right; }
+    .dr-print .dr-p-table td.tc, .dr-print .dr-p-table th.tc { text-align:center; }
+    .dr-print .dr-p-total-row td { font-weight:800; border-top:2px solid #000; }
+    .dr-print .dr-p-footer { display:flex; justify-content:space-between; margin-top:1.4rem; font-size:.78rem; }
+    .dr-print .dr-p-sig { border-top:1px solid #000; margin-top:2.2rem; padding-top:.2rem; width:230px; text-align:center; }
 </style>
 
 @php
@@ -96,6 +126,9 @@
         </div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" onclick="window.print()" class="btn-print-h no-print">
+            <i class="bi bi-printer"></i> Print
+        </button>
         @if(isset($saleRecord) && $saleRecord)
             <a href="{{ route('sales.dr', $saleRecord) }}" class="btn-record-sales-h"
                title="Open Record sales — {{ $customerName }} · DR# {{ $drNumber }}">
@@ -202,6 +235,82 @@
                 </tr>
             </tfoot>
         </table>
+    </div>
+</div>
+
+{{-- Printable Deliver Receipt — mirrors the paper DR pad; shown only when printing --}}
+@php
+    $saleItemsByProduct = isset($saleRecord) && $saleRecord ? $saleRecord->items->keyBy('finished_product_id') : collect();
+    $printGrandAmount = 0;
+@endphp
+<div class="dr-print">
+    <div class="dr-p-company">DIVINE JM FOODS</div>
+    <div class="dr-p-address">Km. 7.5, Cabantian Road, Cabantian, Davao City &bull; Cellphone Nos. 0933-8625893 / 0933-8625894</div>
+
+    <div class="dr-p-title-row">
+        <div class="dr-p-title">DELIVER RECEIPT</div>
+        <div class="dr-p-no">No. {{ $drNumber }}</div>
+    </div>
+
+    <div class="dr-p-meta">
+        <div class="dr-p-meta-row"><span>Date:</span><span>{{ $first->movement_date->format('n/j/y') }}</span></div>
+        <div class="dr-p-meta-row"><span>To:</span><span>{{ $customerName }}</span></div>
+        <div class="dr-p-meta-row"><span>Address:</span><span>{{ $branch->address ?? $branch->name ?? '—' }}</span></div>
+        <div class="dr-p-meta-row"><span>Terms:</span><span>&nbsp;</span></div>
+    </div>
+
+    <table class="dr-p-table">
+        <thead>
+            <tr>
+                <th class="tc" style="width:10%">Qty.</th>
+                <th style="width:10%">Unit</th>
+                <th>Description</th>
+                <th class="tr" style="width:14%">U/P</th>
+                <th class="tr" style="width:16%">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach($grouped as $fpId => $mvs)
+            @php
+                $delivered = $mvs->where('movement_type', 'transfer_out')->sum('quantity');
+                $extra     = $mvs->where('movement_type', 'extra_free')->sum('quantity');
+                $product   = $mvs->first()->finishedProduct;
+                $saleItem  = $saleItemsByProduct->get($fpId);
+                $unitPrice = (float) ($saleItem->unit_price ?? $product->selling_price ?? 0);
+                $amount    = $delivered * $unitPrice;
+                $printGrandAmount += $amount;
+            @endphp
+            <tr>
+                <td class="tc">{{ number_format($delivered, 0) }}</td>
+                <td class="tc">&nbsp;</td>
+                <td>
+                    {{ $product->name }}
+                    @if($extra > 0)
+                        <span style="font-size:.7rem"> (+{{ number_format($extra, 0) }} free)</span>
+                    @endif
+                </td>
+                <td class="tr">{{ number_format($unitPrice, 2) }}</td>
+                <td class="tr">{{ number_format($amount, 2) }}</td>
+            </tr>
+        @endforeach
+        </tbody>
+        <tfoot>
+            <tr class="dr-p-total-row">
+                <td colspan="4" class="tr">TOTAL &nbsp;&#8369;</td>
+                <td class="tr">{{ number_format($printGrandAmount, 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="dr-p-meta-row" style="border-bottom:1px solid #000; padding-bottom:.15rem; margin-top:.6rem; font-size:.82rem">
+        <span style="font-weight:700">Note:</span><span>{{ $userNotes ?? '' }}</span>
+    </div>
+
+    <div class="dr-p-footer">
+        <div>Received the above goods in good order &amp; condition.</div>
+    </div>
+    <div style="display:flex; justify-content:flex-end">
+        <div class="dr-p-sig">Authorized Signature</div>
     </div>
 </div>
 

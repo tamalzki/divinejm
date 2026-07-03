@@ -14,10 +14,10 @@ class DeliveryReportController extends Controller
 
     public function index(Request $request)
     {
-        $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
-        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
-        $branchId = $request->get('branch_id', '');
-        $search = $request->get('search', '');
+        $startDate = $request->get('start_date') ?? Carbon::now()->startOfMonth()->format('Y-m-d');
+        $endDate = $request->get('end_date') ?? Carbon::now()->format('Y-m-d');
+        $branchId = $request->get('branch_id') ?? '';
+        $search = $request->get('search') ?? '';
 
         $branches = Branch::orderBy('name')->get();
 

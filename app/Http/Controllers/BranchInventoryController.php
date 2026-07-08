@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\BranchInventory;
 use App\Models\FinishedProduct;
+use App\Models\FinishedProductBranchPrice;
 use App\Models\ProductionMix;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -131,7 +132,7 @@ class BranchInventoryController extends Controller
 
         // ONE stock card per product — total available.
         // FIFO batch resolution happens on backend at storeDelivery time.
-        $products = FinishedProduct::orderBy('name')->get();
+        $products = FinishedProduct::with('branchPrices')->orderBy('name')->get();
 
         return view('branch-inventory.create', compact('branches', 'products'));
     }
@@ -162,7 +163,7 @@ class BranchInventoryController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
-        $products = FinishedProduct::orderBy('name')->get();
+        $products = FinishedProduct::with('branchPrices')->orderBy('name')->get();
 
         return view('branch-inventory.create', compact('branch', 'branches', 'products'));
     }
@@ -250,6 +251,13 @@ class BranchInventoryController extends Controller
             ? $customerPrefix.$deliveredPart.' | '.$validated['notes']
             : $customerPrefix.$deliveredPart;
 
+        // Area-specific prices for this branch — used whenever the
+        // submitted line item doesn't carry its own unit_price.
+        // Distributor accounts skip area pricing and use distributor_price instead.
+        $branchPriceMap = $branch->is_distributor
+            ? collect()
+            : FinishedProductBranchPrice::where('branch_id', $branch->id)->pluck('price', 'finished_product_id');
+
         try {
             DB::beginTransaction();
 
@@ -261,7 +269,7 @@ class BranchInventoryController extends Controller
                 $regularQty = (float) $itemData['quantity'];
                 $extraQty = (float) ($itemData['extra_quantity'] ?? 0);
                 $totalQty = $regularQty + $extraQty;
-                $unitPrice = (float) ($itemData['unit_price'] ?? $product->selling_price ?? 0);
+                $unitPrice = $this->resolveUnitPrice($itemData, $product, $branch, $branchPriceMap);
 
                 // Allow warehouse stock_on_hand to go negative when needed for sales/deliveries.
 
@@ -376,7 +384,7 @@ class BranchInventoryController extends Controller
                 $productId = (int) $itemData['product_id'];
                 $product = FinishedProduct::findOrFail($productId);
                 $regularQty = (float) $itemData['quantity'];
-                $unitPrice = (float) ($itemData['unit_price'] ?? $product->selling_price ?? 0);
+                $unitPrice = $this->resolveUnitPrice($itemData, $product, $branch, $branchPriceMap);
 
                 $existingItem = SaleItem::where('sale_id', $sale->id)
                     ->where('finished_product_id', $productId)
@@ -790,5 +798,22 @@ class BranchInventoryController extends Controller
         }
 
         return $query->orderByDesc('id')->first();
+    }
+
+    /**
+     * Unit price precedence: explicit price typed on the line > distributor
+     * price (for distributor accounts) > area-specific price > selling price.
+     */
+    private function resolveUnitPrice(array $itemData, FinishedProduct $product, Branch $branch, \Illuminate\Support\Collection $branchPriceMap): float
+    {
+        if (isset($itemData['unit_price']) && $itemData['unit_price'] !== null && $itemData['unit_price'] !== '') {
+            return (float) $itemData['unit_price'];
+        }
+
+        if ($branch->is_distributor) {
+            return (float) $product->distributor_price;
+        }
+
+        return (float) ($branchPriceMap->get($product->id) ?? $product->selling_price ?? 0);
     }
 }

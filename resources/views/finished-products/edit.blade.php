@@ -231,7 +231,7 @@
                             @foreach($finishedProduct->recipes as $index => $recipe)
                             <tr id="recipeItem{{ $index + 1 }}">
                                 <td>
-                                    <select name="raw_materials[{{ $index + 1 }}][id]"
+                                    <select name="ingredients[{{ $index + 1 }}][id]"
                                             class="form-select form-select-sm"
                                             onchange="updateCost({{ $index + 1 }})" required>
                                         <option value="">— Select —</option>
@@ -260,7 +260,7 @@
                                 </td>
                                 <td>
                                     <input type="number" step="0.01"
-                                           name="raw_materials[{{ $index + 1 }}][quantity]"
+                                           name="ingredients[{{ $index + 1 }}][quantity]"
                                            class="form-control form-control-sm"
                                            id="quantity{{ $index + 1 }}"
                                            value="{{ $recipe->quantity_needed }}"
@@ -346,6 +346,32 @@
                 </div>
             </div>
 
+            {{-- Area & Distributor Pricing --}}
+            <div class="section-label">Area &amp; Distributor Pricing</div>
+            <div class="field-hint mb-2">Optional. Leave an area blank to use the Selling Price above for that area.</div>
+
+            <div class="row g-3 mb-3">
+                @foreach($branches as $branch)
+                <div class="col-md-6">
+                    <label class="field-label">{{ $branch->name }} Price (₱)</label>
+                    <input type="number" step="0.01" min="0"
+                           name="branch_prices[{{ $branch->id }}]"
+                           class="form-control @error('branch_prices.'.$branch->id) is-invalid @enderror"
+                           value="{{ old('branch_prices.'.$branch->id, $branchPrices[$branch->id] ?? '') }}"
+                           placeholder="{{ number_format(0, 2) }}">
+                    <div class="invalid-feedback">@error('branch_prices.'.$branch->id){{ $message }}@enderror</div>
+                </div>
+                @endforeach
+                <div class="col-md-6">
+                    <label class="field-label">Distributor Price (₱)</label>
+                    <input type="number" step="0.01" min="0" name="distributor_price"
+                           class="form-control @error('distributor_price') is-invalid @enderror"
+                           value="{{ old('distributor_price', $finishedProduct->distributor_price) }}">
+                    <div class="field-hint">Used for distributor accounts</div>
+                    <div class="invalid-feedback">@error('distributor_price'){{ $message }}@enderror</div>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn-save" id="submitBtn">
                     <i class="bi bi-check-lg"></i> Update Product
@@ -383,14 +409,14 @@ function addRecipeItem() {
     tr.id = `recipeItem${recipeItemCount}`;
     tr.innerHTML = `
         <td>
-            <select name="raw_materials[${recipeItemCount}][id]" class="form-select form-select-sm" onchange="updateCost(${recipeItemCount})" required>
+            <select name="ingredients[${recipeItemCount}][id]" class="form-select form-select-sm" onchange="updateCost(${recipeItemCount})" required>
                 <option value="">— Select —</option>${optionsHtml}
             </select>
             <div id="stockWarning${recipeItemCount}" style="display:none;font-size:.7rem;color:var(--s-danger-text);margin-top:.2rem">
                 <i class="bi bi-exclamation-circle"></i> <span id="stockWarningText${recipeItemCount}"></span>
             </div>
         </td>
-        <td><input type="number" step="0.01" name="raw_materials[${recipeItemCount}][quantity]" class="form-control form-control-sm" id="quantity${recipeItemCount}" onchange="updateCost(${recipeItemCount})" required></td>
+        <td><input type="number" step="0.01" name="ingredients[${recipeItemCount}][quantity]" class="form-control form-control-sm" id="quantity${recipeItemCount}" onchange="updateCost(${recipeItemCount})" required></td>
         <td><input type="text" class="form-control form-control-sm" style="background:var(--bg-page)" id="unitPrice${recipeItemCount}" value="₱0.00" readonly></td>
         <td><span id="itemCost${recipeItemCount}" style="font-weight:700;color:var(--s-success-text);font-size:.82rem">₱0.00</span></td>
         <td class="text-center">

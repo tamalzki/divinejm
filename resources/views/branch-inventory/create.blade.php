@@ -126,8 +126,9 @@
                 @foreach($branches as $b)
                     <option value="{{ $b->id }}"
                         data-customers="{{ json_encode($b->customers_list ?? []) }}"
+                        data-distributor="{{ $b->is_distributor ? '1' : '0' }}"
                         {{ (string) old('branch_id', isset($branch) ? $branch->id : '') === (string) $b->id ? 'selected' : '' }}>
-                        {{ $b->name }}
+                        {{ $b->name }}{{ $b->is_distributor ? ' (Distributor)' : '' }}
                     </option>
                 @endforeach
             </select>
@@ -276,8 +277,10 @@
         'name'          => $p->name,
         'stock_on_hand' => $p->stock_on_hand,
         'selling_price' => $p->selling_price,
+        'distributor_price' => $p->distributor_price,
         'cost_price'    => $p->cost_price,
         'minimum_stock' => $p->minimum_stock,
+        'branch_prices' => $p->branchPrices->pluck('price', 'branch_id'),
     ];
 })->values()) !!}
 </script>
@@ -300,9 +303,13 @@ function parseMoney(el) {
 document.addEventListener('DOMContentLoaded', function() {
     allProducts = JSON.parse(document.getElementById('productData').textContent);
 
+    var oldBranch  = '{{ old("branch_id") }}';
+    var prefBranch = '{{ isset($branch) ? $branch->id : '' }}';
+    var initialBranchId = oldBranch || prefBranch || '';
+
     // Render one row per product, alphabetical (already sorted from PHP)
     allProducts.forEach(function(p, i) {
-        renderRow(p, i);
+        renderRow(p, i, initialBranchId);
     });
     rowIndex = allProducts.length;
 
@@ -338,12 +345,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var branchTs = new TomSelect('#branchSelect', {
         dropdownParent: 'body',
         create: false,
-        onChange: function(id) { loadCustomers(id, null); }
+        onChange: function(id) { loadCustomers(id, null); applyBranchPricing(id); }
     });
 
-    var oldBranch   = '{{ old("branch_id") }}';
     var oldCustomer = '{{ old("customer_name") }}';
-    var prefBranch  = '{{ isset($branch) ? $branch->id : '' }}';
     if (oldBranch) {
         branchTs.setValue(oldBranch, true);
         loadCustomers(oldBranch, oldCustomer || null);
@@ -501,7 +506,38 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function renderRow(product, idx) {
+/** True if the given Area select value is flagged as a Distributor account. */
+function isDistributorBranch(branchId) {
+    if (!branchId) return false;
+    var opt = document.querySelector('#branchSelect option[value="' + branchId + '"]');
+    return !!opt && opt.dataset.distributor === '1';
+}
+
+/** Price for a product given the selected area: distributor price for
+ *  Distributor accounts, else the area-specific price, else selling_price. */
+function getPriceForBranch(product, branchId) {
+    if (isDistributorBranch(branchId)) {
+        return parseFloat(product.distributor_price) || 0;
+    }
+    if (branchId && product.branch_prices) {
+        var v = product.branch_prices[String(branchId)];
+        if (v !== null && v !== undefined && v !== '') return parseFloat(v) || 0;
+    }
+    return parseFloat(product.selling_price) || 0;
+}
+
+/** Re-populate every row's unit price when the selected area changes. */
+function applyBranchPricing(branchId) {
+    for (var i = 0; i < rowIndex; i++) {
+        var priceEl = document.getElementById('price-' + i);
+        var product = allProducts[i];
+        if (!priceEl || !product) continue;
+        priceEl.value = getPriceForBranch(product, branchId).toFixed(2);
+        calcRow(i);
+    }
+}
+
+function renderRow(product, idx, branchId) {
     var tbody = document.getElementById('productsTableBody');
     var tr    = document.createElement('tr');
     tr.id     = 'prod-row-' + idx;
@@ -509,7 +545,7 @@ function renderRow(product, idx) {
     var avail    = parseFloat(product.stock_on_hand) || 0;
     var minStock = parseFloat(product.minimum_stock) || 0;
     var badgeCls = avail === 0 ? 'zero' : (avail <= minStock ? 'warn' : '');
-    var price    = parseFloat(product.selling_price) || 0;
+    var price    = getPriceForBranch(product, branchId);
 
     tr.innerHTML =
         '<td style="color:var(--text-muted);font-size:.68rem;text-align:center">' + (idx + 1) + '</td>' +
@@ -522,12 +558,12 @@ function renderRow(product, idx) {
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input qty-input" id="qty-' + idx + '" data-idx="' + idx + '" ' +
-                'name="items[' + idx + '][quantity]" step="1" min="0" value="0" oninput="onQtyInput(' + idx + ',' + avail + ')">' +
+                'name="items[' + idx + '][quantity]" step="1" min="0" value="" placeholder="0" oninput="onQtyInput(' + idx + ',' + avail + ')">' +
             '<input type="hidden" name="items[' + idx + '][product_id]" value="' + product.id + '">' +
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input extra-input" id="extra-' + idx + '" ' +
-                'name="items[' + idx + '][extra_quantity]" step="1" min="0" value="0" oninput="onQtyInput(' + idx + ',' + avail + '); calcRow(' + idx + ')">' +
+                'name="items[' + idx + '][extra_quantity]" step="1" min="0" value="" placeholder="0" oninput="onQtyInput(' + idx + ',' + avail + '); calcRow(' + idx + ')">' +
         '</td>' +
         '<td>' +
             '<input type="number" class="td-input price-input" id="price-' + idx + '" ' +
@@ -589,8 +625,8 @@ function calcGrand() {
 }
 
 function clearRow(idx) {
-    document.getElementById('qty-' + idx).value   = '0';
-    document.getElementById('extra-' + idx).value  = '0';
+    document.getElementById('qty-' + idx).value   = '';
+    document.getElementById('extra-' + idx).value  = '';
     document.getElementById('prod-row-' + idx).style.background = '';
     delete activeRows[idx];
     updateActiveCount();

@@ -363,6 +363,32 @@
                 are automatically calculated from Production Batches. You cannot set them manually.
             </div>
 
+            {{-- Area & Distributor Pricing --}}
+            <div class="section-label">Area &amp; Distributor Pricing</div>
+            <div class="field-hint mb-2">Optional. Leave an area blank to use the Selling Price above for that area.</div>
+
+            <div class="row g-3 mb-3">
+                @foreach($branches as $branch)
+                <div class="col-md-6">
+                    <label class="field-label">{{ $branch->name }} Price (₱)</label>
+                    <input type="number" step="0.01" min="0"
+                           name="branch_prices[{{ $branch->id }}]"
+                           class="form-control @error('branch_prices.'.$branch->id) is-invalid @enderror"
+                           value="{{ old('branch_prices.'.$branch->id) }}"
+                           placeholder="{{ number_format(0, 2) }}">
+                    <div class="invalid-feedback">@error('branch_prices.'.$branch->id){{ $message }}@enderror</div>
+                </div>
+                @endforeach
+                <div class="col-md-6">
+                    <label class="field-label">Distributor Price (₱)</label>
+                    <input type="number" step="0.01" min="0" name="distributor_price"
+                           class="form-control @error('distributor_price') is-invalid @enderror"
+                           value="{{ old('distributor_price', 0) }}">
+                    <div class="field-hint">Used for distributor accounts</div>
+                    <div class="invalid-feedback">@error('distributor_price'){{ $message }}@enderror</div>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn-save">
                     <i class="bi bi-check-lg"></i> Save Product

@@ -228,6 +228,12 @@
                         ₱{{ number_format($finishedProduct->selling_price, 2) }}
                     </span>
                 </div>
+                <div class="stat-tile">
+                    <span class="stat-tile-label">Distributor Price</span>
+                    <span class="stat-tile-value" style="font-size:.95rem">
+                        ₱{{ number_format($finishedProduct->distributor_price, 2) }}
+                    </span>
+                </div>
                 @if($finishedProduct->barcode)
                 <div class="stat-tile" style="flex:2 1 180px;text-align:left">
                     <span class="stat-tile-label">Barcode</span>
@@ -241,6 +247,19 @@
             @if($finishedProduct->description)
             <div style="margin-top:.75rem;padding:.6rem .75rem;background:var(--bg-page);border-radius:var(--radius);font-size:.8rem;color:var(--text-secondary)">
                 {{ $finishedProduct->description }}
+            </div>
+            @endif
+
+            @if($finishedProduct->branchPrices->isNotEmpty())
+            <div style="margin-top:.75rem">
+                <span class="stat-tile-label" style="display:block;margin-bottom:.35rem">Area Prices</span>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach($finishedProduct->branchPrices as $bp)
+                    <span style="font-size:.76rem;padding:.25rem .6rem;background:var(--bg-page);border:1px solid var(--border);border-radius:6px">
+                        {{ $bp->branch->name ?? '—' }}: <strong>₱{{ number_format($bp->price, 2) }}</strong>
+                    </span>
+                    @endforeach
+                </div>
             </div>
             @endif
         </div>

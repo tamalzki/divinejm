@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\DailyProductionEntry;
 use App\Models\FinishedProduct;
 use App\Models\ProductRecipe;
@@ -64,8 +65,9 @@ class FinishedProductController extends Controller
         $suggestedSku = 'PROD-'.str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
         $rawMaterials = RawMaterial::orderBy('category')->orderBy('name')->get();
+        $branches = Branch::where('is_active', true)->where('is_distributor', false)->orderBy('name')->get();
 
-        return view('finished-products.create', compact('suggestedSku', 'rawMaterials'));
+        return view('finished-products.create', compact('suggestedSku', 'rawMaterials', 'branches'));
     }
 
     public function store(Request $request)
@@ -78,6 +80,9 @@ class FinishedProductController extends Controller
             'minimum_stock' => 'required|numeric|min:0',
             'cost_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
+            'distributor_price' => 'nullable|numeric|min:0',
+            'branch_prices' => 'nullable|array',
+            'branch_prices.*' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
 
             'ingredients' => 'required_if:product_type,manufactured|array',
@@ -98,9 +103,12 @@ class FinishedProductController extends Controller
                 'minimum_stock' => $request->minimum_stock,
                 'cost_price' => $request->cost_price,
                 'selling_price' => $request->selling_price,
+                'distributor_price' => $request->input('distributor_price', 0),
                 'total_cost' => $request->cost_price,
                 'description' => $request->description,
             ]);
+
+            $this->syncBranchPrices($product, $request->input('branch_prices', []));
 
             if (Schema::hasColumn('finished_products', 'barcode')) {
                 $product->barcode = $product->generateBarcode();
@@ -136,7 +144,7 @@ class FinishedProductController extends Controller
 
     public function show(FinishedProduct $finishedProduct)
     {
-        $finishedProduct->load(['recipes.rawMaterial', 'branchInventory.branch', 'productionMixes', 'pendingMixes']);
+        $finishedProduct->load(['recipes.rawMaterial', 'branchInventory.branch', 'productionMixes', 'pendingMixes', 'branchPrices.branch']);
 
         $restockHistory = $finishedProduct->restocks()
             ->with('user')
@@ -163,12 +171,14 @@ class FinishedProductController extends Controller
 
     public function edit(FinishedProduct $finishedProduct)
     {
-        $finishedProduct->load('recipes.rawMaterial');
+        $finishedProduct->load('recipes.rawMaterial', 'branchPrices');
 
         $ingredients = RawMaterial::where('category', 'ingredient')->orderBy('name')->get();
         $packaging = RawMaterial::where('category', 'packaging')->orderBy('name')->get();
+        $branches = Branch::where('is_active', true)->where('is_distributor', false)->orderBy('name')->get();
+        $branchPrices = $finishedProduct->branchPrices->pluck('price', 'branch_id');
 
-        return view('finished-products.edit', compact('finishedProduct', 'ingredients', 'packaging'));
+        return view('finished-products.edit', compact('finishedProduct', 'ingredients', 'packaging', 'branches', 'branchPrices'));
     }
 
     public function update(Request $request, FinishedProduct $finishedProduct)
@@ -179,6 +189,9 @@ class FinishedProductController extends Controller
             'minimum_stock' => 'required|numeric|min:0',
             'cost_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
+            'distributor_price' => 'nullable|numeric|min:0',
+            'branch_prices' => 'nullable|array',
+            'branch_prices.*' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
 
             'ingredients' => 'required_if:product_type,manufactured|array',
@@ -195,8 +208,11 @@ class FinishedProductController extends Controller
                 'minimum_stock' => $request->minimum_stock,
                 'cost_price' => $request->cost_price,
                 'selling_price' => $request->selling_price,
+                'distributor_price' => $request->input('distributor_price', 0),
                 'description' => $request->description,
             ]);
+
+            $this->syncBranchPrices($finishedProduct, $request->input('branch_prices', []));
 
             if ($finishedProduct->product_type === 'manufactured') {
                 $finishedProduct->recipes()->delete();
@@ -297,5 +313,25 @@ class FinishedProductController extends Controller
         $finishedProduct->save();
 
         return back()->with('success', "Stock for '{$finishedProduct->name}' updated to {$newStock} units.");
+    }
+
+    /**
+     * Save/clear per-area (branch) prices for a product. A blank value
+     * removes the override so the product falls back to selling_price.
+     */
+    private function syncBranchPrices(FinishedProduct $product, array $branchPrices): void
+    {
+        foreach ($branchPrices as $branchId => $price) {
+            if ($price === null || $price === '') {
+                $product->branchPrices()->where('branch_id', $branchId)->delete();
+
+                continue;
+            }
+
+            $product->branchPrices()->updateOrCreate(
+                ['branch_id' => $branchId],
+                ['price' => $price]
+            );
+        }
     }
 }

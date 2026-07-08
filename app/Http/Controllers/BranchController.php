@@ -34,6 +34,7 @@ class BranchController extends Controller
             'customers.*.name' => 'required|string|max:255',
             'customers.*.phone' => 'nullable|string|max:50',
             'is_active' => 'boolean',
+            'is_distributor' => 'boolean',
         ], [
             'name.required' => 'Area name is required.',
             'name.max' => 'Area name must not exceed 255 characters.',
@@ -50,6 +51,7 @@ class BranchController extends Controller
         $validated['code'] = strtoupper(trim($validated['code']));
         $validated['name'] = trim($validated['name']);
         $validated['is_active'] = $request->has('is_active');
+        $validated['is_distributor'] = $request->has('is_distributor');
 
         if (! empty($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);
@@ -98,6 +100,7 @@ class BranchController extends Controller
             'customers.*.name' => 'required|string|max:255',
             'customers.*.phone' => 'nullable|string|max:50',
             'is_active' => 'boolean',
+            'is_distributor' => 'boolean',
         ], [
             'name.required' => 'Area name is required.',
             'name.max' => 'Area name must not exceed 255 characters.',
@@ -114,6 +117,7 @@ class BranchController extends Controller
         $validated['code'] = strtoupper(trim($validated['code']));
         $validated['name'] = trim($validated['name']);
         $validated['is_active'] = $request->has('is_active');
+        $validated['is_distributor'] = $request->has('is_distributor');
 
         if (! empty($validated['customers'])) {
             $validated['customers'] = array_values($validated['customers']);

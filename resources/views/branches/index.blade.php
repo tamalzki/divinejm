@@ -31,6 +31,9 @@
                         <td>
                             <div class="fw-semibold">
                                 <i class="bi bi-shop text-primary me-2"></i>{{ $branch->name }}
+                                @if($branch->is_distributor)
+                                    <span class="badge bg-warning text-dark">Distributor</span>
+                                @endif
                             </div>
                             @if($branch->phone)
                             <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ $branch->phone }}</small>

@@ -13,10 +13,12 @@ class Branch extends Model
         'address',
         'phone',
         'is_active',
+        'is_distributor',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_distributor' => 'boolean',
     ];
 
     public function inventory()
@@ -32,6 +34,11 @@ class Branch extends Model
     public function branchCustomers(): HasMany
     {
         return $this->hasMany(BranchCustomer::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function productPrices(): HasMany
+    {
+        return $this->hasMany(FinishedProductBranchPrice::class);
     }
 
     /**

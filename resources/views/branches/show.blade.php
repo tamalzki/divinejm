@@ -47,6 +47,9 @@
                         @else
                             <span class="badge bg-secondary fs-6"><i class="bi bi-x-circle me-1"></i>Inactive</span>
                         @endif
+                        @if($branch->is_distributor)
+                            <span class="badge bg-warning text-dark fs-6"><i class="bi bi-truck me-1"></i>Distributor</span>
+                        @endif
                     </div>
                 </div>
 

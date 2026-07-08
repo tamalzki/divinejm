@@ -15,6 +15,7 @@ class FinishedProduct extends Model
         'minimum_stock',
         'cost_price',
         'selling_price',
+        'distributor_price',
         'total_cost',
         'stock_on_hand',
         'stock_out',
@@ -69,6 +70,11 @@ class FinishedProduct extends Model
         return $this->belongsToMany(Branch::class, 'branch_inventory')
             ->withPivot('quantity')
             ->withTimestamps();
+    }
+
+    public function branchPrices()
+    {
+        return $this->hasMany(FinishedProductBranchPrice::class);
     }
 
     public function stockMovements()
@@ -205,6 +211,27 @@ class FinishedProduct extends Model
         }
 
         return max(0, $this->expiry_date->diffInDays(now()));
+    }
+
+    // ── AREA PRICING HELPER ───────────────────────────────────────
+
+    /**
+     * Price for this product when delivered to the given branch/area.
+     * Falls back to selling_price if no area-specific price is set.
+     */
+    public function priceForBranch(?int $branchId): float
+    {
+        if ($branchId) {
+            $price = $this->relationLoaded('branchPrices')
+                ? $this->branchPrices->firstWhere('branch_id', $branchId)?->price
+                : $this->branchPrices()->where('branch_id', $branchId)->value('price');
+
+            if ($price !== null) {
+                return (float) $price;
+            }
+        }
+
+        return (float) $this->selling_price;
     }
 
     // ── STOCK MOVEMENT HELPERS ────────────────────────────────────

@@ -123,6 +123,21 @@
                 </div>
             </div>
 
+            <div class="mb-4">
+                <div class="form-check form-switch">
+                    <input type="checkbox"
+                           name="is_distributor"
+                           class="form-check-input"
+                           id="is_distributor"
+                           value="1"
+                           {{ old('is_distributor') ? 'checked' : '' }}>
+                    <label class="form-check-label" for="is_distributor">
+                        <strong>Distributor Account</strong>
+                    </label>
+                    <small class="text-muted d-block">Deliveries to this entry use each product's Distributor Price instead of area pricing</small>
+                </div>
+            </div>
+
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary" id="submitBtn">
                     <i class="bi bi-save me-2"></i>Create Area

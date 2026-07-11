@@ -20,8 +20,12 @@
     .cust-row { cursor:pointer; }
     .cust-name { font-weight:600; font-size:.83rem; }
 
-    .btn-new { display:inline-flex; align-items:center; gap:.3rem; padding:.3rem .85rem; background:var(--accent); color:#fff !important; border-radius:6px; font-size:.78rem; font-weight:600; text-decoration:none !important; border:none; cursor:pointer; transition:background .14s; white-space:nowrap; }
-    .btn-new:hover { background:var(--accent-hover); }
+    .bi-toolbar { display:flex; align-items:center; gap:.5rem; margin-bottom:.75rem; flex-wrap:wrap; }
+    .bi-search-wrap { position:relative; display:flex; align-items:center; }
+    .bi-search-icon { position:absolute; left:.65rem; color:var(--text-muted); font-size:.8rem; pointer-events:none; }
+    .bi-search-input { height:32px; padding:0 1rem 0 2rem; border:1px solid var(--border); border-radius:6px; font-size:.79rem; color:var(--text-primary); background:var(--bg-card); width:260px; outline:none; }
+    .bi-search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,91,219,.1); }
+    .bi-search-input::placeholder { color:var(--text-muted); }
 
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); }
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
@@ -44,9 +48,13 @@
             @if($branch->phone) &middot; {{ $branch->phone }} @endif
         </div>
     </div>
-    <a href="{{ route('branch-inventory.create-delivery', ['branch_id' => $branch->id]) }}" class="btn-new">
-        <i class="bi bi-plus-lg"></i> Deliver to Customer
-    </a>
+</div>
+
+<div class="bi-toolbar">
+    <div class="bi-search-wrap">
+        <i class="bi bi-search bi-search-icon"></i>
+        <input type="text" id="customerSearchInput" class="bi-search-input" placeholder="Search customer..." autocomplete="off">
+    </div>
 </div>
 
 <div class="bi-card">
@@ -60,9 +68,9 @@
                     <th class="text-center" style="width:10%"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="customerTableBody">
             @forelse($customers as $customer)
-            <tr class="cust-row" onclick="window.location='{{ route('branch-inventory.customer-deliveries', [$branch, $customer]) }}'">
+            <tr class="cust-row" data-search="{{ strtolower($customer->name) }}" onclick="window.location='{{ route('branch-inventory.customer-deliveries', [$branch, $customer]) }}'">
                 <td class="cust-name"><i class="bi bi-person-circle me-1" style="color:var(--accent)"></i>{{ $customer->name }}</td>
                 <td style="font-size:.78rem;color:var(--text-secondary)">{{ $customer->phone ?: '—' }}</td>
                 <td class="text-end" style="font-size:.8rem">{{ $customer->delivery_count }}</td>
@@ -87,5 +95,14 @@
         </table>
     </div>
 </div>
+
+<script>
+document.getElementById('customerSearchInput').addEventListener('input', function() {
+    var val = this.value.toLowerCase().trim();
+    document.querySelectorAll('#customerTableBody .cust-row').forEach(function(row) {
+        row.style.display = (!val || row.dataset.search.includes(val)) ? '' : 'none';
+    });
+});
+</script>
 
 @endsection

@@ -66,6 +66,15 @@
     .dr-print .dr-p-total-row td { font-weight:800; border-top:2px solid #000; }
     .dr-print .dr-p-footer { display:flex; justify-content:space-between; margin-top:1.4rem; font-size:.78rem; }
     .dr-print .dr-p-sig { border-top:1px solid #000; margin-top:2.2rem; padding-top:.2rem; width:230px; text-align:center; }
+
+    @media (max-width: 640px) {
+        .meta-grid { grid-template-columns:repeat(2,1fr); }
+        .dj-back { align-self:flex-start; }
+        .dr-header-left { flex-direction:column; align-items:flex-start; }
+        .dj-save-banner { flex-direction:column; }
+        .dj-save-banner-actions { width:100%; }
+        .dj-save-banner-actions a { flex:1; justify-content:center; text-align:center; }
+    }
 </style>
 
 @php
@@ -106,8 +115,8 @@
 @endif
 
 {{-- Header --}}
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <div class="d-flex align-items-center gap-2">
+<div class="dr-header-row d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div class="dr-header-left d-flex align-items-center gap-2">
         <a href="{{ route('branch-inventory.index') }}" class="dj-back">
             <i class="bi bi-arrow-left"></i> Deliveries
         </a>

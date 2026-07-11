@@ -30,6 +30,11 @@
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); }
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
+
+    @media (max-width: 640px) {
+        .bi-search-wrap, .bi-search-input { width:100%; }
+        .area-title { font-size:.92rem; }
+    }
 </style>
 
 <a href="{{ route('branch-inventory.index') }}" class="dj-back">

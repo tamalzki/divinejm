@@ -296,6 +296,60 @@
             padding: 1.4rem 1.5rem;
         }
 
+        /* ── Mobile nav (hamburger + off-canvas sidebar) ─────────
+           Hidden on desktop; shown only under the mobile breakpoint. */
+        .topbar-hamburger {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 32px; height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .topbar-hamburger:hover { background: var(--bg-page); }
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.4);
+            z-index: 98;
+        }
+        .sidebar-backdrop.open { display: block; }
+
+        /* ── Responsive breakpoint — phones (iPhone 13, Xiaomi 13 Pro, etc.) ── */
+        @media (max-width: 900px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform .22s ease;
+                width: min(var(--sidebar-width), 82vw);
+                box-shadow: 2px 0 16px rgba(0,0,0,.18);
+            }
+            .sidebar.open { transform: translateX(0); }
+
+            .topbar {
+                left: 0;
+                padding: 0 .75rem;
+                gap: .5rem;
+            }
+            .topbar-hamburger { display: inline-flex; }
+            .topbar-brand, .topbar-sep { display: none; }
+            .topbar-date { display: none; }
+            .topbar-title { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .topbar-user span:not(.topbar-badge) { display: none; }
+
+            .main-wrap { margin-left: 0; }
+            .main-inner { padding: .9rem .75rem; }
+        }
+
+        @media (max-width: 420px) {
+            .topbar-badge { display: none; }
+        }
+
         /* ── Global overrides ─────────────────────────────────── */
 
         .card {
@@ -448,8 +502,11 @@
 </head>
 <body>
 
+{{-- Mobile sidebar backdrop --}}
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
 {{-- Sidebar --}}
-<aside class="sidebar">
+<aside class="sidebar" id="appSidebar">
     <div class="sidebar-brand">
         <div class="sidebar-brand-icon">
             {{-- Cloud icon matching the logo --}}
@@ -538,6 +595,9 @@
 
 {{-- Top Bar --}}
 <header class="topbar">
+    <button type="button" class="topbar-hamburger" id="sidebarToggle" aria-label="Toggle menu">
+        <i class="bi bi-list"></i>
+    </button>
     <span class="topbar-brand">Divine JM</span>
     <div class="topbar-sep"></div>
     <span class="topbar-title">@yield('page-title', 'Dashboard')</span>
@@ -569,6 +629,33 @@
                     row.remove();
                 }
             });
+        });
+
+        // ── Mobile sidebar toggle ──────────────────────────────
+        var sidebar   = document.getElementById('appSidebar');
+        var backdrop  = document.getElementById('sidebarBackdrop');
+        var toggleBtn = document.getElementById('sidebarToggle');
+
+        function openSidebar() {
+            sidebar.classList.add('open');
+            backdrop.classList.add('open');
+        }
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            backdrop.classList.remove('open');
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function () {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            });
+        }
+        if (backdrop) {
+            backdrop.addEventListener('click', closeSidebar);
+        }
+        // Close the drawer after tapping a nav link (mobile).
+        sidebar.querySelectorAll('.sidebar-link').forEach(function (link) {
+            link.addEventListener('click', closeSidebar);
         });
     });
 </script>

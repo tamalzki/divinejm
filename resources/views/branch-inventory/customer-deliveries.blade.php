@@ -27,6 +27,12 @@
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); }
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
+
+    @media (max-width: 640px) {
+        .dj-back { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cust-header { flex-direction:column; align-items:stretch; }
+        .cust-header .btn-new { justify-content:center; }
+    }
 </style>
 
 <a href="{{ route('branch-inventory.show', $branch) }}" class="dj-back">

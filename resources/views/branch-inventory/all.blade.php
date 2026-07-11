@@ -52,6 +52,13 @@
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
 
+    .pd-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.9rem; flex-wrap:wrap; }
+
+    @media (max-width: 640px) {
+        .pd-header { flex-direction:column; align-items:stretch; }
+        .pd-header .btn-new { justify-content:center; }
+        .bi-search-wrap, .bi-search-input { width:100%; }
+    }
 </style>
 
 {{-- Header --}}
@@ -60,7 +67,7 @@
         <i class="bi bi-arrow-left"></i> Areas
     </a>
 </div>
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="pd-header">
     <div>
         <h5 class="fw-bold mb-0" style="font-size:.95rem">
             <i class="bi bi-truck me-2" style="color:var(--accent)"></i>All Deliveries
@@ -168,8 +175,7 @@
         </table>
     </div>
     <div class="bi-footer">
-        <span>Showing {{ $deliveries->firstItem() ?? 0 }}–{{ $deliveries->lastItem() ?? 0 }} of {{ $deliveries->total() }} {{ Str::plural('result', $deliveries->total()) }}</span>
-        <div>{{ $deliveries->appends(request()->query())->links() }}</div>
+        {{ $deliveries->appends(request()->query())->links() }}
     </div>
 </div>
 

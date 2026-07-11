@@ -97,6 +97,26 @@
     .ts-dropdown { font-size:.76rem !important; border-color:var(--border) !important; }
     .ts-dropdown .option { padding:.3rem .55rem !important; }
     .ts-dropdown .option.active { background:var(--accent) !important; color:#fff !important; }
+
+    /* ── Mobile (iPhone 13, Xiaomi 13 Pro, and similar phones) ── */
+    @media (max-width: 640px) {
+        .header-grid { grid-template-columns: 1fr; }
+
+        .table-card-header { flex-direction:column; align-items:stretch; gap:.5rem; }
+        .table-card-header .d-flex { justify-content:space-between; }
+
+        .action-strip { flex-wrap:wrap; }
+        .action-strip .btn-submit,
+        .action-strip .btn-cancel { flex:1; justify-content:center; }
+        .action-strip span { width:100%; order:3; margin-left:0 !important; }
+
+        .modal-dialog { margin:.5rem; }
+        .review-modal .modal-body,
+        .bo-replace-modal .modal-body { padding:.85rem; }
+
+        #reviewBoSection .table-responsive,
+        #boPanelTable { font-size:.72rem; }
+    }
 </style>
 
 {{-- Page Header --}}
@@ -274,7 +294,7 @@
                     </table>
                 </div>
 
-                <div style="margin-top:1rem;display:flex;align-items:center;justify-content:space-between">
+                <div style="margin-top:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
                     <div style="font-size:.78rem;font-weight:700;color:#dc2626">
                         <i class="bi bi-arrow-repeat me-1"></i>BO Replaced — free, not billed
                     </div>

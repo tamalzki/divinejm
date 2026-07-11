@@ -30,17 +30,29 @@
     .empty-state { text-align:center; padding:3rem 1rem; color:var(--text-muted); }
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
+
+    .pd-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.9rem; flex-wrap:wrap; }
+    .pd-header-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+
+    @media (max-width: 640px) {
+        .pd-header { flex-direction:column; align-items:stretch; }
+        .pd-header-actions { width:100%; }
+        .pd-header-actions .btn-new,
+        .pd-header-actions .btn-secondary-link { flex:1; justify-content:center; }
+        .bi-search-wrap, .bi-search-input { width:100%; }
+        .area-stats { flex-wrap:wrap; }
+    }
 </style>
 
 {{-- Header --}}
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="pd-header">
     <div>
         <h5 class="fw-bold mb-0" style="font-size:.95rem">
             <i class="bi bi-truck me-2" style="color:var(--accent)"></i>Deliver Products
         </h5>
         <p class="mb-0" style="font-size:.71rem;color:var(--text-muted)">Pick an area to browse its customers and delivery receipts</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="pd-header-actions">
         <a href="{{ route('branch-inventory.all') }}" class="btn-secondary-link">
             <i class="bi bi-list-ul"></i> All Deliveries
         </a>

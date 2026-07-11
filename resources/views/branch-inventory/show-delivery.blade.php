@@ -238,6 +238,55 @@
     </div>
 </div>
 
+@if($boReplacementMovements->isNotEmpty())
+<div class="dj-card" style="border-color:#dc2626">
+    <div class="dj-card-header" style="background:#fef2f2">
+        <span class="dj-card-title" style="color:#991b1b">
+            <i class="bi bi-arrow-repeat"></i>
+            BO Replaced — free, not billed
+        </span>
+        <span style="font-size:.68rem;color:#991b1b">{{ $boReplacementMovements->groupBy('finished_product_id')->count() }} product(s)</span>
+    </div>
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:5%">#</th>
+                    <th>Product</th>
+                    <th style="width:18%">Original DR#</th>
+                    <th class="text-center" style="width:12%">Qty Replaced</th>
+                    <th class="text-end" style="width:14%">Ref. Price</th>
+                    <th class="text-end" style="width:14%">Ref. Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+            @php $boRowNum = 1; $boGrandAmount = 0; @endphp
+            @foreach($boReplacementMovements as $boMv)
+                @php
+                    $boAmount = (float) $boMv->quantity * (float) ($boMv->unit_price ?? 0);
+                    $boGrandAmount += $boAmount;
+                @endphp
+                <tr>
+                    <td style="color:var(--text-muted);font-size:.68rem;text-align:center">{{ $boRowNum++ }}</td>
+                    <td><span style="font-weight:600;color:var(--text-primary)">{{ $boMv->finishedProduct->name ?? '—' }}</span></td>
+                    <td style="font-size:.75rem;color:var(--text-secondary)">DR# {{ $boMv->sourceSaleItem->sale->dr_number ?? '—' }}</td>
+                    <td class="text-center" style="font-weight:700;font-size:.84rem">{{ number_format($boMv->quantity, 0) }}</td>
+                    <td class="text-end">&#8369;{{ number_format($boMv->unit_price ?? 0, 2) }}</td>
+                    <td class="text-end" style="font-weight:600">&#8369;{{ number_format($boAmount, 2) }}</td>
+                </tr>
+            @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" class="text-end">Reference total (not billed)</td>
+                    <td class="text-end">&#8369;{{ number_format($boGrandAmount, 2) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+@endif
+
 {{-- Printable Deliver Receipt — mirrors the paper DR pad; shown only when printing --}}
 @php
     $saleItemsByProduct = isset($saleRecord) && $saleRecord ? $saleRecord->items->keyBy('finished_product_id') : collect();
@@ -302,6 +351,43 @@
         </tfoot>
     </table>
 
+    @if($boReplacementMovements->isNotEmpty())
+    <div style="font-size:.85rem; font-weight:800; margin-top:.6rem">BO REPLACED (FREE — NOT BILLED)</div>
+    <table class="dr-p-table" style="margin-top:.2rem">
+        <thead>
+            <tr>
+                <th class="tc" style="width:10%">Qty.</th>
+                <th>Description</th>
+                <th style="width:18%">Orig. DR#</th>
+                <th class="tr" style="width:14%">Ref. U/P</th>
+                <th class="tr" style="width:16%">Ref. Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+        @php $boPrintTotal = 0; @endphp
+        @foreach($boReplacementMovements as $boMv)
+            @php
+                $boPrintAmount = (float) $boMv->quantity * (float) ($boMv->unit_price ?? 0);
+                $boPrintTotal += $boPrintAmount;
+            @endphp
+            <tr>
+                <td class="tc">{{ number_format($boMv->quantity, 0) }}</td>
+                <td>{{ $boMv->finishedProduct->name ?? '—' }}</td>
+                <td>{{ $boMv->sourceSaleItem->sale->dr_number ?? '—' }}</td>
+                <td class="tr">{{ number_format($boMv->unit_price ?? 0, 2) }}</td>
+                <td class="tr">{{ number_format($boPrintAmount, 2) }}</td>
+            </tr>
+        @endforeach
+        </tbody>
+        <tfoot>
+            <tr class="dr-p-total-row">
+                <td colspan="4" class="tr">REF. TOTAL &nbsp;&#8369;</td>
+                <td class="tr">{{ number_format($boPrintTotal, 2) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    @endif
+
     <div class="dr-p-meta-row" style="border-bottom:1px solid #000; padding-bottom:.15rem; margin-top:.6rem; font-size:.82rem">
         <span style="font-weight:700">Note:</span><span>{{ $userNotes ?? '' }}</span>
     </div>
@@ -313,5 +399,13 @@
         <div class="dr-p-sig">Authorized Signature</div>
     </div>
 </div>
+
+@if(session('auto_print'))
+<script>
+    window.addEventListener('load', function() {
+        window.print();
+    });
+</script>
+@endif
 
 @endsection

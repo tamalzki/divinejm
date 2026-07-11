@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\BranchCustomer;
 use App\Models\BranchInventory;
 use App\Models\FinishedProduct;
 use App\Models\FinishedProductBranchPrice;
@@ -11,6 +12,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Services\DeliveryBatchReversalService;
+use App\Services\DrNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,26 +22,35 @@ use Illuminate\Validation\ValidationException;
 class BranchInventoryController extends Controller
 {
     // ──────────────────────────────────────────────────────────────────
-    // INDEX — list all deliveries (grouped by DR number)
+    // INDEX — list areas (drill down to customers → DRs)
     // ──────────────────────────────────────────────────────────────────
-    public function index(Request $request)
+    public function index()
+    {
+        $branches = Branch::withCount('branchCustomers')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $deliveryCounts = StockMovement::where('movement_type', 'transfer_out')
+            ->select('branch_id', DB::raw('COUNT(DISTINCT reference_number) as c'))
+            ->groupBy('branch_id')
+            ->pluck('c', 'branch_id');
+
+        $branches->each(function ($branch) use ($deliveryCounts) {
+            $branch->delivery_count = $deliveryCounts[$branch->id] ?? 0;
+        });
+
+        return view('branch-inventory.index', compact('branches'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // ALL DELIVERIES — flat, searchable list of every delivery (grouped by DR)
+    // ──────────────────────────────────────────────────────────────────
+    public function allDeliveries(Request $request)
     {
         $search = $request->get('search');
 
-        $query = StockMovement::query()
-            ->where('movement_type', 'transfer_out')
-            ->with(['branch', 'user'])
-            ->select(
-                'reference_number as dr_number',
-                'branch_id',
-                DB::raw('MAX(notes) as notes'),
-                'movement_date',
-                'user_id',
-                DB::raw('COUNT(DISTINCT finished_product_id) as product_count'),
-                DB::raw('SUM(quantity) as total_qty'),
-                DB::raw('MIN(id) as id')
-            )
-            ->groupBy('reference_number', 'branch_id', 'movement_date', 'user_id');
+        $query = $this->baseDeliveriesQuery();
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -49,81 +60,65 @@ class BranchInventoryController extends Controller
         }
 
         $rawDeliveries = $query->orderBy('movement_date', 'desc')->orderBy('reference_number', 'desc')->paginate(20);
+        $rawDeliveries->setCollection(collect($this->enrichDeliveryRows($rawDeliveries->items())));
+        $deliveries = $rawDeliveries;
 
-        $branchIds = $rawDeliveries->pluck('branch_id')->unique();
-        $branches = Branch::whereIn('id', $branchIds)->pluck('name', 'id');
-
-        $userIds = $rawDeliveries->pluck('user_id')->unique();
-        $users = \App\Models\User::whereIn('id', $userIds)->pluck('name', 'id');
-
-        // Compute DR face-value totals (deployed qty × unit price) from sale items
-        $drNumbers = $rawDeliveries->pluck('dr_number')->unique()->filter()->values();
-        $drTotals = SaleItem::join('sales', 'sale_items.sale_id', '=', 'sales.id')
-            ->whereIn('sales.dr_number', $drNumbers)
-            ->select('sales.dr_number', DB::raw('SUM(sale_items.quantity_deployed * sale_items.unit_price) as deployed_total'))
-            ->groupBy('sales.dr_number')
-            ->pluck('deployed_total', 'dr_number');
-
-        $saleIdsByKey = $this->bulkResolveSaleIdsForDeliveryRows($rawDeliveries->items());
-
-        $deliveries = $rawDeliveries->through(function ($row) use ($branches, $users, $drTotals, $saleIdsByKey) {
-            $row->branch_name = $branches[$row->branch_id] ?? '—';
-            $row->recorded_by = $users[$row->user_id] ?? '—';
-            $row->total_value = (float) ($drTotals[$row->dr_number] ?? 0);
-            $custParsed = $this->parseCustomerNameFromMovementNotes($row->notes ?? null);
-            $row->customer_name = $custParsed ?? '—';
-            // Parse delivered_by from notes
-            if ($row->notes && str_contains($row->notes, 'Delivered By:')) {
-                preg_match('/Delivered By:\s*([^|]+)/', $row->notes, $dm);
-                $row->delivered_by = trim($dm[1] ?? '—');
-            } else {
-                $row->delivered_by = '—';
-            }
-
-            $row->sale_id = null;
-            if ($custParsed !== null) {
-                $key = static::deliverySaleMapKey((int) $row->branch_id, (string) $row->dr_number, $custParsed);
-                $row->sale_id = $saleIdsByKey[$key] ?? null;
-            }
-
-            return $row;
-        });
-
-        return view('branch-inventory.index', compact('deliveries'));
+        return view('branch-inventory.all', compact('deliveries'));
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // AREAS INDEX — list areas (used by sidebar Areas link)
-    // ──────────────────────────────────────────────────────────────────
-    public function areas()
-    {
-        $branches = Branch::with(['inventory.finishedProduct'])
-            ->where('is_active', true)
-            ->get();
-
-        return view('branch-inventory.areas', compact('branches'));
-    }
-
-    // ──────────────────────────────────────────────────────────────────
-    // SHOW — area detail + movement history
+    // SHOW — area detail: list of that area's customers
     // ──────────────────────────────────────────────────────────────────
     public function show(Branch $branch)
     {
-        $branch->load(['inventory.finishedProduct']);
+        $customers = $branch->branchCustomers;
 
-        $stockMovements = StockMovement::where('branch_id', $branch->id)
-            ->with(['finishedProduct', 'user'])
+        $deliveryCounts = StockMovement::where('movement_type', 'transfer_out')
+            ->where('branch_id', $branch->id)
+            ->select('notes', DB::raw('COUNT(DISTINCT reference_number) as c'))
+            ->groupBy('notes')
+            ->get();
+
+        $countsByCustomer = [];
+        foreach ($deliveryCounts as $row) {
+            $cust = $this->parseCustomerNameFromMovementNotes($row->notes);
+            if ($cust === null) {
+                continue;
+            }
+            $countsByCustomer[$cust] = ($countsByCustomer[$cust] ?? 0) + $row->c;
+        }
+
+        $customers->each(function ($customer) use ($countsByCustomer) {
+            $customer->delivery_count = $countsByCustomer[$customer->name] ?? 0;
+        });
+
+        return view('branch-inventory.show', compact('branch', 'customers'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // CUSTOMER DELIVERIES — DR list for one customer of one area
+    // ──────────────────────────────────────────────────────────────────
+    public function customerDeliveries(Branch $branch, BranchCustomer $branchCustomer)
+    {
+        abort_if($branchCustomer->branch_id !== $branch->id, 404);
+
+        $rows = $this->baseDeliveriesQuery()
+            ->where('branch_id', $branch->id)
             ->orderBy('movement_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->orderBy('reference_number', 'desc')
+            ->get()
+            ->filter(fn ($row) => $this->parseCustomerNameFromMovementNotes($row->notes) === $branchCustomer->name)
+            ->values();
 
-        return view('branch-inventory.show', compact('branch', 'stockMovements'));
+        $deliveries = collect($this->enrichDeliveryRows($rows));
+
+        return view('branch-inventory.customer-deliveries', compact('branch', 'branchCustomer', 'deliveries'));
     }
 
     // ──────────────────────────────────────────────────────────────────
     // CREATE DELIVERY — standalone form (branch selected on page)
     // ──────────────────────────────────────────────────────────────────
-    public function createDelivery()
+    public function createDelivery(Request $request)
     {
         $branches = Branch::with(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
             ->where('is_active', true)
@@ -134,7 +129,46 @@ class BranchInventoryController extends Controller
         // FIFO batch resolution happens on backend at storeDelivery time.
         $products = FinishedProduct::with('branchPrices')->orderBy('name')->get();
 
-        return view('branch-inventory.create', compact('branches', 'products'));
+        $prefBranchId = $request->query('branch_id');
+        $prefCustomer = $request->query('customer');
+        $nextDrNumber = DrNumberService::peek();
+
+        return view('branch-inventory.create', compact('branches', 'products', 'prefBranchId', 'prefCustomer', 'nextDrNumber'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // OUTSTANDING BO — JSON list of not-yet-replaced bad-order lines for
+    // one area/customer, used by the "Replace BO" picker on the create form
+    // ──────────────────────────────────────────────────────────────────
+    public function outstandingBo(Request $request)
+    {
+        $branchId = $request->query('branch_id');
+        $customerName = $request->query('customer');
+
+        if (! $branchId || ! $customerName) {
+            return response()->json([]);
+        }
+
+        $items = SaleItem::with(['finishedProduct', 'sale'])
+            ->whereHas('sale', function ($q) use ($branchId, $customerName) {
+                $q->where('branch_id', $branchId)->where('customer_name', $customerName);
+            })
+            ->whereColumn('quantity_bo', '>', 'quantity_replaced')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'sale_item_id' => $item->id,
+                    'dr_number' => $item->sale->dr_number,
+                    'product_id' => $item->finished_product_id,
+                    'product_name' => $item->finishedProduct->name ?? '—',
+                    'unit_price' => (float) $item->unit_price,
+                    'outstanding_qty' => (float) $item->quantity_bo - (float) $item->quantity_replaced,
+                    'sale_date' => optional($item->sale->sale_date)->format('M d, Y'),
+                ];
+            })
+            ->values();
+
+        return response()->json($items);
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -157,7 +191,7 @@ class BranchInventoryController extends Controller
     // ──────────────────────────────────────────────────────────────────
     // CREATE — per-branch deliver form (kept for show page "Deliver" btn)
     // ──────────────────────────────────────────────────────────────────
-    public function create(Branch $branch)
+    public function create(Request $request, Branch $branch)
     {
         $branches = Branch::with(['branchCustomers' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')])
             ->where('is_active', true)
@@ -165,7 +199,11 @@ class BranchInventoryController extends Controller
             ->get();
         $products = FinishedProduct::with('branchPrices')->orderBy('name')->get();
 
-        return view('branch-inventory.create', compact('branch', 'branches', 'products'));
+        $prefBranchId = $branch->id;
+        $prefCustomer = $request->query('customer');
+        $nextDrNumber = DrNumberService::peek();
+
+        return view('branch-inventory.create', compact('branch', 'branches', 'products', 'prefBranchId', 'prefCustomer', 'nextDrNumber'));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -180,9 +218,15 @@ class BranchInventoryController extends Controller
             ->orderBy('finished_product_id')
             ->get();
 
-        abort_if($movements->isEmpty(), 404);
+        $boReplacementMovements = StockMovement::where('reference_number', $drNumber)
+            ->where('movement_type', 'bo_replacement')
+            ->with(['finishedProduct', 'branch', 'user', 'sourceSaleItem.sale'])
+            ->orderBy('finished_product_id')
+            ->get();
 
-        $first = $movements->first();
+        abort_if($movements->isEmpty() && $boReplacementMovements->isEmpty(), 404);
+
+        $first = $movements->first() ?? $boReplacementMovements->first();
         $branch = $first->branch;
         $totalQty = $movements->where('movement_type', 'transfer_out')->sum('quantity');
         $custParsed = $this->parseCustomerNameFromMovementNotes($first->notes);
@@ -190,7 +234,7 @@ class BranchInventoryController extends Controller
         $saleRecord = $this->saleForDelivery($branch->id, $drNumber, $custParsed);
         $saleRecord?->load('items');
 
-        return view('branch-inventory.show-delivery', compact('movements', 'first', 'branch', 'drNumber', 'totalQty', 'customerName', 'saleRecord'));
+        return view('branch-inventory.show-delivery', compact('movements', 'boReplacementMovements', 'first', 'branch', 'drNumber', 'totalQty', 'customerName', 'saleRecord'));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -201,21 +245,22 @@ class BranchInventoryController extends Controller
         $validated = $request->validate([
             'branch_id' => 'required|integer|exists:branches,id',
             'customer_name' => 'required|string|max:255',
-            'dr_number' => 'required|string|max:255',
             'movement_date' => 'required|date',
             'notes' => 'nullable|string',
             'delivered_by' => 'nullable|string|max:100',
-            'items' => 'required|array',
+            'items' => 'nullable|array',
             'items.*.product_id' => 'required|integer|exists:finished_products,id',
             'items.*.quantity' => 'nullable|numeric|min:0',
             'items.*.extra_quantity' => 'nullable|numeric|min:0',
             'items.*.unit_price' => 'nullable|numeric|min:0',
+            'bo_replacements' => 'nullable|array',
+            'bo_replacements.*.sale_item_id' => 'required_with:bo_replacements|integer|exists:sale_items,id',
+            'bo_replacements.*.quantity' => 'required_with:bo_replacements|numeric|min:0',
         ], [
             'branch_id.required' => 'Please select an area for this delivery.',
             'branch_id.exists' => 'The selected area is invalid or no longer available.',
             'customer_name.required' => 'Customer is required — select an area, then choose or type a customer name.',
             'customer_name.max' => 'Customer name must not exceed 255 characters.',
-            'dr_number.required' => 'DR number is required.',
             'movement_date.required' => 'Delivery date is required.',
             'movement_date.date' => 'Delivery date must be a valid date.',
             'items.required' => 'No product lines were submitted. Enter a quantity greater than zero for at least one product.',
@@ -225,6 +270,8 @@ class BranchInventoryController extends Controller
             'items.*.quantity.min' => 'Quantity cannot be negative.',
             'items.*.extra_quantity.min' => 'Extra / free quantity cannot be negative.',
             'items.*.unit_price.min' => 'Unit price cannot be negative.',
+            'bo_replacements.*.sale_item_id.exists' => 'One or more BO replacement lines are invalid.',
+            'bo_replacements.*.quantity.min' => 'BO replacement quantity cannot be negative.',
         ]);
 
         if ((int) $validated['branch_id'] !== (int) $branch->id) {
@@ -233,13 +280,17 @@ class BranchInventoryController extends Controller
             ]);
         }
 
-        $lineItems = collect($validated['items'])
+        $lineItems = collect($validated['items'] ?? [])
             ->filter(fn ($row) => (float) ($row['quantity'] ?? 0) > 0)
             ->values();
 
-        if ($lineItems->isEmpty()) {
+        $boReplacements = collect($validated['bo_replacements'] ?? [])
+            ->filter(fn ($row) => (float) ($row['quantity'] ?? 0) > 0)
+            ->values();
+
+        if ($lineItems->isEmpty() && $boReplacements->isEmpty()) {
             throw ValidationException::withMessages([
-                'items' => 'Add at least one product with a quantity greater than zero to include on this delivery.',
+                'items' => 'Add at least one product with a quantity greater than zero, or a BO replacement, to include on this delivery.',
             ]);
         }
 
@@ -261,6 +312,8 @@ class BranchInventoryController extends Controller
         try {
             DB::beginTransaction();
 
+            $drNumber = DrNumberService::next();
+
             $deployedItems = [];
 
             foreach ($lineItems as $itemData) {
@@ -273,37 +326,7 @@ class BranchInventoryController extends Controller
 
                 // Allow warehouse stock_on_hand to go negative when needed for sales/deliveries.
 
-                // ── FIFO: drain oldest batches first (earliest mix_date / lowest id) ──
-                $remainingQty = $totalQty;
-                $fifoBatches = ProductionMix::where('finished_product_id', $productId)
-                    ->where('status', 'completed')
-                    ->where('actual_output', '>', 0)
-                    ->orderBy('mix_date', 'asc')   // oldest first
-                    ->orderBy('id', 'asc')
-                    ->lockForUpdate()
-                    ->get();
-
-                $usedBatchNumber = null;
-                $usedExpirationDate = null;
-
-                foreach ($fifoBatches as $mix) {
-                    if ($remainingQty <= 0) {
-                        break;
-                    }
-
-                    $take = min($remainingQty, $mix->actual_output);
-                    $mix->decrement('actual_output', $take);
-                    $remainingQty -= $take;
-
-                    // Track the primary batch for stock movement record
-                    if ($usedBatchNumber === null) {
-                        $usedBatchNumber = $mix->batch_number;
-                        $usedExpirationDate = $mix->expiration_date;
-                    }
-                }
-
-                // If batches didn't fully cover (edge case), fall back to stock_on_hand pool
-                // (no batch to decrement — stock is already tracked at product level)
+                [$usedBatchNumber, $usedExpirationDate] = $this->deductFifoStock($productId, $totalQty);
 
                 // Decrement product totals
                 $product->decrement('stock_on_hand', $totalQty);
@@ -335,7 +358,7 @@ class BranchInventoryController extends Controller
                     'batch_number' => $usedBatchNumber,
                     'expiration_date' => $usedExpirationDate,
                     'movement_date' => $validated['movement_date'],
-                    'reference_number' => $validated['dr_number'],
+                    'reference_number' => $drNumber,
                     'notes' => $notesValue,
                     'user_id' => Auth::id(),
                 ]);
@@ -350,13 +373,76 @@ class BranchInventoryController extends Controller
                         'batch_number' => $usedBatchNumber,
                         'expiration_date' => $usedExpirationDate,
                         'movement_date' => $validated['movement_date'],
-                        'reference_number' => $validated['dr_number'],
+                        'reference_number' => $drNumber,
                         'notes' => 'Extra/Free — '.$notesValue,
                         'user_id' => Auth::id(),
                     ]);
                 }
 
                 $deployedItems[] = "{$product->name} ({$regularQty}".($extraQty > 0 ? " + {$extraQty} extra" : '').')';
+            }
+
+            // ── BO Replacements — free (never billed), deducts stock like a
+            // regular delivery, tagged to this new DR, and marks the original
+            // bad-order line as resolved via quantity_replaced. ──
+            $boReplacedItems = [];
+
+            foreach ($boReplacements as $boData) {
+                $saleItem = SaleItem::with(['finishedProduct', 'sale'])
+                    ->lockForUpdate()
+                    ->findOrFail((int) $boData['sale_item_id']);
+                $requestedQty = (float) $boData['quantity'];
+                $outstanding = (float) $saleItem->quantity_bo - (float) $saleItem->quantity_replaced;
+
+                if ($requestedQty > $outstanding + 0.0001) {
+                    throw ValidationException::withMessages([
+                        'bo_replacements' => 'Cannot replace '.$requestedQty.' unit(s) of '.($saleItem->finishedProduct->name ?? 'product')
+                            .' — only '.$outstanding.' outstanding BO remain.',
+                    ]);
+                }
+
+                $boProductId = (int) $saleItem->finished_product_id;
+                $boProduct = FinishedProduct::lockForUpdate()->findOrFail($boProductId);
+
+                [$boBatchNumber, $boExpirationDate] = $this->deductFifoStock($boProductId, $requestedQty);
+
+                $boProduct->decrement('stock_on_hand', $requestedQty);
+                $boProduct->increment('stock_out', $requestedQty);
+
+                $boInventory = BranchInventory::where('branch_id', $branch->id)
+                    ->where('finished_product_id', $boProductId)
+                    ->first();
+
+                if ($boInventory) {
+                    $boInventory->increment('quantity', $requestedQty);
+                } else {
+                    BranchInventory::create([
+                        'branch_id' => $branch->id,
+                        'finished_product_id' => $boProductId,
+                        'quantity' => $requestedQty,
+                        'batch_number' => $boBatchNumber,
+                        'expiration_date' => $boExpirationDate,
+                    ]);
+                }
+
+                StockMovement::create([
+                    'finished_product_id' => $boProductId,
+                    'branch_id' => $branch->id,
+                    'movement_type' => 'bo_replacement',
+                    'quantity' => $requestedQty,
+                    'batch_number' => $boBatchNumber,
+                    'expiration_date' => $boExpirationDate,
+                    'movement_date' => $validated['movement_date'],
+                    'reference_number' => $drNumber,
+                    'unit_price' => $saleItem->unit_price,
+                    'source_sale_item_id' => $saleItem->id,
+                    'notes' => $notesValue.' | BO Replacement — free, original DR# '.($saleItem->sale->dr_number ?? '—'),
+                    'user_id' => Auth::id(),
+                ]);
+
+                $saleItem->increment('quantity_replaced', $requestedQty);
+
+                $boReplacedItems[] = "{$saleItem->finishedProduct->name} ({$requestedQty})";
             }
 
             $branch->addCustomer($validated['customer_name']);
@@ -366,7 +452,7 @@ class BranchInventoryController extends Controller
                 [
                     'branch_id' => $branch->id,
                     'customer_name' => $validated['customer_name'],
-                    'dr_number' => $validated['dr_number'],
+                    'dr_number' => $drNumber,
                 ],
                 [
                     'sale_date' => $validated['movement_date'],
@@ -411,13 +497,18 @@ class BranchInventoryController extends Controller
 
             DB::commit();
 
-            return redirect()->route('branch-inventory.show-delivery', $validated['dr_number'])
-                ->with(
-                    'success',
-                    'Delivery confirmed — '.$validated['customer_name'].' · DR# '.$validated['dr_number'].' — '
-                    .implode(', ', $deployedItems)
-                )
-                ->with('delivery_just_saved', true);
+            $successMsg = 'Delivery confirmed — '.$validated['customer_name'].' · DR# '.$drNumber;
+            if (! empty($deployedItems)) {
+                $successMsg .= ' — '.implode(', ', $deployedItems);
+            }
+            if (! empty($boReplacedItems)) {
+                $successMsg .= ' | BO Replaced (free): '.implode(', ', $boReplacedItems);
+            }
+
+            return redirect()->route('branch-inventory.show-delivery', $drNumber)
+                ->with('success', $successMsg)
+                ->with('delivery_just_saved', true)
+                ->with('auto_print', $request->boolean('print_after_save'));
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -588,7 +679,7 @@ class BranchInventoryController extends Controller
             ->where('branch_id', $validated['branch_id'])
             ->whereDate('movement_date', $validated['movement_date'])
             ->where('user_id', $validated['user_id'])
-            ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+            ->whereIn('movement_type', ['transfer_out', 'extra_free', 'bo_replacement'])
             ->orderBy('id')
             ->get();
 
@@ -608,7 +699,7 @@ class BranchInventoryController extends Controller
                 ->where('branch_id', $validated['branch_id'])
                 ->whereDate('movement_date', $validated['movement_date'])
                 ->where('user_id', $validated['user_id'])
-                ->whereIn('movement_type', ['transfer_out', 'extra_free'])
+                ->whereIn('movement_type', ['transfer_out', 'extra_free', 'bo_replacement'])
                 ->lockForUpdate()
                 ->orderBy('id')
                 ->get();
@@ -669,6 +760,18 @@ class BranchInventoryController extends Controller
 
             app(DeliveryBatchReversalService::class)->revertStockBranchAndBatches($movements, $branchId);
 
+            // Undo BO replacements on this DR — the original bad-order lines become outstanding again.
+            foreach ($movements->where('movement_type', 'bo_replacement') as $boMovement) {
+                if (! $boMovement->source_sale_item_id) {
+                    continue;
+                }
+                $sourceSaleItem = SaleItem::lockForUpdate()->find($boMovement->source_sale_item_id);
+                if ($sourceSaleItem) {
+                    $sourceSaleItem->quantity_replaced = max(0, round((float) $sourceSaleItem->quantity_replaced - (float) $boMovement->quantity, 2));
+                    $sourceSaleItem->save();
+                }
+            }
+
             if ($sale) {
                 foreach ($movements->where('movement_type', 'transfer_out')->groupBy('finished_product_id') as $productId => $rows) {
                     $regular = (float) $rows->sum('quantity');
@@ -724,6 +827,73 @@ class BranchInventoryController extends Controller
             return redirect()->route('branch-inventory.index')
                 ->with('error', $e->getMessage());
         }
+    }
+
+    private function baseDeliveriesQuery()
+    {
+        return StockMovement::query()
+            ->whereIn('movement_type', ['transfer_out', 'bo_replacement'])
+            ->select(
+                'reference_number as dr_number',
+                'branch_id',
+                DB::raw('MAX(notes) as notes'),
+                'movement_date',
+                'user_id',
+                DB::raw('COUNT(DISTINCT finished_product_id) as product_count'),
+                DB::raw('SUM(quantity) as total_qty'),
+                DB::raw('MIN(id) as id')
+            )
+            ->groupBy('reference_number', 'branch_id', 'movement_date', 'user_id');
+    }
+
+    /**
+     * Attach branch name, recorded-by user, DR face value, customer name,
+     * delivered-by, and linked sale id to each grouped delivery row.
+     *
+     * @param  iterable<int, mixed>  $rows
+     * @return array<int, mixed>
+     */
+    private function enrichDeliveryRows(iterable $rows): array
+    {
+        $rows = collect($rows)->values();
+
+        $branchIds = $rows->pluck('branch_id')->unique();
+        $branches = Branch::whereIn('id', $branchIds)->pluck('name', 'id');
+
+        $userIds = $rows->pluck('user_id')->unique();
+        $users = \App\Models\User::whereIn('id', $userIds)->pluck('name', 'id');
+
+        $drNumbers = $rows->pluck('dr_number')->unique()->filter()->values();
+        $drTotals = SaleItem::join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->whereIn('sales.dr_number', $drNumbers)
+            ->select('sales.dr_number', DB::raw('SUM(sale_items.quantity_deployed * sale_items.unit_price) as deployed_total'))
+            ->groupBy('sales.dr_number')
+            ->pluck('deployed_total', 'dr_number');
+
+        $saleIdsByKey = $this->bulkResolveSaleIdsForDeliveryRows($rows->all());
+
+        return $rows->map(function ($row) use ($branches, $users, $drTotals, $saleIdsByKey) {
+            $row->branch_name = $branches[$row->branch_id] ?? '—';
+            $row->recorded_by = $users[$row->user_id] ?? '—';
+            $row->total_value = (float) ($drTotals[$row->dr_number] ?? 0);
+            $custParsed = $this->parseCustomerNameFromMovementNotes($row->notes ?? null);
+            $row->customer_name = $custParsed ?? '—';
+
+            if ($row->notes && str_contains($row->notes, 'Delivered By:')) {
+                preg_match('/Delivered By:\s*([^|]+)/', $row->notes, $dm);
+                $row->delivered_by = trim($dm[1] ?? '—');
+            } else {
+                $row->delivered_by = '—';
+            }
+
+            $row->sale_id = null;
+            if ($custParsed !== null) {
+                $key = static::deliverySaleMapKey((int) $row->branch_id, (string) $row->dr_number, $custParsed);
+                $row->sale_id = $saleIdsByKey[$key] ?? null;
+            }
+
+            return $row;
+        })->all();
     }
 
     private function parseCustomerNameFromMovementNotes(?string $notes): ?string
@@ -798,6 +968,49 @@ class BranchInventoryController extends Controller
         }
 
         return $query->orderByDesc('id')->first();
+    }
+
+    /**
+     * FIFO: drain oldest completed production batches first (earliest
+     * mix_date / lowest id). Returns [batchNumber, expirationDate] of the
+     * primary (first-touched) batch used, for the resulting stock movement.
+     *
+     * @return array{0: ?string, 1: ?\Illuminate\Support\Carbon}
+     */
+    private function deductFifoStock(int $productId, float $qty): array
+    {
+        $remainingQty = $qty;
+        $fifoBatches = ProductionMix::where('finished_product_id', $productId)
+            ->where('status', 'completed')
+            ->where('actual_output', '>', 0)
+            ->orderBy('mix_date', 'asc')   // oldest first
+            ->orderBy('id', 'asc')
+            ->lockForUpdate()
+            ->get();
+
+        $usedBatchNumber = null;
+        $usedExpirationDate = null;
+
+        foreach ($fifoBatches as $mix) {
+            if ($remainingQty <= 0) {
+                break;
+            }
+
+            $take = min($remainingQty, $mix->actual_output);
+            $mix->decrement('actual_output', $take);
+            $remainingQty -= $take;
+
+            // Track the primary batch for stock movement record
+            if ($usedBatchNumber === null) {
+                $usedBatchNumber = $mix->batch_number;
+                $usedExpirationDate = $mix->expiration_date;
+            }
+        }
+
+        // If batches didn't fully cover (edge case), fall back to stock_on_hand pool
+        // (no batch to decrement — stock is already tracked at product level)
+
+        return [$usedBatchNumber, $usedExpirationDate];
     }
 
     /**

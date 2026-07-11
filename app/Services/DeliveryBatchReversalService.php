@@ -23,7 +23,8 @@ class DeliveryBatchReversalService
         foreach ($movements->groupBy('finished_product_id') as $productId => $productMovements) {
             $productId = (int) $productId;
             $totalQty = (float) $productMovements->sum('quantity');
-            $regularQty = (float) $productMovements->where('movement_type', 'transfer_out')->sum('quantity');
+            // transfer_out and bo_replacement both increment branch_inventory when created; extra_free never does.
+            $regularQty = (float) $productMovements->whereIn('movement_type', ['transfer_out', 'bo_replacement'])->sum('quantity');
 
             $product = FinishedProduct::lockForUpdate()->findOrFail($productId);
             $product->increment('stock_on_hand', $totalQty);

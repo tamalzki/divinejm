@@ -112,8 +112,12 @@ Route::middleware(['auth'])->group(function () {
     // Branch Inventory — Deliveries (named routes before wildcards)
     Route::get('/branch-inventory', [BranchInventoryController::class, 'index'])
         ->name('branch-inventory.index');
+    Route::get('/branch-inventory/all', [BranchInventoryController::class, 'allDeliveries'])
+        ->name('branch-inventory.all');
     Route::get('/branch-inventory/deliver/new', [BranchInventoryController::class, 'createDelivery'])
         ->name('branch-inventory.create-delivery');
+    Route::get('/branch-inventory/deliver/outstanding-bo', [BranchInventoryController::class, 'outstandingBo'])
+        ->name('branch-inventory.outstanding-bo');
     Route::post('/branch-inventory/deliver/store', [BranchInventoryController::class, 'storeDelivery'])
         ->name('branch-inventory.store-delivery');
     Route::get('/branch-inventory/delivery/{drNumber}', [BranchInventoryController::class, 'showDelivery'])
@@ -126,6 +130,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('branch-inventory.show');
     Route::get('/branch-inventory/{branch}/create', [BranchInventoryController::class, 'create'])
         ->name('branch-inventory.create');
+    Route::get('/branch-inventory/{branch}/customers/{branchCustomer}', [BranchInventoryController::class, 'customerDeliveries'])
+        ->name('branch-inventory.customer-deliveries');
     Route::post('/branch-inventory/{branch}/transfer', [BranchInventoryController::class, 'transfer'])
         ->name('branch-inventory.transfer');
     Route::post('/branch-inventory/{branch}/return', [BranchInventoryController::class, 'returnStock'])

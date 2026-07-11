@@ -20,10 +20,13 @@ class StockMovement extends Model
         'production_mix_id',  // ADDED: To link to production batch
         'to_branch_id',  // ADDED: For your transfer relationships
         'from_branch_id',  // ADDED: For your transfer relationships
+        'unit_price',
+        'source_sale_item_id',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
+        'unit_price' => 'decimal:2',
         'movement_date' => 'date',
         'expiration_date' => 'date',  // ADDED
     ];
@@ -59,6 +62,11 @@ class StockMovement extends Model
         return $this->belongsTo(ProductionMix::class);
     }
 
+    public function sourceSaleItem()
+    {
+        return $this->belongsTo(SaleItem::class, 'source_sale_item_id');
+    }
+
     // Helper method to get movement type label
     public function getMovementTypeLabelAttribute()
     {
@@ -69,6 +77,7 @@ class StockMovement extends Model
             'return' => 'Return',
             'return_bo' => 'Return BO',  // ADDED
             'extra_free' => 'Extra/Free (Expense)',  // ADDED
+            'bo_replacement' => 'BO Replacement (Free)',
             'adjustment' => 'Adjustment',
             default => ucfirst($this->movement_type)
         };

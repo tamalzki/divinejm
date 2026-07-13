@@ -13,6 +13,7 @@ use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\FinishedProductController;
 use App\Http\Controllers\InventoryReportController;
+use App\Http\Controllers\PackerController;
 use App\Http\Controllers\PackerReportController;
 use App\Http\Controllers\PerformanceReportController;
 use App\Http\Controllers\ProductionMixController;
@@ -155,6 +156,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/packer-packs/{packerReport}/sheet', [PackerReportController::class, 'sheet'])->name('packer-packs.sheet');
     Route::post('/packer-packs/{packerReport}/sheet', [PackerReportController::class, 'saveSheet'])->name('packer-packs.save-sheet');
     Route::delete('/packer-packs/{packerReport}', [PackerReportController::class, 'destroy'])->name('packer-packs.destroy');
+    Route::post('/packers/sync', [PackerController::class, 'sync'])->name('packers.sync');
 
     // Production Batches (Production Mix)
     Route::get('/production-mixes', [ProductionMixController::class, 'index'])

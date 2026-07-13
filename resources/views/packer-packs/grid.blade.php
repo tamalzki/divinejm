@@ -97,16 +97,21 @@
     </a>
 </div>
 
-<div class="sheet-head">
-    <h5 class="fw-bold mb-1" style="font-size:.95rem">
-        <i class="bi bi-grid-3x3-gap me-2" style="color:var(--accent)"></i>
-        @if($isNew)
-            New packers report
-        @else
-            Update packers report <span class="text-muted fw-normal" style="font-size:.82rem">#{{ $report->id }}</span>
-        @endif
-    </h5>
-    <p class="hint mb-0">Blank cells = <strong>0</strong>. Confirm product × packer quantities before save; amounts apply to finished-product stock and auto-sync daily production packed/remaining balances. Remaining column shows overall remaining quantity from Daily Production (pcs or g).</p>
+<div class="sheet-head d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-1" style="font-size:.95rem">
+            <i class="bi bi-grid-3x3-gap me-2" style="color:var(--accent)"></i>
+            @if($isNew)
+                New packers report
+            @else
+                Update packers report <span class="text-muted fw-normal" style="font-size:.82rem">#{{ $report->id }}</span>
+            @endif
+        </h5>
+        <p class="hint mb-0">Blank cells = <strong>0</strong>. Confirm product × packer quantities before save; amounts apply to finished-product stock and auto-sync daily production packed/remaining balances. Remaining column shows overall remaining quantity from Daily Production (pcs or g).</p>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#managePackersModal">
+        <i class="bi bi-people me-1"></i>Edit Packers
+    </button>
 </div>
 
 {{-- session / validation messages: partials.flash in layout --}}
@@ -487,4 +492,7 @@
     });
 })();
 </script>
+
+@include('packer-packs.partials.manage-packers-modal')
+
 @endsection

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DailyProductionEntry;
 use App\Models\FinishedProduct;
+use App\Models\Packer;
 use App\Models\PackerPack;
 use App\Models\PackerReport;
 use App\Models\PackerSessionLog;
@@ -83,6 +84,7 @@ class PackerReportController extends Controller
             'report' => null,
             'products' => $products,
             'packerNames' => $packerNames,
+            'packersForModal' => Packer::active()->ordered()->get(['id', 'name']),
             'matrix' => $matrix,
             'remainingByProduct' => $this->overallRemainingByProduct($products),
             'defaultPackDate' => $defaultPack,
@@ -186,6 +188,7 @@ class PackerReportController extends Controller
             'report' => $packerReport,
             'products' => $products,
             'packerNames' => $packerNames,
+            'packersForModal' => Packer::active()->ordered()->get(['id', 'name']),
             'matrix' => $matrix,
             'remainingByProduct' => $this->overallRemainingByProduct($products),
             'defaultPackDate' => $packerReport->pack_date->format('Y-m-d'),
@@ -222,6 +225,7 @@ class PackerReportController extends Controller
             'products'         => $products,
             'entriesByProduct' => $entriesByProduct,
             'packerNames'      => $packerNames,
+            'packersForModal'  => Packer::active()->ordered()->get(['id', 'name']),
             'matrix'           => $matrix,
             'sessionLogs'      => $sessionLogs,
             'defaultPackDate'  => $packerReport->pack_date->format('Y-m-d'),
@@ -503,13 +507,13 @@ class PackerReportController extends Controller
      */
     protected function packerColumnNames(?PackerReport $report): array
     {
-        $configNames = array_values(array_filter(
-            config('packers.names', []),
-            fn ($n) => is_string($n) && trim($n) !== ''
-        ));
+        $activeNames = Packer::active()->ordered()->pluck('name')
+            ->filter(fn ($n) => is_string($n) && trim($n) !== '')
+            ->values()
+            ->all();
 
         if (! $report) {
-            return $configNames;
+            return $activeNames;
         }
 
         $report->loadMissing('packs');
@@ -517,11 +521,11 @@ class PackerReportController extends Controller
             ->pluck('packer_name')
             ->filter()
             ->unique()
-            ->reject(fn ($n) => in_array($n, $configNames, true))
+            ->reject(fn ($n) => in_array($n, $activeNames, true))
             ->values()
             ->all();
 
-        return array_values(array_merge($configNames, $extras));
+        return array_values(array_merge($activeNames, $extras));
     }
 
     protected function revertReportPacksFromStock(PackerReport $packerReport): void

@@ -131,6 +131,9 @@
             @endif
         </div>
     </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#managePackersModal">
+        <i class="bi bi-people me-1"></i>Edit Packers
+    </button>
 </div>
 
 @if(session('success'))
@@ -393,5 +396,7 @@
     refreshAll();
 })();
 </script>
+
+@include('packer-packs.partials.manage-packers-modal')
 
 @endsection

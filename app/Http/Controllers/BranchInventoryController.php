@@ -245,6 +245,8 @@ class BranchInventoryController extends Controller
         $validated = $request->validate([
             'branch_id' => 'required|integer|exists:branches,id',
             'customer_name' => 'required|string|max:255',
+            'dr_mode' => 'nullable|in:auto,manual',
+            'dr_number' => 'nullable|required_if:dr_mode,manual|string|max:255',
             'movement_date' => 'required|date',
             'notes' => 'nullable|string',
             'delivered_by' => 'nullable|string|max:100',
@@ -272,12 +274,23 @@ class BranchInventoryController extends Controller
             'items.*.unit_price.min' => 'Unit price cannot be negative.',
             'bo_replacements.*.sale_item_id.exists' => 'One or more BO replacement lines are invalid.',
             'bo_replacements.*.quantity.min' => 'BO replacement quantity cannot be negative.',
+            'dr_number.required_if' => 'Enter a DR number, or switch back to auto-generated.',
         ]);
 
         if ((int) $validated['branch_id'] !== (int) $branch->id) {
             throw ValidationException::withMessages([
                 'branch_id' => 'The selected area does not match this delivery. Refresh the page and select the correct area again.',
             ]);
+        }
+
+        $manualDrNumber = null;
+        if (($validated['dr_mode'] ?? 'auto') === 'manual') {
+            $manualDrNumber = trim($validated['dr_number']);
+            if (DrNumberService::isTaken($manualDrNumber)) {
+                throw ValidationException::withMessages([
+                    'dr_number' => 'DR# '.$manualDrNumber.' is already used by another delivery. Enter a different DR number.',
+                ]);
+            }
         }
 
         $lineItems = collect($validated['items'] ?? [])
@@ -312,7 +325,7 @@ class BranchInventoryController extends Controller
         try {
             DB::beginTransaction();
 
-            $drNumber = DrNumberService::next();
+            $drNumber = $manualDrNumber ?? DrNumberService::next();
 
             $deployedItems = [];
 

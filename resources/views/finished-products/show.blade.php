@@ -180,9 +180,11 @@
     <button type="button" class="btn-adjust-stock ms-3" onclick="openAdjustModal()">
         <i class="bi bi-sliders"></i> Adjust Stock
     </button>
+    @unless(Auth::user()?->isPacker())
     <a href="{{ route('finished-products.edit', $finishedProduct) }}" class="btn-adjust-stock ms-2" style="background:var(--brand-deep)">
         <i class="bi bi-pencil-square"></i> Edit
     </a>
+    @endunless
 </div>
 
 <div class="show-wrap">
@@ -305,8 +307,10 @@
                         </p>
                         @if($pendingMix)
                         <div class="mt-3 pt-2 border-top" style="font-size:.74rem;color:var(--text-muted)">
-                            <strong class="text-warning">Legacy batch open:</strong> {{ $pendingMix->batch_number }} —
-                            <a href="{{ route('production-mixes.show', $pendingMix) }}" style="color:var(--accent)">Open legacy record</a>
+                            <strong class="text-warning">Legacy batch open:</strong> {{ $pendingMix->batch_number }}
+                            @unless(Auth::user()?->isPacker())
+                            — <a href="{{ route('production-mixes.show', $pendingMix) }}" style="color:var(--accent)">Open legacy record</a>
+                            @endunless
                         </div>
                         @endif
                     </div>
@@ -400,9 +404,13 @@
                             </span>
                         </td>
                         <td class="text-center">
+                            @unless(Auth::user()?->isPacker())
                             <a href="{{ route('production-mixes.show', $mix) }}" class="btn-view-mix">
                                 <i class="bi bi-eye"></i> View
                             </a>
+                            @else
+                            <span style="color:var(--text-muted)">—</span>
+                            @endunless
                         </td>
                     </tr>
                     @endforeach

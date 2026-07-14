@@ -200,9 +200,11 @@
         <h4><i class="bi bi-basket-fill me-2" style="color:var(--accent)"></i>Finished Products</h4>
         <p>Manage products, stock, and production entry points</p>
     </div>
+    @unless(Auth::user()?->isPacker())
     <a href="{{ route('finished-products.create') }}" class="btn-add-product">
         <i class="bi bi-plus-lg"></i>Add New Product
     </a>
+    @endunless
 </div>
 
 <div class="fp-stats">
@@ -336,7 +338,7 @@
                         @endif
                     </td>
                     <td class="text-center" style="white-space:nowrap">
-                        @if($isManufactured && $pendingMix)
+                        @if($isManufactured && $pendingMix && !Auth::user()?->isPacker())
                             <a href="{{ route('production-mixes.show', $pendingMix) }}" class="act-btn act-legacy" title="Old Production Mix record">
                                 <i class="bi bi-hourglass-split"></i> Legacy
                             </a>
@@ -348,9 +350,11 @@
                         <a href="{{ route('finished-products.show', $product) }}" class="act-btn act-view" style="margin-left:.2rem">
                             <i class="bi bi-eye-fill"></i> View
                         </a>
+                        @unless(Auth::user()?->isPacker())
                         <a href="{{ route('finished-products.edit', $product) }}" class="act-btn act-edit" style="margin-left:.2rem">
                             <i class="bi bi-pencil-square"></i> Edit
                         </a>
+                        @endunless
                         @if($product->barcode)
                         <button type="button" class="act-btn act-barcode act-barcode-icon" style="margin-left:.2rem"
                                 title="Download barcode PNG"
@@ -359,10 +363,12 @@
                             <i class="bi bi-upc-scan"></i>
                         </button>
                         @endif
+                        @unless(Auth::user()?->isPacker())
                         <button type="button" class="act-btn act-delete" style="margin-left:.2rem"
                                 onclick="confirmDelete({{ $product->id }}, '{{ addslashes($product->name) }}', {{ $pendingMix ? 'true' : 'false' }})">
                             <i class="bi bi-trash-fill"></i> Delete
                         </button>
+                        @endunless
                     </td>
                 </tr>
                 @empty
@@ -375,6 +381,8 @@
                                     No products match <strong>"{{ request('search') }}"</strong>.
                                     <a href="{{ route('finished-products.index', array_filter(['filter' => request('filter')])) }}"
                                        style="color:var(--accent)">Clear search</a>
+                                @elseif(Auth::user()?->isPacker())
+                                    No products found.
                                 @else
                                     No products found. <a href="{{ route('finished-products.create') }}" style="color:var(--accent)">Add your first product</a>.
                                 @endif

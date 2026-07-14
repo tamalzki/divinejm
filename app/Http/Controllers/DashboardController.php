@@ -13,6 +13,7 @@ use App\Models\SaleItem;
 use App\Models\StockMovement;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -28,6 +29,10 @@ class DashboardController extends Controller
 
     public function index()
     {
+        if (Auth::user()->isPacker()) {
+            return $this->packerDashboard();
+        }
+
         $today = Carbon::today();
         $yesterday = Carbon::yesterday();
         $monthStart = Carbon::now()->startOfMonth();
@@ -338,6 +343,131 @@ class DashboardController extends Controller
             // Feed
             'recentSales',
             // Packing queue
+            'packingQueue', 'packingOverdueCount', 'packingDueTodayCount',
+            'packingTotalPcs', 'packingTotalGrams',
+            'packingUnpackedProductCount', 'packingOver24hCount',
+        ));
+    }
+
+    /**
+     * Restricted dashboard for the Packers role — production and finished-goods
+     * inventory only, no sales/financial data is queried or shown.
+     */
+    private function packerDashboard()
+    {
+        $today = Carbon::today();
+        $week7Ago = Carbon::now()->subDays(7);
+
+        // ══════════════════════════════════════════════════════
+        // INVENTORY
+        // ══════════════════════════════════════════════════════
+
+        $allProducts = FinishedProduct::all();
+        $totalStockOnHand = $allProducts->sum('stock_on_hand');
+        $totalStockOut = $allProducts->sum('stock_out');
+        $zeroStockProducts = $allProducts->where('stock_on_hand', 0)->count();
+
+        $lowStockFinished = FinishedProduct::whereColumn('stock_on_hand', '<=', 'minimum_stock')
+            ->orderBy('stock_on_hand')
+            ->limit(10)
+            ->get();
+
+        $outOfStockProducts = FinishedProduct::where('stock_on_hand', 0)
+            ->orderByDesc('stock_out')
+            ->get();
+
+        $expiringProducts = FinishedProduct::whereNotNull('expiry_date')
+            ->where('expiry_date', '<=', $today->copy()->addDays(30))
+            ->where('expiry_date', '>=', $today)
+            ->get()
+            ->map(function ($p) use ($today) {
+                $p->days_until_expiry = $today->diffInDays($p->expiry_date);
+
+                return $p;
+            })
+            ->sortBy('days_until_expiry');
+
+        $needsProduction = FinishedProduct::whereColumn('stock_on_hand', '<', 'minimum_stock')
+            ->orderBy('stock_on_hand')
+            ->limit(5)
+            ->get();
+
+        // ══════════════════════════════════════════════════════
+        // PRODUCTION (last 7 days)
+        // ══════════════════════════════════════════════════════
+
+        $recentMixes = ProductionMix::with('finishedProduct')
+            ->where('mix_date', '>=', $week7Ago)
+            ->where('status', 'completed')
+            ->get();
+
+        $productionStats = [
+            'batches_completed' => $recentMixes->count(),
+            'total_output' => $recentMixes->sum('actual_output'),
+            'total_rejected' => $recentMixes->sum('rejected_quantity'),
+            'rejection_rate' => $recentMixes->sum('actual_output') > 0
+                ? ($recentMixes->sum('rejected_quantity') / $recentMixes->sum('actual_output')) * 100
+                : 0,
+        ];
+
+        // ══════════════════════════════════════════════════════
+        // PACKING QUEUE (daily production remaining)
+        // ══════════════════════════════════════════════════════
+        $lastPackDates = PackerPack::query()
+            ->join('packer_reports', 'packer_reports.id', '=', 'packer_packs.packer_report_id')
+            ->selectRaw('packer_packs.finished_product_id, MAX(packer_reports.pack_date) as last_pack_date')
+            ->groupBy('packer_packs.finished_product_id');
+
+        $packingQueue = DailyProductionEntry::query()
+            ->join('daily_production_reports', 'daily_production_reports.id', '=', 'daily_production_entries.daily_production_report_id')
+            ->join('finished_products', 'finished_products.id', '=', 'daily_production_entries.finished_product_id')
+            ->leftJoinSub($lastPackDates, 'last_pack', function ($join) {
+                $join->on('last_pack.finished_product_id', '=', 'daily_production_entries.finished_product_id');
+            })
+            ->where('daily_production_entries.unpacked', '>', 0)
+            ->whereDate('daily_production_reports.production_date', '<=', $today)
+            ->selectRaw('
+                daily_production_entries.finished_product_id,
+                finished_products.name as product_name,
+                MIN(daily_production_reports.production_date) as oldest_production_date,
+                SUM(daily_production_entries.unpacked) as remaining_pieces,
+                SUM(daily_production_entries.packed_quantity) as packed_pieces,
+                MAX(last_pack.last_pack_date) as last_pack_date
+            ')
+            ->groupBy('daily_production_entries.finished_product_id', 'finished_products.name')
+            ->orderBy('oldest_production_date')
+            ->orderByDesc('remaining_pieces')
+            ->limit(12)
+            ->get()
+            ->map(function ($row) use ($today) {
+                $meta = $this->remainingDisplayMeta((string) $row->product_name);
+                $displayRemaining = round((float) $row->remaining_pieces * $meta['multiplier'], 2);
+                $productionDate = Carbon::parse((string) $row->oldest_production_date);
+                $lastPackDate = $row->last_pack_date ? Carbon::parse((string) $row->last_pack_date) : null;
+                $row->remaining_display = $displayRemaining;
+                $row->remaining_unit = $meta['unit'];
+                $row->oldest_production_date = $productionDate;
+                $row->last_pack_date = $lastPackDate;
+                $row->days_waiting = $productionDate->diffInDays($today);
+                $row->is_due_today = $productionDate->isSameDay($today);
+                $row->hours_open = $productionDate->copy()->startOfDay()->diffInHours(Carbon::now());
+                $row->is_over_24h = $row->hours_open >= 24;
+                $row->is_overdue = $row->is_over_24h;
+
+                return $row;
+            });
+
+        $packingUnpackedProductCount = $packingQueue->count();
+        $packingOver24hCount = $packingQueue->where('is_over_24h', true)->count();
+        $packingDueTodayCount = $packingQueue->where('is_due_today', true)->count();
+        $packingOverdueCount = $packingOver24hCount;
+        $packingTotalPcs = $packingQueue->where('remaining_unit', 'pcs')->sum('remaining_display');
+        $packingTotalGrams = $packingQueue->where('remaining_unit', 'g')->sum('remaining_display');
+
+        return view('dashboard-packer', compact(
+            'totalStockOnHand', 'totalStockOut', 'zeroStockProducts',
+            'lowStockFinished', 'outOfStockProducts', 'expiringProducts', 'needsProduction',
+            'productionStats',
             'packingQueue', 'packingOverdueCount', 'packingDueTodayCount',
             'packingTotalPcs', 'packingTotalGrams',
             'packingUnpackedProductCount', 'packingOver24hCount',

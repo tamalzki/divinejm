@@ -528,15 +528,19 @@
         </a>
 
         <div class="sidebar-section">Master Data</div>
+        @unless(Auth::user()?->isPacker())
         <a href="{{ route('raw-materials.index') }}" class="sidebar-link {{ request()->routeIs('raw-materials.*') ? 'active' : '' }}">
             <i class="bi bi-layers"></i> Raw Materials
         </a>
+        @endunless
         <a href="{{ route('finished-products.index') }}" class="sidebar-link {{ request()->routeIs('finished-products.*') ? 'active' : '' }}">
             <i class="bi bi-basket2"></i> Finished Products
         </a>
+        @unless(Auth::user()?->isPacker())
         <a href="{{ route('branches.index') }}" class="sidebar-link {{ request()->routeIs('branches.*') ? 'active' : '' }}">
             <i class="bi bi-geo-alt"></i> Area & Customer
         </a>
+        @endunless
 
         <div class="sidebar-section">Production</div>
         <a href="{{ route('daily-production.index') }}" class="sidebar-link {{ request()->routeIs('daily-production.*') ? 'active' : '' }}">
@@ -546,6 +550,7 @@
             <i class="bi bi-box-seam"></i> Packers Report
         </a>
 
+        @unless(Auth::user()?->isPacker())
         <div class="sidebar-section">Distribution</div>
         <a href="{{ route('branch-inventory.index') }}" class="sidebar-link {{ request()->routeIs('branch-inventory.*') ? 'active' : '' }}">
             <i class="bi bi-send"></i> Deliver Products
@@ -573,6 +578,7 @@
         <a href="{{ route('reports.index') }}" class="sidebar-link {{ request()->routeIs('reports.*') || request()->routeIs('financial-reports.*') ? 'active' : '' }}">
             <i class="bi bi-graph-up-arrow"></i> Reports
         </a>
+        @endunless
 
     </nav>
 

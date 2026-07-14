@@ -35,7 +35,7 @@ Route::get('/home', function () {
     return redirect()->route('dashboard');
 })->middleware('auth');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'restrict.packer'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::resource('raw-materials', RawMaterialController::class);

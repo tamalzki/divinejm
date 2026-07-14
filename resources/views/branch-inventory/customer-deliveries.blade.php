@@ -28,10 +28,18 @@
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:.5rem; opacity:.25; }
     .empty-state p { font-size:.8rem; margin:.25rem 0 0; }
 
+    .summary-strip { display:flex; gap:.6rem; margin-bottom:.85rem; flex-wrap:wrap; }
+    .summary-tile { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:.55rem .9rem; min-width:150px; }
+    .summary-tile-label { font-size:.62rem; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); display:block; margin-bottom:.15rem; }
+    .summary-tile-value { font-size:1rem; font-weight:800; }
+    .summary-tile-value.balance { color:var(--s-danger-text); }
+    .summary-tile-value.paid { color:var(--s-success-text); }
+
     @media (max-width: 640px) {
         .dj-back { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .cust-header { flex-direction:column; align-items:stretch; }
         .cust-header .btn-new { justify-content:center; }
+        .summary-tile { flex:1; min-width:120px; }
     }
 </style>
 
@@ -53,6 +61,17 @@
     </a>
 </div>
 
+<div class="summary-strip">
+    <div class="summary-tile">
+        <span class="summary-tile-label">Total Balance</span>
+        <span class="summary-tile-value balance">&#8369;{{ number_format($summary->total_balance, 2) }}</span>
+    </div>
+    <div class="summary-tile">
+        <span class="summary-tile-label">Total Paid</span>
+        <span class="summary-tile-value paid">&#8369;{{ number_format($summary->total_paid, 2) }}</span>
+    </div>
+</div>
+
 <div class="bi-card">
     <div style="overflow-x:auto">
         <table class="data-table">
@@ -63,6 +82,7 @@
                     <th style="white-space:nowrap">Products</th>
                     <th class="text-end">Total Qty</th>
                     <th class="text-end">Total Amount</th>
+                    <th class="text-end">Balance</th>
                     <th>By</th>
                     <th class="text-center" style="width:8%"></th>
                 </tr>
@@ -90,6 +110,13 @@
                         <span style="color:var(--text-muted)">—</span>
                     @endif
                 </td>
+                <td class="text-end" style="font-size:.80rem;font-weight:600;color:{{ ($delivery->balance ?? 0) > 0 ? 'var(--s-danger-text)' : 'var(--text-muted)' }}">
+                    @if($delivery->balance !== null)
+                        &#8369;{{ number_format($delivery->balance, 2) }}
+                    @else
+                        <span style="color:var(--text-muted)">—</span>
+                    @endif
+                </td>
                 <td style="font-size:.76rem;color:var(--text-secondary)">{{ $delivery->recorded_by }}</td>
                 <td class="text-center">
                     <a href="{{ route('branch-inventory.show-delivery', $delivery->dr_number) }}" class="btn-view">
@@ -99,7 +126,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="7">
+                <td colspan="8">
                     <div class="empty-state">
                         <i class="bi bi-truck"></i>
                         <p>No deliveries yet for {{ $branchCustomer->name }}.</p>

@@ -88,8 +88,15 @@ class BranchInventoryController extends Controller
             $countsByCustomer[$cust] = ($countsByCustomer[$cust] ?? 0) + $row->c;
         }
 
-        $customers->each(function ($customer) use ($countsByCustomer) {
+        $balances = Sale::where('branch_id', $branch->id)
+            ->where('status', '!=', 'cancelled')
+            ->select('customer_name', DB::raw('SUM(balance) as total_balance'))
+            ->groupBy('customer_name')
+            ->pluck('total_balance', 'customer_name');
+
+        $customers->each(function ($customer) use ($countsByCustomer, $balances) {
             $customer->delivery_count = $countsByCustomer[$customer->name] ?? 0;
+            $customer->total_balance = (float) ($balances[$customer->name] ?? 0);
         });
 
         return view('branch-inventory.show', compact('branch', 'customers'));
@@ -112,7 +119,13 @@ class BranchInventoryController extends Controller
 
         $deliveries = collect($this->enrichDeliveryRows($rows));
 
-        return view('branch-inventory.customer-deliveries', compact('branch', 'branchCustomer', 'deliveries'));
+        $summary = Sale::where('branch_id', $branch->id)
+            ->where('customer_name', $branchCustomer->name)
+            ->where('status', '!=', 'cancelled')
+            ->selectRaw('COALESCE(SUM(balance), 0) as total_balance, COALESCE(SUM(amount_paid), 0) as total_paid')
+            ->first();
+
+        return view('branch-inventory.customer-deliveries', compact('branch', 'branchCustomer', 'deliveries', 'summary'));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -900,9 +913,12 @@ class BranchInventoryController extends Controller
             }
 
             $row->sale_id = null;
+            $row->balance = null;
             if ($custParsed !== null) {
                 $key = static::deliverySaleMapKey((int) $row->branch_id, (string) $row->dr_number, $custParsed);
-                $row->sale_id = $saleIdsByKey[$key] ?? null;
+                $saleInfo = $saleIdsByKey[$key] ?? null;
+                $row->sale_id = $saleInfo['id'] ?? null;
+                $row->balance = $saleInfo['balance'] ?? null;
             }
 
             return $row;
@@ -952,7 +968,7 @@ class BranchInventoryController extends Controller
             return [];
         }
 
-        $query = Sale::query()->select(['id', 'branch_id', 'dr_number', 'customer_name']);
+        $query = Sale::query()->select(['id', 'branch_id', 'dr_number', 'customer_name', 'balance']);
 
         foreach ($list as $i => $tuple) {
             $method = $i === 0 ? 'where' : 'orWhere';
@@ -966,7 +982,10 @@ class BranchInventoryController extends Controller
         $map = [];
 
         foreach ($query->get() as $sale) {
-            $map[self::deliverySaleMapKey((int) $sale->branch_id, (string) $sale->dr_number, (string) $sale->customer_name)] = $sale->id;
+            $map[self::deliverySaleMapKey((int) $sale->branch_id, (string) $sale->dr_number, (string) $sale->customer_name)] = [
+                'id' => $sale->id,
+                'balance' => (float) $sale->balance,
+            ];
         }
 
         return $map;

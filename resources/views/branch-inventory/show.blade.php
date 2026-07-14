@@ -70,6 +70,7 @@
                     <th>Customer</th>
                     <th>Phone</th>
                     <th class="text-end">Deliveries</th>
+                    <th class="text-end">Balance</th>
                     <th class="text-center" style="width:10%"></th>
                 </tr>
             </thead>
@@ -79,6 +80,13 @@
                 <td class="cust-name"><i class="bi bi-person-circle me-1" style="color:var(--accent)"></i>{{ $customer->name }}</td>
                 <td style="font-size:.78rem;color:var(--text-secondary)">{{ $customer->phone ?: '—' }}</td>
                 <td class="text-end" style="font-size:.8rem">{{ $customer->delivery_count }}</td>
+                <td class="text-end" style="font-size:.8rem;font-weight:700;color:{{ $customer->total_balance > 0 ? 'var(--s-danger-text)' : 'var(--text-muted)' }}">
+                    @if($customer->total_balance > 0)
+                        &#8369;{{ number_format($customer->total_balance, 2) }}
+                    @else
+                        &#8369;0.00
+                    @endif
+                </td>
                 <td class="text-center">
                     <a href="{{ route('branch-inventory.customer-deliveries', [$branch, $customer]) }}" style="color:var(--accent);font-size:.78rem;text-decoration:none;font-weight:600">
                         View <i class="bi bi-chevron-right"></i>
@@ -87,7 +95,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="4">
+                <td colspan="5">
                     <div class="empty-state">
                         <i class="bi bi-people"></i>
                         <p>No customers assigned to this area yet.</p>

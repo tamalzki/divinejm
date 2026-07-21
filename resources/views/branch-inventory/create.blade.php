@@ -377,17 +377,17 @@
                 <p class="review-hint mb-3">
                     Swap damaged/bad-order items from this customer's past deliveries with fresh stock.
                     Replacements are <strong>free</strong> — not billed — but deducted from current stock and added to this DR.
+                    All products are listed — enter the original DR# (if known) and a qty for any product being replaced.
                 </p>
                 <div style="overflow-x:auto">
                     <table class="prod-table" id="boPanelTable">
                         <thead>
                             <tr>
                                 <th style="width:5%">#</th>
-                                <th style="width:24%">Product</th>
-                                <th style="width:14%">Original DR#</th>
-                                <th class="text-center" style="width:14%">Outstanding BO</th>
-                                <th style="width:16%">Qty to Replace</th>
-                                <th class="text-end" style="width:12%">Ref. Price</th>
+                                <th style="width:26%">Product</th>
+                                <th style="width:16%">Original DR#</th>
+                                <th style="width:14%">Qty to Replace</th>
+                                <th class="text-end" style="width:14%">Ref. Price</th>
                                 <th class="text-end" style="width:15%">Amount</th>
                             </tr>
                         </thead>
@@ -395,9 +395,6 @@
                             {{-- populated by JS --}}
                         </tbody>
                     </table>
-                </div>
-                <div id="boPanelEmpty" style="display:none;padding:1rem;text-align:center;font-size:.75rem;color:var(--text-muted)">
-                    No outstanding BO for this area/customer.
                 </div>
             </div>
             <div class="modal-footer border-top" style="background:var(--bg-page)">
@@ -552,7 +549,7 @@ function openBoReplaceModal(fromReview) {
     })
         .then(function(r) { return r.json(); })
         .then(function(rows) {
-            boOutstanding = rows.map(function(r) { r.selected_qty = 0; return r; });
+            boOutstanding = buildBoRows(branchId, rows);
             boLoadedFor = key;
             renderBoPanel();
             updateBoSummary();
@@ -563,33 +560,87 @@ function openBoReplaceModal(fromReview) {
         });
 }
 
+/** Build one BO-replacement row per product, so every product is always
+ *  pickable — not just the ones the system has a tracked outstanding BO
+ *  record for (deliveries encoded before BO tracking, or across areas,
+ *  still commonly carry a bad order that needs replacing). When a product
+ *  has exactly one tracked outstanding line, prefill it (original DR#, ref.
+ *  price, and cap qty to what's actually outstanding) so replacing it still
+ *  resolves the tracked record; otherwise the line is a free entry. */
+function buildBoRows(branchId, trackedRows) {
+    var trackedByProduct = {};
+    (trackedRows || []).forEach(function(r) {
+        if (trackedByProduct[r.product_id] === undefined) {
+            trackedByProduct[r.product_id] = r;
+        } else {
+            trackedByProduct[r.product_id] = null; // multiple lines — ambiguous, leave freeform
+        }
+    });
+
+    return allProducts.map(function(p) {
+        var tracked = trackedByProduct[p.id];
+        if (tracked) {
+            return {
+                product_id: p.id,
+                product_name: p.name,
+                sale_item_id: tracked.sale_item_id,
+                dr_number: tracked.dr_number || '',
+                unit_price: parseFloat(tracked.unit_price) || 0,
+                outstanding_qty: parseFloat(tracked.outstanding_qty) || 0,
+                selected_qty: 0,
+            };
+        }
+        return {
+            product_id: p.id,
+            product_name: p.name,
+            sale_item_id: null,
+            dr_number: '',
+            unit_price: getPriceForBranch(p, branchId),
+            outstanding_qty: null,
+            selected_qty: 0,
+        };
+    });
+}
+
 function renderBoPanel() {
     var tbody = document.getElementById('boPanelTableBody');
-    var emptyEl = document.getElementById('boPanelEmpty');
-    var table = document.getElementById('boPanelTable');
     tbody.innerHTML = '';
-
-    if (!boOutstanding.length) {
-        emptyEl.style.display = '';
-        table.style.display = 'none';
-        return;
-    }
-    emptyEl.style.display = 'none';
-    table.style.display = '';
 
     boOutstanding.forEach(function(row, idx) {
         var tr = document.createElement('tr');
         tr.id = 'bo-row-' + idx;
+
+        var drCell = row.sale_item_id
+            ? '<span style="font-size:.72rem;color:var(--text-secondary)">DR# ' + escapeHtml(row.dr_number || '—') + '</span>'
+                + '<div style="font-size:.63rem;color:#dc2626">Outstanding: ' + row.outstanding_qty + '</div>'
+            : '<input type="text" class="td-input" id="bo-dr-' + idx + '" value="" placeholder="DR# (optional)" oninput="onBoDrInput(' + idx + ')">';
+
+        var qtyMax = row.sale_item_id ? ' max="' + row.outstanding_qty + '"' : '';
+
         tr.innerHTML =
             '<td style="color:var(--text-muted);font-size:.68rem;text-align:center">' + (idx + 1) + '</td>' +
             '<td class="prod-name">' + escapeHtml(row.product_name) + '</td>' +
-            '<td style="font-size:.72rem;color:var(--text-secondary)">DR# ' + escapeHtml(row.dr_number || '—') + '</td>' +
-            '<td class="text-center"><span class="avail-badge warn">' + row.outstanding_qty + '</span></td>' +
-            '<td><input type="number" class="td-input" id="bo-qty-' + idx + '" min="0" max="' + row.outstanding_qty + '" step="1" value="" placeholder="0" oninput="onBoQtyInput(' + idx + ')"></td>' +
-            '<td class="text-end" style="font-size:.76rem">₱' + Number(row.unit_price).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
+            '<td>' + drCell + '</td>' +
+            '<td><input type="number" class="td-input" id="bo-qty-' + idx + '" min="0"' + qtyMax + ' step="1" value="" placeholder="0" oninput="onBoQtyInput(' + idx + ')"></td>' +
+            '<td class="text-end"><input type="number" class="td-input" id="bo-price-' + idx + '" min="0" step="0.01" value="' + Number(row.unit_price).toFixed(2) + '" ' + (row.sale_item_id ? 'disabled' : '') + ' oninput="onBoPriceInput(' + idx + ')" style="text-align:right"></td>' +
             '<td class="row-total" id="bo-row-total-' + idx + '">₱0.00</td>';
         tbody.appendChild(tr);
     });
+}
+
+function onBoDrInput(idx) {
+    var inp = document.getElementById('bo-dr-' + idx);
+    var row = boOutstanding[idx];
+    if (!inp || !row) return;
+    row.dr_number = inp.value;
+}
+
+function onBoPriceInput(idx) {
+    var inp = document.getElementById('bo-price-' + idx);
+    var row = boOutstanding[idx];
+    if (!inp || !row) return;
+    row.unit_price = parseMoney(inp);
+    recalcBoRow(idx);
 }
 
 function onBoQtyInput(idx) {
@@ -598,12 +649,19 @@ function onBoQtyInput(idx) {
     if (!inp || !row) return;
 
     var val = parseMoney(inp);
-    var max = parseFloat(row.outstanding_qty) || 0;
-    if (val > max) { val = max; inp.value = max; }
+    if (row.sale_item_id) {
+        var max = parseFloat(row.outstanding_qty) || 0;
+        if (val > max) { val = max; inp.value = max; }
+    }
     if (val < 0) { val = 0; inp.value = 0; }
     row.selected_qty = val;
+    recalcBoRow(idx);
+}
 
-    var total = val * (parseFloat(row.unit_price) || 0);
+function recalcBoRow(idx) {
+    var row = boOutstanding[idx];
+    if (!row) return;
+    var total = (row.selected_qty || 0) * (parseFloat(row.unit_price) || 0);
     var cell = document.getElementById('bo-row-total-' + idx);
     if (cell) {
         cell.textContent = '₱' + total.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -629,22 +687,27 @@ function appendBoReplacementInputs() {
     if (!container) return;
     container.innerHTML = '';
 
+    function addHidden(name, value) {
+        var el = document.createElement('input');
+        el.type = 'hidden';
+        el.name = name;
+        el.value = value;
+        container.appendChild(el);
+    }
+
     var i = 0;
     boOutstanding.forEach(function(row) {
         var qty = row.selected_qty || 0;
         if (qty <= 0) return;
 
-        var idInput = document.createElement('input');
-        idInput.type = 'hidden';
-        idInput.name = 'bo_replacements[' + i + '][sale_item_id]';
-        idInput.value = row.sale_item_id;
-        container.appendChild(idInput);
-
-        var qtyInput = document.createElement('input');
-        qtyInput.type = 'hidden';
-        qtyInput.name = 'bo_replacements[' + i + '][quantity]';
-        qtyInput.value = qty;
-        container.appendChild(qtyInput);
+        if (row.sale_item_id) {
+            addHidden('bo_replacements[' + i + '][sale_item_id]', row.sale_item_id);
+        } else {
+            addHidden('bo_replacements[' + i + '][product_id]', row.product_id);
+            addHidden('bo_replacements[' + i + '][dr_number]', row.dr_number || '');
+            addHidden('bo_replacements[' + i + '][unit_price]', row.unit_price || 0);
+        }
+        addHidden('bo_replacements[' + i + '][quantity]', qty);
 
         i++;
     });

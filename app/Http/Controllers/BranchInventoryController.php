@@ -269,7 +269,12 @@ class BranchInventoryController extends Controller
             'items.*.extra_quantity' => 'nullable|numeric|min:0',
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'bo_replacements' => 'nullable|array',
-            'bo_replacements.*.sale_item_id' => 'required_with:bo_replacements|integer|exists:sale_items,id',
+            // sale_item_id is present only when the line matches a tracked outstanding
+            // BO record; otherwise it's a freeform replacement keyed by product_id.
+            'bo_replacements.*.sale_item_id' => 'nullable|integer|exists:sale_items,id',
+            'bo_replacements.*.product_id' => 'nullable|integer|exists:finished_products,id',
+            'bo_replacements.*.dr_number' => 'nullable|string|max:255',
+            'bo_replacements.*.unit_price' => 'nullable|numeric|min:0',
             'bo_replacements.*.quantity' => 'required_with:bo_replacements|numeric|min:0',
         ], [
             'branch_id.required' => 'Please select an area for this delivery.',
@@ -414,20 +419,43 @@ class BranchInventoryController extends Controller
             $boReplacedItems = [];
 
             foreach ($boReplacements as $boData) {
-                $saleItem = SaleItem::with(['finishedProduct', 'sale'])
-                    ->lockForUpdate()
-                    ->findOrFail((int) $boData['sale_item_id']);
                 $requestedQty = (float) $boData['quantity'];
-                $outstanding = (float) $saleItem->quantity_bo - (float) $saleItem->quantity_replaced;
+                $saleItemId = ! empty($boData['sale_item_id']) ? (int) $boData['sale_item_id'] : null;
 
-                if ($requestedQty > $outstanding + 0.0001) {
-                    throw ValidationException::withMessages([
-                        'bo_replacements' => 'Cannot replace '.$requestedQty.' unit(s) of '.($saleItem->finishedProduct->name ?? 'product')
-                            .' — only '.$outstanding.' outstanding BO remain.',
-                    ]);
+                if ($saleItemId) {
+                    // Tracked line — matched against a real outstanding BO record.
+                    $saleItem = SaleItem::with(['finishedProduct', 'sale'])
+                        ->lockForUpdate()
+                        ->findOrFail($saleItemId);
+                    $outstanding = (float) $saleItem->quantity_bo - (float) $saleItem->quantity_replaced;
+
+                    if ($requestedQty > $outstanding + 0.0001) {
+                        throw ValidationException::withMessages([
+                            'bo_replacements' => 'Cannot replace '.$requestedQty.' unit(s) of '.($saleItem->finishedProduct->name ?? 'product')
+                                .' — only '.$outstanding.' outstanding BO remain.',
+                        ]);
+                    }
+
+                    $boProductId = (int) $saleItem->finished_product_id;
+                    $boUnitPrice = $saleItem->unit_price;
+                    $boOriginalDr = $saleItem->sale->dr_number ?? '—';
+                    $boProductName = $saleItem->finishedProduct->name ?? 'product';
+                } else {
+                    // Freeform line — staff picked a product directly, not tied to a
+                    // tracked sale_item (e.g. legacy/manually-encoded deliveries).
+                    if (empty($boData['product_id'])) {
+                        throw ValidationException::withMessages([
+                            'bo_replacements' => 'Each BO replacement line must reference a product.',
+                        ]);
+                    }
+
+                    $boProductId = (int) $boData['product_id'];
+                    $freeformProduct = FinishedProduct::findOrFail($boProductId);
+                    $boUnitPrice = $this->resolveUnitPrice($boData, $freeformProduct, $branch, $branchPriceMap);
+                    $boOriginalDr = ! empty($boData['dr_number']) ? trim($boData['dr_number']) : '—';
+                    $boProductName = $freeformProduct->name;
                 }
 
-                $boProductId = (int) $saleItem->finished_product_id;
                 $boProduct = FinishedProduct::lockForUpdate()->findOrFail($boProductId);
 
                 [$boBatchNumber, $boExpirationDate] = $this->deductFifoStock($boProductId, $requestedQty);
@@ -460,15 +488,18 @@ class BranchInventoryController extends Controller
                     'expiration_date' => $boExpirationDate,
                     'movement_date' => $validated['movement_date'],
                     'reference_number' => $drNumber,
-                    'unit_price' => $saleItem->unit_price,
-                    'source_sale_item_id' => $saleItem->id,
-                    'notes' => $notesValue.' | BO Replacement — free, original DR# '.($saleItem->sale->dr_number ?? '—'),
+                    'unit_price' => $boUnitPrice,
+                    'source_sale_item_id' => $saleItemId,
+                    'bo_original_dr_number' => $saleItemId ? null : (! empty($boData['dr_number']) ? trim($boData['dr_number']) : null),
+                    'notes' => $notesValue.' | BO Replacement — free, original DR# '.$boOriginalDr,
                     'user_id' => Auth::id(),
                 ]);
 
-                $saleItem->increment('quantity_replaced', $requestedQty);
+                if ($saleItemId) {
+                    $saleItem->increment('quantity_replaced', $requestedQty);
+                }
 
-                $boReplacedItems[] = "{$saleItem->finishedProduct->name} ({$requestedQty})";
+                $boReplacedItems[] = "{$boProductName} ({$requestedQty})";
             }
 
             $branch->addCustomer($validated['customer_name']);

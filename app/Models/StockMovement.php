@@ -22,6 +22,7 @@ class StockMovement extends Model
         'from_branch_id',  // ADDED: For your transfer relationships
         'unit_price',
         'source_sale_item_id',
+        'bo_original_dr_number',
     ];
 
     protected $casts = [

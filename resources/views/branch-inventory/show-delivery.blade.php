@@ -278,7 +278,7 @@
                 <tr>
                     <td style="color:var(--text-muted);font-size:.68rem;text-align:center">{{ $boRowNum++ }}</td>
                     <td><span style="font-weight:600;color:var(--text-primary)">{{ $boMv->finishedProduct->name ?? '—' }}</span></td>
-                    <td style="font-size:.75rem;color:var(--text-secondary)">DR# {{ $boMv->sourceSaleItem->sale->dr_number ?? '—' }}</td>
+                    <td style="font-size:.75rem;color:var(--text-secondary)">DR# {{ $boMv->sourceSaleItem?->sale?->dr_number ?? $boMv->bo_original_dr_number ?? '—' }}</td>
                     <td class="text-center" style="font-weight:700;font-size:.84rem">{{ number_format($boMv->quantity, 0) }}</td>
                     <td class="text-end">&#8369;{{ number_format($boMv->unit_price ?? 0, 2) }}</td>
                     <td class="text-end" style="font-weight:600">&#8369;{{ number_format($boAmount, 2) }}</td>
@@ -382,7 +382,7 @@
             <tr>
                 <td class="tc">{{ number_format($boMv->quantity, 0) }}</td>
                 <td>{{ $boMv->finishedProduct->name ?? '—' }}</td>
-                <td>{{ $boMv->sourceSaleItem->sale->dr_number ?? '—' }}</td>
+                <td>{{ $boMv->sourceSaleItem?->sale?->dr_number ?? $boMv->bo_original_dr_number ?? '—' }}</td>
                 <td class="tr">{{ number_format($boMv->unit_price ?? 0, 2) }}</td>
                 <td class="tr">{{ number_format($boPrintAmount, 2) }}</td>
             </tr>
